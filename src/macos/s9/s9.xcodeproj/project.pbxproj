@@ -10,6 +10,7 @@
 		E21F2E6B2C3AC54800135373 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E21F2E6A2C3AC54800135373 /* main.c */; };
 		E21F2E732C3AC58700135373 /* s9_app.c in Sources */ = {isa = PBXBuildFile; fileRef = E21F2E722C3AC58700135373 /* s9_app.c */; };
 		E21F2E7B2C3B3D0800135373 /* libSDL2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */; };
+		E2FF4F312C3CD98600308A0E /* libSDL2_ttf.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -31,6 +32,7 @@
 		E21F2E722C3AC58700135373 /* s9_app.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = s9_app.c; sourceTree = "<group>"; };
 		E21F2E742C3AC75B00135373 /* s9.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = s9.h; sourceTree = "<group>"; };
 		E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2.dylib; path = ../../../../../../../usr/local/lib/libSDL2.dylib; sourceTree = "<group>"; };
+		E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2_ttf.dylib; path = ../../../../../../../usr/local/lib/libSDL2_ttf.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,6 +41,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E21F2E7B2C3B3D0800135373 /* libSDL2.dylib in Frameworks */,
+				E2FF4F312C3CD98600308A0E /* libSDL2_ttf.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +79,7 @@
 		E21F2E752C3B3CC800135373 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */,
 				E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */,
 			);
 			name = Frameworks;
@@ -270,6 +274,10 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				HEADER_SEARCH_PATHS = /usr/local/include;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/usr/local/Cellar/sdl2_ttf/2.22.0/lib,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -279,6 +287,10 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				HEADER_SEARCH_PATHS = /usr/local/include;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/usr/local/Cellar/sdl2_ttf/2.22.0/lib,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
