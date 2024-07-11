@@ -15,6 +15,12 @@ const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
 const int SINE_WAVE_AMPLITUDE = WINDOW_HEIGHT / 2 - 10; // Amplitude fills the screen
 const int CIRCLE_RADIUS = 50;
+const int AMPLITUDE_BAR_WIDTH = WINDOW_WIDTH - 40;
+const int AMPLITUDE_BAR_HEIGHT = 30;
+const int AMPLITUDE_BAR_Y = 20;
+
+float amplitude = -60.0f; // Global variable for amplitude in dB
+SDL_mutex* amplitude_mutex; // Mutex for amplitude variable
 
 void logSDLError(const char* msg) {
 	fprintf(stderr, "%s error: %s\n", msg, SDL_GetError());
@@ -98,27 +104,39 @@ void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) 
 	free(indices);
 }
 
-void printRendererInfo(SDL_Renderer* renderer) {
-	SDL_RendererInfo info;
-	if (SDL_GetRendererInfo(renderer, &info) != 0) {
-		logSDLError("SDL_GetRendererInfo");
-		return;
+void drawAmplitudeBar(SDL_Renderer* renderer, float amplitude) {
+	int barLength = (int)((amplitude + 60.0f) / 60.0f * AMPLITUDE_BAR_WIDTH);
+	barLength = barLength < 0 ? 0 : (barLength > AMPLITUDE_BAR_WIDTH ? AMPLITUDE_BAR_WIDTH : barLength);
+	SDL_Rect barRect = { 20, AMPLITUDE_BAR_Y, barLength, AMPLITUDE_BAR_HEIGHT };
+
+	SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255); // Green color for the bar
+	SDL_RenderFillRect(renderer, &barRect);
+}
+
+void audio_callback(void *userdata, Uint8 *stream, int len) {
+	float* samples = (float*)stream;
+	int sampleCount = len / sizeof(float);
+	float sum = 0.0f;
+
+	for (int i = 0; i < sampleCount; i++) {
+		sum += samples[i] * samples[i];
 	}
 
-	fprintf(stdout, "Renderer name: %s\n", info.name);
-	fprintf(stdout, "Renderer flags:\n");
-	if (info.flags & SDL_RENDERER_SOFTWARE) fprintf(stdout, " - Software\n");
-	if (info.flags & SDL_RENDERER_ACCELERATED) fprintf(stdout, " - Accelerated\n");
-	if (info.flags & SDL_RENDERER_PRESENTVSYNC) fprintf(stdout, " - VSync\n");
-	if (info.flags & SDL_RENDERER_TARGETTEXTURE) fprintf(stdout, " - Render to texture\n");
+	float rms = sqrt(sum / sampleCount);
+	float db = 20.0f * log10(rms);
 
-	fprintf(stdout, "Max texture width: %d\n", info.max_texture_width);
-	fprintf(stdout, "Max texture height: %d\n", info.max_texture_height);
+	SDL_LockMutex(amplitude_mutex);
+	if (db > amplitude) {
+		amplitude = db;
+	} else {
+		amplitude -= 0.5f;
+	}
+	SDL_UnlockMutex(amplitude_mutex);
 }
 
 int main(int argc, char* argv[]) {
 	// Initialize SDL
-	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
 		logSDLError("SDL_Init");
 		return 1;
 	}
@@ -131,7 +149,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Create window
-	SDL_Window* window = SDL_CreateWindow("SDL2 Text and Sine Wave Rendering",
+	SDL_Window* window = SDL_CreateWindow("SDL2 Audio Input and Amplitude Display",
 										  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 										  WINDOW_WIDTH, WINDOW_HEIGHT,
 										  SDL_WINDOW_SHOWN);
@@ -151,9 +169,6 @@ int main(int argc, char* argv[]) {
 		SDL_Quit();
 		return 1;
 	}
-
-	// Print renderer info
-	printRendererInfo(renderer);
 
 	// Enable blending mode for anti-aliasing
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -180,6 +195,44 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
+	// Create mutex for amplitude variable
+	amplitude_mutex = SDL_CreateMutex();
+	if (amplitude_mutex == NULL) {
+		logSDLError("SDL_CreateMutex");
+		TTF_CloseFont(font200);
+		TTF_CloseFont(font14);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		TTF_Quit();
+		SDL_Quit();
+		return 1;
+	}
+
+	// Setup audio capture
+	SDL_AudioSpec desiredSpec, obtainedSpec;
+	SDL_zero(desiredSpec);
+	desiredSpec.freq = 44100;
+	desiredSpec.format = AUDIO_F32;
+	desiredSpec.channels = 2;
+	desiredSpec.samples = 1024;
+	desiredSpec.callback = audio_callback;
+
+	SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(NULL, 1, &desiredSpec, &obtainedSpec, 0);
+	if (audioDevice == 0) {
+		logSDLError("SDL_OpenAudioDevice");
+		SDL_DestroyMutex(amplitude_mutex);
+		TTF_CloseFont(font200);
+		TTF_CloseFont(font14);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		TTF_Quit();
+		SDL_Quit();
+		return 1;
+	}
+
+	// Start audio capture
+	SDL_PauseAudioDevice(audioDevice, 0);
+
 	Uint32 startTime = SDL_GetTicks();
 	int frameCount = 0;
 
@@ -188,6 +241,8 @@ int main(int argc, char* argv[]) {
 	SDL_Color currentColor = colors[0];
 	SDL_Texture* textTexture = createTextTexture(renderer, font200, "Hello, world!", currentColor, &textWidth, &textHeight);
 	if (textTexture == NULL) {
+		SDL_CloseAudioDevice(audioDevice);
+		SDL_DestroyMutex(amplitude_mutex);
 		TTF_CloseFont(font200);
 		TTF_CloseFont(font14);
 		SDL_DestroyRenderer(renderer);
@@ -305,6 +360,11 @@ int main(int argc, char* argv[]) {
 		// Draw polygon
 		drawPolygon(renderer, vertices, 5);
 
+		// Draw amplitude bar
+		SDL_LockMutex(amplitude_mutex);
+		drawAmplitudeBar(renderer, amplitude);
+		SDL_UnlockMutex(amplitude_mutex);
+
 		// Present renderer
 		SDL_RenderPresent(renderer);
 
@@ -315,6 +375,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Clean up
+	SDL_CloseAudioDevice(audioDevice);
+	SDL_DestroyMutex(amplitude_mutex);
 	SDL_DestroyTexture(textTexture);
 	TTF_CloseFont(font200);
 	TTF_CloseFont(font14);
