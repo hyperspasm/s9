@@ -26,6 +26,24 @@ void logSDLError(const char* msg) {
 	fprintf(stderr, "%s error: %s\n", msg, SDL_GetError());
 }
 
+void printRendererInfo(SDL_Renderer* renderer) {
+	SDL_RendererInfo info;
+	if (SDL_GetRendererInfo(renderer, &info) != 0) {
+		logSDLError("SDL_GetRendererInfo");
+		return;
+	}
+
+	fprintf(stdout, "Renderer name: %s\n", info.name);
+	fprintf(stdout, "Renderer flags:\n");
+	if (info.flags & SDL_RENDERER_SOFTWARE) fprintf(stdout, " - Software\n");
+	if (info.flags & SDL_RENDERER_ACCELERATED) fprintf(stdout, " - Accelerated\n");
+	if (info.flags & SDL_RENDERER_PRESENTVSYNC) fprintf(stdout, " - VSync\n");
+	if (info.flags & SDL_RENDERER_TARGETTEXTURE) fprintf(stdout, " - Render to texture\n");
+
+	fprintf(stdout, "Max texture width: %d\n", info.max_texture_width);
+	fprintf(stdout, "Max texture height: %d\n", info.max_texture_height);
+}
+
 SDL_Texture* createTextTexture(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Color color, int* width, int* height) {
 	SDL_Surface* surface = TTF_RenderText_Blended(font, text, color);
 	if (surface == NULL) {
@@ -169,6 +187,9 @@ int main(int argc, char* argv[]) {
 		SDL_Quit();
 		return 1;
 	}
+
+	// Print renderer info
+	printRendererInfo(renderer);
 
 	// Enable blending mode for anti-aliasing
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
