@@ -26,7 +26,7 @@ void logSDLError(const char* msg) {
 	fprintf(stderr, "%s error: %s\n", msg, SDL_GetError());
 }
 
-void printRendererInfo(SDL_Renderer* renderer) {
+void printRendererInfo(SDL_Window* window, SDL_Renderer* renderer) {
 	SDL_RendererInfo info;
 	if (SDL_GetRendererInfo(renderer, &info) != 0) {
 		logSDLError("SDL_GetRendererInfo");
@@ -42,6 +42,25 @@ void printRendererInfo(SDL_Renderer* renderer) {
 
 	fprintf(stdout, "Max texture width: %d\n", info.max_texture_width);
 	fprintf(stdout, "Max texture height: %d\n", info.max_texture_height);
+
+	int displayIndex = SDL_GetWindowDisplayIndex(window);
+	if (displayIndex < 0) {
+		logSDLError("SDL_GetWindowDisplayIndex");
+		return;
+	}
+
+	SDL_DisplayMode displayMode;
+	if (SDL_GetCurrentDisplayMode(displayIndex, &displayMode) != 0) {
+		logSDLError("SDL_GetCurrentDisplayMode");
+		return;
+	}
+
+	fprintf(stdout, "Display mode:\n");
+	fprintf(stdout, " - Format: %s\n", SDL_GetPixelFormatName(displayMode.format));
+	fprintf(stdout, " - Width: %d\n", displayMode.w);
+	fprintf(stdout, " - Height: %d\n", displayMode.h);
+	fprintf(stdout, " - Refresh rate: %d Hz\n", displayMode.refresh_rate);
+	fprintf(stdout, " - Driver data: %p\n", displayMode.driverdata);
 }
 
 SDL_Texture* createTextTexture(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Color color, int* width, int* height) {
@@ -189,7 +208,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Print renderer info
-	printRendererInfo(renderer);
+	printRendererInfo(window, renderer);
 
 	// Enable blending mode for anti-aliasing
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
