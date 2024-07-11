@@ -162,12 +162,10 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
 	float rms = sqrt(sum / sampleCount);
 	float db = 20.0f * log10(rms);
 
+	if (db < amplitude) db = amplitude - 0.5f;
+
 	SDL_LockMutex(amplitude_mutex);
-	if (db > amplitude) {
-		amplitude = db;
-	} else {
-		amplitude -= 0.5f;
-	}
+	amplitude = db;
 	SDL_UnlockMutex(amplitude_mutex);
 }
 
