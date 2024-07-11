@@ -1,344 +1,276 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
+// Define font path
 #ifdef __APPLE__
-#include <OpenGL/gl3.h>
-#define GL_GLEXT_PROTOTYPES
-const GLchar* vertexSource =
-	"#version 150 core\n"
-	"in vec2 position;\n"
-	"void main() {\n"
-	"    gl_Position = vec4(position, 0.0, 1.0);\n"
-	"}";
-const GLchar* fragmentSource =
-	"#version 150 core\n"
-	"out vec4 outColor;\n"
-	"void main() {\n"
-	"    outColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
-	"}";
-const GLchar* textVertexSource =
-	"#version 150 core\n"
-	"in vec2 position;\n"
-	"in vec2 texcoord;\n"
-	"out vec2 Texcoord;\n"
-	"void main() {\n"
-	//"    Texcoord = texcoord;\n"
-	"   Texcoord = vec2(texcoord.x, 1.0 - texcoord.y);\n"
-	"    gl_Position = vec4(position, 0.0, 1.0);\n"
-	"}";
-const GLchar* textFragmentSource =
-	"#version 150 core\n"
-	"in vec2 Texcoord;\n"
-	"out vec4 outColor;\n"
-	"uniform sampler2D tex;\n"
-	"void main() {\n"
-	"    outColor = texture(tex, Texcoord);\n"
-	"}";
+#define FONT_PATH "/Users/shea/work/s9/src/macos/s9/s9/Roboto-Regular.ttf"
 #else
-#include <GLES2/gl2.h>
-#include <EGL/egl.h>
-const GLchar* vertexSource =
-	"attribute vec2 position;\n"
-	"void main() {\n"
-	"    gl_Position = vec4(position, 0.0, 1.0);\n"
-	"}";
-const GLchar* fragmentSource =
-	"precision mediump float;\n"
-	"void main() {\n"
-	"    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
-	"}";
-const GLchar* textVertexSource =
-	"attribute vec2 position;\n"
-	"attribute vec2 texcoord;\n"
-	"varying vec2 Texcoord;\n"
-	"void main() {\n"
-	"    Texcoord = texcoord;\n"
-	"    gl_Position = vec4(position, 0.0, 1.0);\n"
-	"}";
-const GLchar* textFragmentSource =
-	"precision mediump float;\n"
-	"varying vec2 Texcoord;\n"
-	"uniform sampler2D tex;\n"
-	"void main() {\n"
-	"    gl_FragColor = texture2D(tex, Texcoord);\n"
-	"}";
+#define FONT_PATH "Roboto-Regular.ttf"
 #endif
 
-#define SCREEN_WIDTH 1920
-#define SCREEN_HEIGHT 1080
+const int WINDOW_WIDTH = 1920;
+const int WINDOW_HEIGHT = 1080;
+const int SINE_WAVE_AMPLITUDE = WINDOW_HEIGHT / 2 - 10; // Amplitude fills the screen
+const int CIRCLE_RADIUS = 50;
 
-void createGrid(float* vertices, int* indices) {
-	int index = 0;
-	for (int i = -5; i <= 5; ++i) {
-		vertices[index++] = i / 5.0f; vertices[index++] = -1.0f;
-		vertices[index++] = i / 5.0f; vertices[index++] =  1.0f;
-		vertices[index++] = -1.0f; vertices[index++] = i / 5.0f;
-		vertices[index++] =  1.0f; vertices[index++] = i / 5.0f;
-	}
-
-	for (int i = 0; i < 44; ++i) {
-		indices[i] = i;
-	}
+void logSDLError(const char* msg) {
+	fprintf(stderr, "%s error: %s\n", msg, SDL_GetError());
 }
 
-void checkShaderCompilation(GLuint shader) {
-	GLint success;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		GLchar infoLog[512];
-		glGetShaderInfoLog(shader, 512, NULL, infoLog);
-		fprintf(stderr, "Shader Compilation Error: %s\n", infoLog);
+SDL_Texture* createTextTexture(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Color color, int* width, int* height) {
+	SDL_Surface* surface = TTF_RenderText_Blended(font, text, color);
+	if (surface == NULL) {
+		logSDLError("TTF_RenderText");
+		return NULL;
 	}
-}
-
-GLuint compileShader(GLenum type, const char* source) {
-	GLuint shader = glCreateShader(type);
-	glShaderSource(shader, 1, &source, NULL);
-	glCompileShader(shader);
-	checkShaderCompilation(shader);
-	return shader;
-}
-
-GLuint createProgram(const char* vertexSource, const char* fragmentSource) {
-	GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-	GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-
-	GLuint program = glCreateProgram();
-	glAttachShader(program, vertexShader);
-	glAttachShader(program, fragmentShader);
-	glLinkProgram(program);
-
-	GLint status;
-	glGetProgramiv(program, GL_LINK_STATUS, &status);
-	if (status != GL_TRUE) {
-		char buffer[512];
-		glGetProgramInfoLog(program, 512, NULL, buffer);
-		fprintf(stderr, "Program linking failed: %s\n", buffer);
+	SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+	if (texture == NULL) {
+		logSDLError("SDL_CreateTextureFromSurface");
+		SDL_FreeSurface(surface);
+		return NULL;
 	}
-
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
-
-	return program;
-}
-
-GLuint createTextTexture(const char* text, TTF_Font* font, SDL_Color color, int* w, int* h) {
-	SDL_Surface* surface = TTF_RenderUTF8_Blended(font, text, color);
-	if (!surface) {
-		fprintf(stderr, "Unable to create text surface: %s\n", TTF_GetError());
-		return 0;
-	}
-
-	*w = surface->w;
-	*h = surface->h;
-	
-	printf("1: %s\n", SDL_GetPixelFormatName(surface->format->format));
-	
-#if 1
-	// Convert surface to a known format (RGBA32)
-	SDL_Surface* formattedSurface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
+	*width = surface->w;
+	*height = surface->h;
 	SDL_FreeSurface(surface);
-
-	if (!formattedSurface) {
-		fprintf(stderr, "Unable to convert text surface: %s\n", SDL_GetError());
-		return 0;
-	}
-#else
-	SDL_Surface* formattedSurface = surface;
-#endif
-	
-	printf("2: %s\n", SDL_GetPixelFormatName(formattedSurface->format->format));
-
-	GLuint texture;
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, formattedSurface->w, formattedSurface->h, 0,
-				 GL_RGBA, GL_UNSIGNED_BYTE, formattedSurface->pixels);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	GLenum error = glGetError();
-	if (error != GL_NO_ERROR) {
-		fprintf(stderr, "Error uploading texture: %d\n", error);
-	}
-
-	SDL_FreeSurface(formattedSurface);
 	return texture;
 }
 
-void renderText(GLuint texture, GLuint vao, GLuint vbo, GLuint program, float x, float y, float w, float h) {
-	GLfloat vertices[] = {
-		x, y, 0.0f, 0.0f,
-		x + w, y, 1.0f, 0.0f,
-		x + w, y + h, 1.0f, 1.0f,
-		x, y + h, 0.0f, 1.0f
-	};
+void drawThickSineWave(SDL_Renderer* renderer, int width, int height, int thickness) {
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White color
+	for (int x = 0; x < width; x++) {
+		int y = height / 2 + (int)(SINE_WAVE_AMPLITUDE * sin(2 * M_PI * x / width));
+		for (int i = -thickness / 2; i <= thickness / 2; i++) {
+			SDL_RenderDrawPoint(renderer, x, y + i);
+		}
+	}
+}
 
-	glUseProgram(program);
+void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color) {
+	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+	const int diameter = (radius * 2);
+	int x = (radius - 1);
+	int y = 0;
+	int tx = 1;
+	int ty = 1;
+	int error = (tx - diameter);
 
-	glBindTexture(GL_TEXTURE_2D, texture);
-	glBindVertexArray(vao);
+	while (x >= y) {
+		SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
+		SDL_RenderDrawPoint(renderer, centerX + x, centerY + y);
+		SDL_RenderDrawPoint(renderer, centerX - x, centerY - y);
+		SDL_RenderDrawPoint(renderer, centerX - x, centerY + y);
+		SDL_RenderDrawPoint(renderer, centerX + y, centerY - x);
+		SDL_RenderDrawPoint(renderer, centerX + y, centerY + x);
+		SDL_RenderDrawPoint(renderer, centerX - y, centerY - x);
+		SDL_RenderDrawPoint(renderer, centerX - y, centerY + x);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+		if (error <= 0) {
+			++y;
+			error += ty;
+			ty += 2;
+		}
 
-	GLint texUniform = glGetUniformLocation(program, "tex");
-	glUniform1i(texUniform, 0);
-
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	glBindVertexArray(0);
-	glBindTexture(GL_TEXTURE_2D, 0);
+		if (error > 0) {
+			--x;
+			tx += 2;
+			error += (tx - diameter);
+		}
+	}
 }
 
 int main(int argc, char* argv[]) {
-	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-		fprintf(stderr, "Could not initialize SDL: %s\n", SDL_GetError());
+	// Initialize SDL
+	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+		logSDLError("SDL_Init");
 		return 1;
 	}
 
-	if (TTF_Init() < 0) {
-		fprintf(stderr, "Could not initialize SDL_ttf: %s\n", TTF_GetError());
+	// Initialize SDL_ttf
+	if (TTF_Init() != 0) {
+		logSDLError("TTF_Init");
 		SDL_Quit();
 		return 1;
 	}
 
-#ifdef __APPLE__
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-#else
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-#endif
-
-	SDL_Window *window = SDL_CreateWindow("SDL2 OpenGL Grid",
+	// Create window
+	SDL_Window* window = SDL_CreateWindow("SDL2 Text and Sine Wave Rendering",
 										  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-										  SCREEN_WIDTH, SCREEN_HEIGHT,
-										  SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
-	if (!window) {
-		fprintf(stderr, "Could not create window: %s\n", SDL_GetError());
+										  WINDOW_WIDTH, WINDOW_HEIGHT,
+										  SDL_WINDOW_SHOWN);
+	if (window == NULL) {
+		logSDLError("SDL_CreateWindow");
+		TTF_Quit();
 		SDL_Quit();
 		return 1;
 	}
 
-	SDL_GLContext context = SDL_GL_CreateContext(window);
-	if (!context) {
-		fprintf(stderr, "Could not create OpenGL context: %s\n", SDL_GetError());
+	// Create renderer
+	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	if (renderer == NULL) {
+		logSDLError("SDL_CreateRenderer");
 		SDL_DestroyWindow(window);
+		TTF_Quit();
 		SDL_Quit();
 		return 1;
 	}
 
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	// Enable blending mode for anti-aliasing
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-	float vertices[88];
-	int indices[44];
-	createGrid(vertices, indices);
-
-	GLuint vao, vbo, ebo, textVao, textVbo;
-
-#ifdef __APPLE__
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-#endif
-
-	glGenBuffers(1, &vbo);
-	glGenBuffers(1, &ebo);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	GLuint gridShaderProgram = createProgram(vertexSource, fragmentSource);
-	glUseProgram(gridShaderProgram);
-
-	GLint posAttrib = glGetAttribLocation(gridShaderProgram, "position");
-	glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
-	glEnableVertexAttribArray(posAttrib);
-
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-	TTF_Font* font = TTF_OpenFont("/Users/shea/work/s9/src/macos/s9/s9/Roboto-Regular.ttf", 40);
-	if (!font) {
-		fprintf(stderr, "Could not load font: %s\n", TTF_GetError());
-		SDL_GL_DeleteContext(context);
+	// Load fonts
+	TTF_Font* font200 = TTF_OpenFont(FONT_PATH, 200);
+	if (font200 == NULL) {
+		logSDLError("TTF_OpenFont 200");
+		SDL_DestroyRenderer(renderer);
 		SDL_DestroyWindow(window);
+		TTF_Quit();
 		SDL_Quit();
 		return 1;
 	}
 
-	SDL_Color color = { 255, 255, 255, 255 };
+	TTF_Font* font14 = TTF_OpenFont(FONT_PATH, 14);
+	if (font14 == NULL) {
+		logSDLError("TTF_OpenFont 14");
+		TTF_CloseFont(font200);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		TTF_Quit();
+		SDL_Quit();
+		return 1;
+	}
+
+	Uint32 startTime = SDL_GetTicks();
+	int frameCount = 0;
+
 	int textWidth, textHeight;
-	GLuint textTexture = createTextTexture("GLuint textTexture = createTextTexture", font, color, &textWidth, &textHeight);
+	SDL_Color colors[2] = { {255, 0, 0, 255}, {0, 255, 0, 255} }; // Red and Green
+	SDL_Color currentColor = colors[0];
+	SDL_Texture* textTexture = createTextTexture(renderer, font200, "Hello, world!", currentColor, &textWidth, &textHeight);
+	if (textTexture == NULL) {
+		TTF_CloseFont(font200);
+		TTF_CloseFont(font14);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		TTF_Quit();
+		SDL_Quit();
+		return 1;
+	}
 
-	glGenVertexArrays(1, &textVao);
-	glBindVertexArray(textVao);
+	int mouseX, mouseY;
+	SDL_Texture* mouseTexture = NULL;
+	int mouseWidth, mouseHeight;
 
-	glGenBuffers(1, &textVbo);
-	glBindBuffer(GL_ARRAY_BUFFER, textVbo);
-
-	GLuint textShaderProgram = createProgram(textVertexSource, textFragmentSource);
-	glUseProgram(textShaderProgram);
-
-	GLint textPosAttrib = glGetAttribLocation(textShaderProgram, "position");
-	glVertexAttribPointer(textPosAttrib, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-	glEnableVertexAttribArray(textPosAttrib);
-
-	GLint texCoordAttrib = glGetAttribLocation(textShaderProgram, "texcoord");
-	glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-	glEnableVertexAttribArray(texCoordAttrib);
-
-	int running = 1;
-	while (running) {
-		SDL_Event event;
-		while (SDL_PollEvent(&event)) {
-			if (event.type == SDL_QUIT) {
-				running = 0;
+	// Main loop
+	int quit = 0;
+	SDL_Event e;
+	while (!quit) {
+		while (SDL_PollEvent(&e)) {
+			if (e.type == SDL_QUIT) {
+				quit = 1;
+			} else if (e.type == SDL_KEYDOWN) {
+				printf("Key pressed: %s\n", SDL_GetKeyName(e.key.keysym.sym));
 			}
 		}
 
-		glClear(GL_COLOR_BUFFER_BIT);
+		SDL_GetMouseState(&mouseX, &mouseY);
 
-		// Render grid
-		glUseProgram(gridShaderProgram);
-		glBindVertexArray(vao);
-		glDrawElements(GL_LINES, 44, GL_UNSIGNED_INT, 0);
+		// Clear screen
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black color
+		SDL_RenderClear(renderer);
 
-		// Render text
-		renderText(textTexture, textVao, textVbo, textShaderProgram, -0.8f, 0.8f, textWidth / (float)SCREEN_WIDTH, textHeight / (float)SCREEN_HEIGHT);
+		// Draw thick sine wave
+		drawThickSineWave(renderer, WINDOW_WIDTH, WINDOW_HEIGHT, 3);
 
-		SDL_GL_SwapWindow(window);
+		// Render "Hello, world!" text
+		SDL_Rect textRect = { (WINDOW_WIDTH - textWidth) / 2, (WINDOW_HEIGHT - textHeight) / 2, textWidth, textHeight };
+		SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+
+		// Calculate frame rate
+		frameCount++;
+		Uint32 elapsedTime = SDL_GetTicks() - startTime;
+		float fps = frameCount / (elapsedTime / 1000.0f);
+
+		// Create FPS text surface
+		char fpsText[32];
+		snprintf(fpsText, sizeof(fpsText), "FPS: %.2f", fps);
+		SDL_Surface* fpsSurface = TTF_RenderText_Blended(font14, fpsText, (SDL_Color){255, 255, 255, 255});
+		if (fpsSurface == NULL) {
+			logSDLError("TTF_RenderText FPS");
+			break;
+		}
+
+		// Create FPS text texture
+		SDL_Texture* fpsTexture = SDL_CreateTextureFromSurface(renderer, fpsSurface);
+		if (fpsTexture == NULL) {
+			logSDLError("SDL_CreateTextureFromSurface FPS");
+			SDL_FreeSurface(fpsSurface);
+			break;
+		}
+
+		// Render FPS text
+		SDL_Rect fpsRect = { 10, 10, fpsSurface->w, fpsSurface->h };
+		SDL_RenderCopy(renderer, fpsTexture, NULL, &fpsRect);
+
+		SDL_FreeSurface(fpsSurface);
+		SDL_DestroyTexture(fpsTexture);
+
+		// Create mouse coordinates text surface
+		char mouseText[32];
+		snprintf(mouseText, sizeof(mouseText), "Mouse: (%d, %d)", mouseX, mouseY);
+		SDL_Surface* mouseSurface = TTF_RenderText_Blended(font14, mouseText, (SDL_Color){255, 255, 255, 255});
+		if (mouseSurface == NULL) {
+			logSDLError("TTF_RenderText Mouse");
+			break;
+		}
+
+		// Create mouse coordinates text texture
+		mouseTexture = SDL_CreateTextureFromSurface(renderer, mouseSurface);
+		if (mouseTexture == NULL) {
+			logSDLError("SDL_CreateTextureFromSurface Mouse");
+			SDL_FreeSurface(mouseSurface);
+			break;
+		}
+
+		// Render mouse coordinates text
+		SDL_Rect mouseRect = { WINDOW_WIDTH - mouseSurface->w - 10, 10, mouseSurface->w, mouseSurface->h };
+		SDL_RenderCopy(renderer, mouseTexture, NULL, &mouseRect);
+
+		SDL_FreeSurface(mouseSurface);
+		SDL_DestroyTexture(mouseTexture);
+
+		// Determine circle color based on mouse button state
+		Uint32 mouseState = SDL_GetMouseState(NULL, NULL);
+		SDL_Color circleColor;
+		if (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+			circleColor = (SDL_Color){255, 0, 0, 255}; // Red
+		} else if (mouseState & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
+			circleColor = (SDL_Color){0, 0, 255, 255}; // Blue
+		} else {
+			circleColor = (SDL_Color){0, 255, 0, 255}; // Green
+		}
+
+		// Draw circle outline following the mouse
+		drawCircle(renderer, mouseX, mouseY, CIRCLE_RADIUS, circleColor);
+
+		// Present renderer
+		SDL_RenderPresent(renderer);
+
+		// Alternate "Hello, world!" color
+		currentColor = colors[frameCount % 2];
+		SDL_DestroyTexture(textTexture);
+		textTexture = createTextTexture(renderer, font200, "Hello, world!", currentColor, &textWidth, &textHeight);
 	}
 
-	glDeleteTextures(1, &textTexture);
-	TTF_CloseFont(font);
-	TTF_Quit();
-
-	glDeleteProgram(gridShaderProgram);
-	glDeleteProgram(textShaderProgram);
-
-	glDeleteBuffers(1, &vbo);
-	glDeleteBuffers(1, &ebo);
-	glDeleteBuffers(1, &textVbo);
-
-#ifdef __APPLE__
-	glDeleteVertexArrays(1, &vao);
-	glDeleteVertexArrays(1, &textVao);
-#endif
-
-	SDL_GL_DeleteContext(context);
+	// Clean up
+	SDL_DestroyTexture(textTexture);
+	TTF_CloseFont(font200);
+	TTF_CloseFont(font14);
+	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
+	TTF_Quit();
 	SDL_Quit();
 
 	return 0;
