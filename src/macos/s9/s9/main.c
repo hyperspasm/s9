@@ -81,6 +81,23 @@ void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SD
 	}
 }
 
+void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) {
+	// Triangulate the polygon (assuming it's convex)
+	// This example assumes numVertices is at least 3 and that the polygon is convex.
+	int numIndices = (numVertices - 2) * 3;
+	int* indices = (int*)malloc(numIndices * sizeof(int));
+
+	for (int i = 0; i < numVertices - 2; i++) {
+		indices[i * 3] = 0;
+		indices[i * 3 + 1] = i + 1;
+		indices[i * 3 + 2] = i + 2;
+	}
+
+	SDL_RenderGeometry(renderer, NULL, vertices, numVertices, indices, numIndices);
+
+	free(indices);
+}
+
 int main(int argc, char* argv[]) {
 	// Initialize SDL
 	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -162,6 +179,15 @@ int main(int argc, char* argv[]) {
 	int mouseX, mouseY;
 	SDL_Texture* mouseTexture = NULL;
 	int mouseWidth, mouseHeight;
+
+	// Define a polygon with 5 vertices
+	SDL_Vertex vertices[5] = {
+		{{500, 300}, {255, 0, 0, 255}, {0, 0}},   // Vertex 1
+		{{700, 300}, {0, 255, 0, 255}, {0, 0}},   // Vertex 2
+		{{750, 500}, {0, 0, 255, 255}, {0, 0}},   // Vertex 3
+		{{600, 600}, {255, 255, 0, 255}, {0, 0}}, // Vertex 4
+		{{450, 500}, {0, 255, 255, 255}, {0, 0}}  // Vertex 5
+	};
 
 	// Main loop
 	int quit = 0;
@@ -254,6 +280,9 @@ int main(int argc, char* argv[]) {
 
 		// Draw circle outline following the mouse
 		drawCircle(renderer, mouseX, mouseY, CIRCLE_RADIUS, circleColor);
+
+		// Draw polygon
+		drawPolygon(renderer, vertices, 5);
 
 		// Present renderer
 		SDL_RenderPresent(renderer);
