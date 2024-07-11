@@ -246,6 +246,28 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
+	// List available audio devices
+	int numAudioDevices = SDL_GetNumAudioDevices(SDL_TRUE);
+	fprintf(stdout, "Available audio capture devices:\n");
+	for (int i = 0; i < numAudioDevices; ++i) {
+		fprintf(stdout, " - %s\n", SDL_GetAudioDeviceName(i, SDL_TRUE));
+	}
+
+	const char* audioDeviceName = SDL_GetAudioDeviceName(0, SDL_TRUE);
+	if (audioDeviceName == NULL) {
+		fprintf(stderr, "No audio capture devices found.\n");
+		SDL_DestroyMutex(amplitude_mutex);
+		TTF_CloseFont(font200);
+		TTF_CloseFont(font14);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+		TTF_Quit();
+		SDL_Quit();
+		return 1;
+	}
+
+	fprintf(stdout, "Using audio capture device: %s\n", audioDeviceName);
+
 	// Setup audio capture
 	SDL_AudioSpec desiredSpec, obtainedSpec;
 	SDL_zero(desiredSpec);
@@ -255,7 +277,7 @@ int main(int argc, char* argv[]) {
 	desiredSpec.samples = 1024;
 	desiredSpec.callback = audio_callback;
 
-	SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(NULL, 1, &desiredSpec, &obtainedSpec, 0);
+	SDL_AudioDeviceID audioDevice = SDL_OpenAudioDevice(audioDeviceName, SDL_TRUE, &desiredSpec, &obtainedSpec, 0);
 	if (audioDevice == 0) {
 		logSDLError("SDL_OpenAudioDevice");
 		SDL_DestroyMutex(amplitude_mutex);
