@@ -91,39 +91,6 @@ void drawThickSineWave(SDL_Renderer* renderer, int width, int height, int thickn
 	}
 }
 
-void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color) {
-	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-	const int diameter = (radius * 2);
-	int x = (radius - 1);
-	int y = 0;
-	int tx = 1;
-	int ty = 1;
-	int error = (tx - diameter);
-
-	while (x >= y) {
-		SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
-		SDL_RenderDrawPoint(renderer, centerX + x, centerY + y);
-		SDL_RenderDrawPoint(renderer, centerX - x, centerY - y);
-		SDL_RenderDrawPoint(renderer, centerX - x, centerY + y);
-		SDL_RenderDrawPoint(renderer, centerX + y, centerY - x);
-		SDL_RenderDrawPoint(renderer, centerX + y, centerY + x);
-		SDL_RenderDrawPoint(renderer, centerX - y, centerY - x);
-		SDL_RenderDrawPoint(renderer, centerX - y, centerY + x);
-
-		if (error <= 0) {
-			++y;
-			error += ty;
-			ty += 2;
-		}
-
-		if (error > 0) {
-			--x;
-			tx += 2;
-			error += (tx - diameter);
-		}
-	}
-}
-
 void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) {
 	// Triangulate the polygon (assuming it's convex)
 	// This example assumes numVertices is at least 3 and that the polygon is convex.
@@ -139,6 +106,28 @@ void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) 
 	SDL_RenderGeometry(renderer, NULL, vertices, numVertices, indices, numIndices);
 
 	free(indices);
+}
+
+void drawPolygonOutline(SDL_Renderer* renderer, SDL_Point* points, int numPoints) {
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White color
+	if (numPoints > 1) {
+		SDL_RenderDrawLines(renderer, points, numPoints);
+		SDL_RenderDrawLine(renderer, points[numPoints - 1].x, points[numPoints - 1].y, points[0].x, points[0].y); // Close the polygon
+	}
+}
+
+void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color) {
+	const int numSegments = 100;
+	SDL_Point points[numSegments];
+	double angleIncrement = 2 * M_PI / numSegments;
+
+	for (int i = 0; i < numSegments; ++i) {
+		double angle = i * angleIncrement;
+		points[i].x = centerX + (int)(radius * cos(angle));
+		points[i].y = centerY + (int)(radius * sin(angle));
+	}
+
+	drawPolygonOutline(renderer, points, numSegments);
 }
 
 void drawAmplitudeBar(SDL_Renderer* renderer, float amplitude) {
@@ -272,7 +261,7 @@ int main(int argc, char* argv[]) {
 	SDL_AudioSpec desiredSpec, obtainedSpec;
 	SDL_zero(desiredSpec);
 	desiredSpec.freq = 44100;
-	desiredSpec.format = AUDIO_F32;
+	desiredSpec.format = AUDIO_F32; // If this format causes issues, try AUDIO_S16SYS instead
 	desiredSpec.channels = 2;
 	desiredSpec.samples = 1024;
 	desiredSpec.callback = audio_callback;
@@ -323,6 +312,15 @@ int main(int argc, char* argv[]) {
 		{{750, 500}, {0, 0, 255, 255}, {0, 0}},   // Vertex 3
 		{{600, 600}, {255, 255, 0, 255}, {0, 0}}, // Vertex 4
 		{{450, 500}, {0, 255, 255, 255}, {0, 0}}  // Vertex 5
+	};
+
+	// Define the same polygon for the outline
+	SDL_Point points[5] = {
+		{500, 300},
+		{700, 300},
+		{750, 500},
+		{600, 600},
+		{450, 500}
 	};
 
 	// Main loop
@@ -417,8 +415,11 @@ int main(int argc, char* argv[]) {
 		// Draw circle outline following the mouse
 		drawCircle(renderer, mouseX, mouseY, CIRCLE_RADIUS, circleColor);
 
-		// Draw polygon
+		// Draw filled polygon
 		drawPolygon(renderer, vertices, 5);
+
+		// Draw polygon outline
+		drawPolygonOutline(renderer, points, 5);
 
 		// Draw amplitude bar
 		SDL_LockMutex(amplitude_mutex);
