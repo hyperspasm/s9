@@ -18,6 +18,7 @@ const int CIRCLE_RADIUS = 50;
 const int AMPLITUDE_BAR_WIDTH = WINDOW_WIDTH - 40;
 const int AMPLITUDE_BAR_HEIGHT = 30;
 const int AMPLITUDE_BAR_Y = 20;
+const int NUM_CIRCLE_SEGMENTS = 100;
 
 float amplitude = -60.0f; // Global variable for amplitude in dB
 SDL_mutex* amplitude_mutex; // Mutex for amplitude variable
@@ -116,18 +117,24 @@ void drawPolygonOutline(SDL_Renderer* renderer, SDL_Point* points, int numPoints
 	}
 }
 
-void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color) {
-	const int numSegments = 100;
-	SDL_Point points[numSegments];
-	double angleIncrement = 2 * M_PI / numSegments;
+void precomputeCircleVertices(SDL_Point* points, int radius) {
+	double angleIncrement = 2 * M_PI / NUM_CIRCLE_SEGMENTS;
 
-	for (int i = 0; i < numSegments; ++i) {
+	for (int i = 0; i < NUM_CIRCLE_SEGMENTS; ++i) {
 		double angle = i * angleIncrement;
-		points[i].x = centerX + (int)(radius * cos(angle));
-		points[i].y = centerY + (int)(radius * sin(angle));
+		points[i].x = (int)(radius * cos(angle));
+		points[i].y = (int)(radius * sin(angle));
+	}
+}
+
+void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, SDL_Point* precomputedPoints) {
+	SDL_Point points[NUM_CIRCLE_SEGMENTS];
+	for (int i = 0; i < NUM_CIRCLE_SEGMENTS; ++i) {
+		points[i].x = centerX + precomputedPoints[i].x;
+		points[i].y = centerY + precomputedPoints[i].y;
 	}
 
-	drawPolygonOutline(renderer, points, numSegments);
+	drawPolygonOutline(renderer, points, NUM_CIRCLE_SEGMENTS);
 }
 
 void drawAmplitudeBar(SDL_Renderer* renderer, float amplitude) {
@@ -323,6 +330,10 @@ int main(int argc, char* argv[]) {
 		{450, 500}
 	};
 
+	// Precompute circle vertices at the origin
+	SDL_Point precomputedCircleVertices[NUM_CIRCLE_SEGMENTS];
+	precomputeCircleVertices(precomputedCircleVertices, CIRCLE_RADIUS);
+
 	// Main loop
 	int quit = 0;
 	SDL_Event e;
@@ -413,7 +424,8 @@ int main(int argc, char* argv[]) {
 		}
 
 		// Draw circle outline following the mouse
-		drawCircle(renderer, mouseX, mouseY, CIRCLE_RADIUS, circleColor);
+		SDL_SetRenderDrawColor(renderer, circleColor.r, circleColor.g, circleColor.b, circleColor.a);
+		drawCircle(renderer, mouseX, mouseY, precomputedCircleVertices);
 
 		// Draw filled polygon
 		drawPolygon(renderer, vertices, 5);
