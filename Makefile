@@ -1,10 +1,10 @@
 # Variables
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lSDL2 -lSDL2_ttf -lm
+LDFLAGS = -lSDL2 -lSDL2_ttf -lm -lfftw3 
 SRCDIR = src
 OBJDIR = obj
-BINDIR = ./
+BINDIR = .
 TARGET = $(BINDIR)/s9
 
 # Source and object files
@@ -23,6 +23,6 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJDIR) $(BINDIR)
+	rm -rf $(OBJDIR) $(TARGET)
 
 .PHONY: all clean

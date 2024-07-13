@@ -4,3 +4,8 @@
 # Xcode
 **/xcuserdata/
 **/xcshareddata/
+
+# Linux
+obj/
+
+s9
