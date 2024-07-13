@@ -11,6 +11,7 @@
 		E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F8C2C429E9900308A0E /* s9_app.c */; };
 		E2FF4F922C42A34D00308A0E /* libSDL2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F912C42A34D00308A0E /* libSDL2.dylib */; };
 		E2FF4F942C42A35C00308A0E /* libSDL2_ttf.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F932C42A35C00308A0E /* libSDL2_ttf.dylib */; };
+		E2FF4F972C42BABC00308A0E /* fps.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F962C42BABC00308A0E /* fps.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -33,6 +34,8 @@
 		E2FF4F8E2C429E9A00308A0E /* s9_app.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = s9_app.h; path = src/s9_app.h; sourceTree = "<group>"; };
 		E2FF4F912C42A34D00308A0E /* libSDL2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2.dylib; path = ../../../../usr/local/lib/libSDL2.dylib; sourceTree = "<group>"; };
 		E2FF4F932C42A35C00308A0E /* libSDL2_ttf.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2_ttf.dylib; path = ../../../../usr/local/lib/libSDL2_ttf.dylib; sourceTree = "<group>"; };
+		E2FF4F952C42BABC00308A0E /* fps.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = fps.h; path = src/fps.h; sourceTree = "<group>"; };
+		E2FF4F962C42BABC00308A0E /* fps.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = fps.c; path = src/fps.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,9 +55,11 @@
 			isa = PBXGroup;
 			children = (
 				E2FF4F8A2C429D1100308A0E /* main.c */,
+				E2FF4F8D2C429E9A00308A0E /* s9.h */,
 				E2FF4F8C2C429E9900308A0E /* s9_app.c */,
 				E2FF4F8E2C429E9A00308A0E /* s9_app.h */,
-				E2FF4F8D2C429E9A00308A0E /* s9.h */,
+				E2FF4F952C42BABC00308A0E /* fps.h */,
+				E2FF4F962C42BABC00308A0E /* fps.c */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
 			);
@@ -134,6 +139,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E2FF4F972C42BABC00308A0E /* fps.c in Sources */,
 				E2FF4F8B2C429D1100308A0E /* main.c in Sources */,
 				E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */,
 			);

@@ -1,5 +1,6 @@
 #include "s9_app.h"
 #include "Roboto-Regular.h"
+#include "fps.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,6 +15,8 @@ typedef struct s9_app {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	TTF_Font *small_font;
+	
+	fps_t *fps;
 	
 	int ret;
 } s9_app_t;
@@ -135,6 +138,12 @@ static TTF_Font* load_font_from_memory(const uint8_t *font_data, int data_size, 
 	return font;
 }
 
+static void render(void) {
+	if(g_app->fps) {
+		fps_render(g_app->fps);
+	}
+}
+
 // --
 
 int s9_app_create(const s9_app_config_t *config)
@@ -201,6 +210,19 @@ int s9_app_create(const s9_app_config_t *config)
 				SDL_Quit();
 				return -1,
 				"Failed to load small font");
+	
+	// create fps instance
+	g_app->fps = fps_new(g_app->renderer, g_app->small_font, (SDL_Color){255, 255, 255, 255}, 1000);
+	CHECK_ERROR(g_app->fps != NULL,
+				TTF_CloseFont(g_app->small_font);
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to create fps instance");
 
 	print_renderer_info(g_app->window, g_app->renderer);
 	
@@ -215,6 +237,11 @@ void s9_app_destroy(void)
 	if (g_app->small_font) {
 		TTF_CloseFont(g_app->small_font);
 		g_app->small_font = NULL;
+	}
+	
+	// destroy fps instance
+	if (g_app->fps) {
+		fps_free(&g_app->fps);
 	}
 	
 	TTF_Quit();
@@ -248,6 +275,9 @@ int s9_app_run(void)
 	// clear screen
 	SDL_SetRenderDrawColor(g_app->renderer, 0, 0, 0, 255);
 	SDL_RenderClear(g_app->renderer);
+	
+	// perform all rendering
+	render();
 	
 	// present renderer
 	SDL_RenderPresent(g_app->renderer);
