@@ -174,8 +174,10 @@ int s9_app_create(const s9_app_config_t *config)
 				return -1,
 				"TTF_Init failed: %d", ret);
 	
+	// NOTE: overriding SDL_WINDOW_ALLOW_HIGHDPI below until I can figure out how to actually make this work properly
+	SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
+	
 	// create window
-	// on macOS NSHighResolutionCapable must be set true in the application's Info.plist for SDL_WINDOW_ALLOW_HIGHDPI to have any effect.
 	g_app->window = SDL_CreateWindow("S9",
 									 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 									 g_app->config.window_width, g_app->config.window_height,
