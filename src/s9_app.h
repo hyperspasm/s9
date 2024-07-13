@@ -11,8 +11,12 @@ typedef struct {
 	// function that prints some text to the console
 	void (*console_print)(const char *text);
 	
+	// window size
 	uint16_t window_width;
 	uint16_t window_height;
+	
+	// audio device name
+	char *audio_device;
 	
 } s9_app_config_t;
 

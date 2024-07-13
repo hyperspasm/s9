@@ -9,14 +9,18 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_audio.h>
 
 typedef struct s9_app {
-	s9_app_config_t config;	
+	s9_app_config_t config;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	TTF_Font *small_font;
 	
 	fps_t *fps;
+	
+	SDL_AudioDeviceID audio_device_id;
+	SDL_AudioSpec audio_spec;
 	
 	int ret;
 } s9_app_t;
@@ -27,18 +31,15 @@ static s9_app_t *g_app = NULL; // singleton instance
 
 #define PRINT_BUFFER_SIZE 1024
 
-static void default_log_func(const char *text)
-{
+static void default_log_func(const char *text) {
 	fprintf(stderr, "%s", text);
 }
 
-static void default_print_func(const char *text)
-{
+static void default_print_func(const char *text) {
 	fprintf(stdout, "%s", text);
 }
 
-int s9_log(s9_log_level_t log_level, const char *format, ...)
-{
+int s9_log(s9_log_level_t log_level, const char *format, ...) {
 	int ret;
 	va_list args;
 	char buffer[PRINT_BUFFER_SIZE];
@@ -54,8 +55,7 @@ int s9_log(s9_log_level_t log_level, const char *format, ...)
 	ret = vsnprintf(buffer, sizeof(buffer), format, args);
 	va_end(args);
 	
-	if(ret > 0)
-	{
+	if(ret > 0) {
 		static const char *prefixes[] = {
 			"TRACE: ",
 			"DEBUG: ",
@@ -65,7 +65,7 @@ int s9_log(s9_log_level_t log_level, const char *format, ...)
 			"CRITICAL: ",
 		};
 		
-		print_func(prefixes[log_level]);		
+		print_func(prefixes[log_level]);        
 		print_func(buffer);
 		print_func("\n");
 	}
@@ -73,21 +73,19 @@ int s9_log(s9_log_level_t log_level, const char *format, ...)
 	return ret;
 }
 
-int s9_print(const char *format, ...)
-{
+int s9_print(const char *format, ...) {
 	int ret;
 	va_list args;
 	char buffer[PRINT_BUFFER_SIZE];
 	void (*print_func)(const char *text) = default_print_func;
 	
-	if(g_app != NULL && g_app->config.console_print != NULL) print_func = g_app->config.console_print;	
+	if(g_app != NULL && g_app->config.console_print != NULL) print_func = g_app->config.console_print;
 	
 	va_start(args, format);
 	ret = vsnprintf(buffer, sizeof(buffer), format, args);
 	va_end(args);
 	
-	if(ret > 0)
-	{
+	if(ret > 0) {
 		print_func(buffer);
 	}
 	
@@ -144,18 +142,22 @@ static void render(void) {
 	}
 }
 
+// empty audio callback
+static void audio_callback(void *userdata, Uint8 *stream, int len) {
+	// currently does nothing
+}
+
 // --
 
-int s9_app_create(const s9_app_config_t *config)
-{
+int s9_app_create(const s9_app_config_t *config) {
 	int ret;
 	CHECK_ERROR(g_app == NULL, return -1, "ignoring attempt to create a second app instance");
 	
 	g_app = malloc(sizeof(s9_app_t));
-	CHECK_ERROR(g_app != NULL, return -1, "failed to allocate app memory");	
+	CHECK_ERROR(g_app != NULL, return -1, "failed to allocate app memory");
 	memset(g_app, 0, sizeof(*g_app));
 	
-	g_app->config = *config;	
+	g_app->config = *config;
 	
 	// initialize SDL
 	ret = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO); 
@@ -181,7 +183,7 @@ int s9_app_create(const s9_app_config_t *config)
 	g_app->window = SDL_CreateWindow("S9",
 									 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 									 g_app->config.window_width, g_app->config.window_height,
-									 SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);	
+									 SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
 	CHECK_ERROR(g_app->window != NULL,
 				free(g_app);
 				g_app = NULL;
@@ -226,13 +228,71 @@ int s9_app_create(const s9_app_config_t *config)
 				return -1,
 				"Failed to create fps instance");
 	
+	// check for audio input device
+	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
+	CHECK_ERROR(num_audio_devices > 0,
+				TTF_CloseFont(g_app->small_font);
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"No available audio input devices");
+	
+	// choose first device as default
+	int selected_device_index = 0;
+	const char *selected_audio_device_name = SDL_GetAudioDeviceName(0, SDL_TRUE);
+	
+	// enumerate audio devices and select the specified one, if any
+	s9_log(LOG_LEVEL_INFO, "Available audio input devices:");
+	for (int i = 0; i < num_audio_devices; i++) {
+		const char *device_name = SDL_GetAudioDeviceName(i, SDL_TRUE);
+		s9_log(LOG_LEVEL_INFO, "    %s", device_name);
+		if (g_app->config.audio_device != NULL && device_name && strcmp(device_name, g_app->config.audio_device) == 0) {
+			selected_device_index = i;
+			selected_audio_device_name = device_name;
+		}
+	}	
+	
+	// open audio device with requested settings
+	SDL_AudioSpec desired_spec;
+	SDL_zero(desired_spec);
+	desired_spec.freq = 44100;
+	desired_spec.format = AUDIO_F32;
+	desired_spec.channels = 2;
+	desired_spec.samples = 512;
+	desired_spec.callback = audio_callback;
+	
+	g_app->audio_device_id = SDL_OpenAudioDevice(selected_audio_device_name, SDL_TRUE, &desired_spec, &g_app->audio_spec, 0);
+	CHECK_ERROR(g_app->audio_device_id > 0,
+				TTF_CloseFont(g_app->small_font);
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to open audio device: %s", SDL_GetError());
+	
+	// print audio device info
+	s9_log(LOG_LEVEL_INFO, "Selected audio input device: %s", selected_audio_device_name);
+	s9_log(LOG_LEVEL_INFO, "    Sample Rate: %d Hz", g_app->audio_spec.freq);
+	s9_log(LOG_LEVEL_INFO, "    Channels: %d", g_app->audio_spec.channels);
+	s9_log(LOG_LEVEL_INFO, "    Buffer Size: %d samples", g_app->audio_spec.samples);
+	
+	// start streaming audio
+	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
+	
+	// print info
 	print_renderer_info(g_app->window, g_app->renderer);
 	
 	return 0;
 }
 
-void s9_app_destroy(void)
-{
+void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
 	
 	// close font
@@ -246,6 +306,12 @@ void s9_app_destroy(void)
 		fps_free(&g_app->fps);
 	}
 	
+	// close audio device
+	if (g_app->audio_device_id > 0) {
+		SDL_PauseAudioDevice(g_app->audio_device_id, SDL_TRUE);
+		SDL_CloseAudioDevice(g_app->audio_device_id);
+	}
+	
 	TTF_Quit();
 	SDL_Quit();
 	
@@ -253,8 +319,7 @@ void s9_app_destroy(void)
 	g_app = NULL;
 }
 
-int s9_app_run(void)
-{
+int s9_app_run(void) {
 	SDL_Event e;
 	
 	CHECK_ERROR(g_app != NULL, return -1, "app not created");
@@ -268,11 +333,11 @@ int s9_app_run(void)
 			g_app->ret = 1;
 		} else if (e.type == SDL_KEYDOWN) {
 			s9_log(LOG_LEVEL_TRACE, "key pressed: %s\n", SDL_GetKeyName(e.key.keysym.sym));
-		}		
+		}
 	}
 	
 	// exit if necessary
-	if (g_app->ret) return g_app->ret;	
+	if (g_app->ret) return g_app->ret;
 	
 	// clear screen
 	SDL_SetRenderDrawColor(g_app->renderer, 0, 0, 0, 255);

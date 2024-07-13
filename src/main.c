@@ -33,7 +33,7 @@ void load_config_file(s9_app_config_t *config) {
 	if (file == NULL) {
 		return;
 	}
-	
+
 	s9_log(LOG_LEVEL_INFO, "parsing .s9rc");
 
 	char line[256];
@@ -52,6 +52,12 @@ void load_config_file(s9_app_config_t *config) {
 		if (sscanf(line, "log_level=%d", (int *)&config->log_level) == 1) {
 			continue;
 		}
+		// Parse audio device name
+		if (strncmp(line, "audio_device=", 13) == 0) {
+			config->audio_device = strdup(line + 13);
+			// Remove newline character if present
+			config->audio_device[strcspn(config->audio_device, "\n")] = '\0';
+		}
 	}
 
 	fclose(file);
@@ -66,6 +72,7 @@ int main(int argc, const char * argv[]) {
 		.console_print = console_print,
 		.window_width = DEFAULT_WINDOW_WIDTH,
 		.window_height = DEFAULT_WINDOW_HEIGHT,
+		.audio_device = NULL,
 	};
 
 	// load configuration from file
@@ -73,7 +80,7 @@ int main(int argc, const char * argv[]) {
 
 	// parse command line arguments
 	int opt;
-	while ((opt = getopt(argc, (char * const *)argv, "w:h:l:")) != -1) {
+	while ((opt = getopt(argc, (char * const *)argv, "w:h:l:a:")) != -1) {
 		switch (opt) {
 			case 'w':
 				config.window_width = (uint16_t)atoi(optarg);
@@ -84,8 +91,12 @@ int main(int argc, const char * argv[]) {
 			case 'l':
 				config.log_level = (s9_log_level_t)atoi(optarg);
 				break;
+			case 'a':
+				if(config.audio_device) free(config.audio_device); // free previous value if any
+				config.audio_device = strdup(optarg);
+				break;
 			default:
-				fprintf(stderr, "Usage: %s [-w window_width] [-h window_height] [-l log_level]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-w window_width] [-h window_height] [-l log_level] [-a audio_device]\n", argv[0]);
 				exit(EXIT_FAILURE);
 		}
 	}
@@ -96,6 +107,8 @@ int main(int argc, const char * argv[]) {
 	}
 
 	s9_app_destroy();
+
+	if(config.audio_device) free(config.audio_device);
 
 	return ret >= 0 ? 0 : ret;
 }
