@@ -257,7 +257,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	// open audio device with requested settings
 	SDL_AudioSpec desired_spec;
 	SDL_zero(desired_spec);
-	desired_spec.freq = 44100;
+	desired_spec.freq = g_app->config.sample_rate;
 	desired_spec.format = AUDIO_F32;
 	desired_spec.channels = 2;
 	desired_spec.samples = 512;
@@ -330,7 +330,7 @@ int s9_app_run(void) {
 		if (e.type == SDL_QUIT) {
 			g_app->ret = 1;
 		} else if (e.type == SDL_KEYDOWN) {
-			s9_log(LOG_LEVEL_TRACE, "key pressed: %s\n", SDL_GetKeyName(e.key.keysym.sym));
+			s9_log(LOG_LEVEL_TRACE, "key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
 		}
 	}
 	

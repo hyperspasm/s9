@@ -10,6 +10,7 @@
 #define DEFAULT_WINDOW_WIDTH 1280
 #define DEFAULT_WINDOW_HEIGHT 720
 #define DEFAULT_LOG_LEVEL LOG_LEVEL_TRACE
+#define DEFAULT_SAMPLE_RATE 44100
 
 static void log_line(const char *text) {
 	fprintf(stderr, "%s", text);
@@ -52,6 +53,9 @@ void load_config_file(s9_app_config_t *config) {
 		if (sscanf(line, "log_level=%d", (int *)&config->log_level) == 1) {
 			continue;
 		}
+		if (sscanf(line, "sample_rate=%d", &config->sample_rate) == 1) {
+			continue;
+		}
 		// Parse audio device name
 		if (strncmp(line, "audio_device=", 13) == 0) {
 			config->audio_device = strdup(line + 13);
@@ -73,6 +77,7 @@ int main(int argc, const char * argv[]) {
 		.window_width = DEFAULT_WINDOW_WIDTH,
 		.window_height = DEFAULT_WINDOW_HEIGHT,
 		.audio_device = NULL,
+		.sample_rate = DEFAULT_SAMPLE_RATE,
 	};
 
 	// load configuration from file
@@ -80,7 +85,7 @@ int main(int argc, const char * argv[]) {
 
 	// parse command line arguments
 	int opt;
-	while ((opt = getopt(argc, (char * const *)argv, "w:h:l:a:")) != -1) {
+	while ((opt = getopt(argc, (char * const *)argv, "w:h:l:a:r:")) != -1) {
 		switch (opt) {
 			case 'w':
 				config.window_width = (uint16_t)atoi(optarg);
@@ -95,8 +100,11 @@ int main(int argc, const char * argv[]) {
 				if(config.audio_device) free(config.audio_device); // free previous value if any
 				config.audio_device = strdup(optarg);
 				break;
+			case 'r':
+				config.sample_rate = atoi(optarg);
+				break;
 			default:
-				fprintf(stderr, "Usage: %s [-w window_width] [-h window_height] [-l log_level] [-a audio_device]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-w window_width] [-h window_height] [-l log_level] [-a audio_device] [-r sample_rate]\n", argv[0]);
 				exit(EXIT_FAILURE);
 		}
 	}

@@ -18,6 +18,9 @@ typedef struct {
 	// audio device name
 	char *audio_device;
 	
+	// sample rate
+	int sample_rate;
+	
 } s9_app_config_t;
 
 int s9_app_create(const s9_app_config_t *config);
