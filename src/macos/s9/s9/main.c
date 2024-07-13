@@ -20,7 +20,7 @@ const int AMPLITUDE_BAR_HEIGHT = 30;
 const int AMPLITUDE_BAR_Y = 20;
 const int NUM_CIRCLE_SEGMENTS = 100;
 const int SINE_WAVE_START_X = 50;
-const int SINE_WAVE_END_X = WINDOW_WIDTH - 100;
+const int SINE_WAVE_END_X = WINDOW_WIDTH - 50;
 
 float amplitude = -60.0f; // Global variable for amplitude in dB
 SDL_mutex* amplitude_mutex; // Mutex for amplitude variable
@@ -84,7 +84,7 @@ SDL_Texture* createTextTexture(SDL_Renderer* renderer, TTF_Font* font, const cha
 	return texture;
 }
 
-void drawPolygonCurve(SDL_Renderer *renderer, float thickness, const SDL_FPoint *points, int count, int filled)
+void drawPolygonCurve(SDL_Renderer *renderer, SDL_Color color, float thickness, const SDL_FPoint *points, int count, int filled)
 {
 	// Allocate an array of 2 * count SDL_FPoint
 	SDL_FPoint* polygonPoints = (SDL_FPoint*)malloc(2 * count * sizeof(SDL_FPoint));
@@ -137,37 +137,23 @@ void drawPolygonCurve(SDL_Renderer *renderer, float thickness, const SDL_FPoint 
 		SDL_Vertex* vertices = (SDL_Vertex*)malloc(numVertices * sizeof(SDL_Vertex));
 		for (int i = 0; i < numVertices; ++i) {
 			vertices[i].position = polygonPoints[i];
-			vertices[i].color = (SDL_Color){255, 255, 255, 255}; // White color
+			vertices[i].color = color;
 		}
 		
-		int numTriangles = numVertices - 2;
-		
+		int numTriangles = numVertices - 2;		
 		int numIndices = numTriangles * 3;
 		int* indices = (int*)malloc(numIndices * sizeof(int));
 		
-		int i = 0;
-		indices[i++] = 0;
-		indices[i++] = numVertices - 1;
-		indices[i++] = 1;
-		
-		indices[i++] = numVertices - 1;
-		indices[i++] = 1;
-		indices[i++] = numVertices - 2;
-		
-		while(i < numIndices) {
-			indices[i] = indices[i-6] + 1;
-			i++;
-			indices[i] = indices[i-6] - 1;
-			i++;
-			indices[i] = indices[i-6] + 1;
-			i++;
+		int *ix = indices;
+		for(int i=0; i<count-1; i++)
+		{
+			*ix++ = i;
+			*ix++ = (numVertices - 1) - i;
+			*ix++ = i + 1;
 			
-			indices[i] = indices[i-6] - 1;
-			i++;
-			indices[i] = indices[i-6] + 1;
-			i++;
-			indices[i] = indices[i-6] - 1;
-			i++;
+			*ix++ = (numVertices - 1) - i;
+			*ix++ = i + 1;
+			*ix++ = (numVertices - 1) - (i + 1);
 		}
 
 		SDL_RenderGeometry(renderer, NULL, vertices, numVertices, indices, numIndices);
@@ -176,6 +162,7 @@ void drawPolygonCurve(SDL_Renderer *renderer, float thickness, const SDL_FPoint 
 		free(vertices);
 		
 	} else {
+		SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 		SDL_RenderDrawLinesF(renderer, polygonPoints, 2 * count);
 		SDL_RenderDrawLineF(renderer, polygonPoints[2 * count - 1].x, polygonPoints[2 * count - 1].y, polygonPoints[0].x, polygonPoints[0].y);
 	}
@@ -194,8 +181,8 @@ void drawSineWave(SDL_Renderer* renderer, int startX, int endX, int height, int 
 		points[x] = (SDL_FPoint){ .x = startX + x, .y = y };
 	}
 	
-	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White color
-	drawPolygonCurve(renderer, 100, points, width, 1 );
+	SDL_Color color = {255, 0, 255, 255}; // Magenta color
+	drawPolygonCurve(renderer, color, 50, points, width, 1);
 }
 
 void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) {
