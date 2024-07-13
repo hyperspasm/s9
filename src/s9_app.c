@@ -1,4 +1,6 @@
 #include "s9_app.h"
+#include "Roboto-Regular.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -11,6 +13,7 @@ typedef struct s9_app {
 	s9_app_config_t config;	
 	SDL_Window *window;
 	SDL_Renderer *renderer;
+	TTF_Font *small_font;
 	
 	int ret;
 } s9_app_t;
@@ -119,6 +122,19 @@ static void print_renderer_info(SDL_Window *window, SDL_Renderer *renderer) {
 	s9_log(LOG_LEVEL_INFO, "    %d Hz", display_mode.refresh_rate);
 }
 
+// static function to load a font
+static TTF_Font* load_font_from_memory(const uint8_t *font_data, int data_size, int point_size) {
+	// create an SDL_RWops from the font data
+	SDL_RWops *rw = SDL_RWFromConstMem(font_data, data_size);
+	CHECK_ERROR(rw != NULL, return NULL, "SDL_RWFromConstMem failed: %s", SDL_GetError());
+
+	// load the font from the SDL_RWops
+	TTF_Font *font = TTF_OpenFontRW(rw, 1, point_size); // 1 means SDL will free the RWops
+	CHECK_ERROR(font != NULL, return NULL, "TTF_OpenFontRW failed: %s", TTF_GetError());
+
+	return font;
+}
+
 // --
 
 int s9_app_create(const s9_app_config_t *config)
@@ -174,6 +190,18 @@ int s9_app_create(const s9_app_config_t *config)
 				return -1,
 				"SDL_CreateRenderer failed: %s", SDL_GetError());
 	
+	// load small font
+	g_app->small_font = load_font_from_memory(Roboto_Regular_TTF, sizeof(Roboto_Regular_TTF), 16);
+	CHECK_ERROR(g_app->small_font != NULL,
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to load small font");
+
 	print_renderer_info(g_app->window, g_app->renderer);
 	
 	return 0;
@@ -181,7 +209,13 @@ int s9_app_create(const s9_app_config_t *config)
 
 void s9_app_destroy(void)
 {
-	CHECK_ERROR(g_app != NULL, return, "ignoring attempt destroy uncreated app");
+	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
+	
+	// close font
+	if (g_app->small_font) {
+		TTF_CloseFont(g_app->small_font);
+		g_app->small_font = NULL;
+	}
 	
 	TTF_Quit();
 	SDL_Quit();
