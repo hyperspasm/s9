@@ -34,7 +34,7 @@ void load_config_file(s9_app_config_t *config) {
 		return;
 	}
 
-	s9_log(LOG_LEVEL_INFO, "parsing .s9rc");
+	s9_log(LOG_LEVEL_INFO, "parsing %s", path);
 
 	char line[256];
 	while (fgets(line, sizeof(line), file) != NULL) {
