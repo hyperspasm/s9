@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		E21F2E6B2C3AC54800135373 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E21F2E6A2C3AC54800135373 /* main.c */; };
-		E21F2E732C3AC58700135373 /* s9_app.c in Sources */ = {isa = PBXBuildFile; fileRef = E21F2E722C3AC58700135373 /* s9_app.c */; };
 		E21F2E7B2C3B3D0800135373 /* libSDL2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */; };
 		E2FF4F312C3CD98600308A0E /* libSDL2_ttf.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */; };
 /* End PBXBuildFile section */
@@ -26,11 +25,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		E21F2E672C3AC54800135373 /* s9 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = s9; sourceTree = BUILT_PRODUCTS_DIR; };
+		E21F2E672C3AC54800135373 /* scratchpad */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = scratchpad; sourceTree = BUILT_PRODUCTS_DIR; };
 		E21F2E6A2C3AC54800135373 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		E21F2E712C3AC58700135373 /* s9_app.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = s9_app.h; sourceTree = "<group>"; };
-		E21F2E722C3AC58700135373 /* s9_app.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = s9_app.c; sourceTree = "<group>"; };
-		E21F2E742C3AC75B00135373 /* s9.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = s9.h; sourceTree = "<group>"; };
 		E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2.dylib; path = ../../../../../../../usr/local/lib/libSDL2.dylib; sourceTree = "<group>"; };
 		E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2_ttf.dylib; path = ../../../../../../../usr/local/lib/libSDL2_ttf.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -51,7 +47,7 @@
 		E21F2E5E2C3AC54800135373 = {
 			isa = PBXGroup;
 			children = (
-				E21F2E692C3AC54800135373 /* s9 */,
+				E21F2E692C3AC54800135373 /* scratchpad */,
 				E21F2E682C3AC54800135373 /* Products */,
 				E21F2E752C3B3CC800135373 /* Frameworks */,
 			);
@@ -60,20 +56,17 @@
 		E21F2E682C3AC54800135373 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E21F2E672C3AC54800135373 /* s9 */,
+				E21F2E672C3AC54800135373 /* scratchpad */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		E21F2E692C3AC54800135373 /* s9 */ = {
+		E21F2E692C3AC54800135373 /* scratchpad */ = {
 			isa = PBXGroup;
 			children = (
-				E21F2E742C3AC75B00135373 /* s9.h */,
 				E21F2E6A2C3AC54800135373 /* main.c */,
-				E21F2E712C3AC58700135373 /* s9_app.h */,
-				E21F2E722C3AC58700135373 /* s9_app.c */,
 			);
-			path = s9;
+			path = scratchpad;
 			sourceTree = "<group>";
 		};
 		E21F2E752C3B3CC800135373 /* Frameworks */ = {
@@ -88,9 +81,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E21F2E662C3AC54800135373 /* s9 */ = {
+		E21F2E662C3AC54800135373 /* scratchpad */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E21F2E6E2C3AC54800135373 /* Build configuration list for PBXNativeTarget "s9" */;
+			buildConfigurationList = E21F2E6E2C3AC54800135373 /* Build configuration list for PBXNativeTarget "scratchpad" */;
 			buildPhases = (
 				E21F2E632C3AC54800135373 /* Sources */,
 				E21F2E642C3AC54800135373 /* Frameworks */,
@@ -100,9 +93,9 @@
 			);
 			dependencies = (
 			);
-			name = s9;
+			name = scratchpad;
 			productName = s9;
-			productReference = E21F2E672C3AC54800135373 /* s9 */;
+			productReference = E21F2E672C3AC54800135373 /* scratchpad */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -119,7 +112,7 @@
 					};
 				};
 			};
-			buildConfigurationList = E21F2E622C3AC54800135373 /* Build configuration list for PBXProject "s9" */;
+			buildConfigurationList = E21F2E622C3AC54800135373 /* Build configuration list for PBXProject "scratchpad" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -132,7 +125,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E21F2E662C3AC54800135373 /* s9 */,
+				E21F2E662C3AC54800135373 /* scratchpad */,
 			);
 		};
 /* End PBXProject section */
@@ -143,7 +136,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E21F2E6B2C3AC54800135373 /* main.c in Sources */,
-				E21F2E732C3AC58700135373 /* s9_app.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -298,7 +290,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		E21F2E622C3AC54800135373 /* Build configuration list for PBXProject "s9" */ = {
+		E21F2E622C3AC54800135373 /* Build configuration list for PBXProject "scratchpad" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E21F2E6C2C3AC54800135373 /* Debug */,
@@ -307,7 +299,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E21F2E6E2C3AC54800135373 /* Build configuration list for PBXNativeTarget "s9" */ = {
+		E21F2E6E2C3AC54800135373 /* Build configuration list for PBXNativeTarget "scratchpad" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E21F2E6F2C3AC54800135373 /* Debug */,

@@ -6,7 +6,7 @@
 
 // Define font path
 #ifdef __APPLE__
-#define FONT_PATH "/Users/shea/work/s9/src/macos/s9/s9/Roboto-Regular.ttf"
+#define FONT_PATH "/Users/shea/work/s9/scratchpad/s9/scratchpad/Roboto-Regular.ttf"
 #else
 #define FONT_PATH "Roboto-Regular.ttf"
 #endif
