@@ -1,10 +1,3 @@
-//
-//  s9_app.c
-//  s9
-//
-//  Created by shea on 7/7/24.
-//
-
 #include "s9_app.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -97,7 +90,9 @@ int s9_app_create(const s9_app_config_t *config)
 	g_app = malloc(sizeof(s9_app_t));
 	if(g_app == NULL) return -1;
 	
-	g_app->config = *config;
+	g_app->config = *config;	
+	
+	s9_log(LOG_LEVEL_TRACE, "s9 app created\n");
 	return 0;
 }
 

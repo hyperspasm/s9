@@ -1,10 +1,3 @@
-//
-//  s9_app.h
-//  s9
-//
-//  Created by shea on 7/7/24.
-//
-
 #ifndef s9_app_h
 #define s9_app_h
 

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		E2FF4F8B2C429D1100308A0E /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F8A2C429D1100308A0E /* main.c */; };
+		E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F8C2C429E9900308A0E /* s9_app.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +26,9 @@
 /* Begin PBXFileReference section */
 		E2FF4F802C429CD000308A0E /* s9 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = s9; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2FF4F8A2C429D1100308A0E /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = main.c; path = src/main.c; sourceTree = "<group>"; };
+		E2FF4F8C2C429E9900308A0E /* s9_app.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = s9_app.c; path = src/s9_app.c; sourceTree = "<group>"; };
+		E2FF4F8D2C429E9A00308A0E /* s9.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = s9.h; path = src/s9.h; sourceTree = "<group>"; };
+		E2FF4F8E2C429E9A00308A0E /* s9_app.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = s9_app.h; path = src/s9_app.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -42,6 +46,9 @@
 			isa = PBXGroup;
 			children = (
 				E2FF4F8A2C429D1100308A0E /* main.c */,
+				E2FF4F8C2C429E9900308A0E /* s9_app.c */,
+				E2FF4F8E2C429E9A00308A0E /* s9_app.h */,
+				E2FF4F8D2C429E9A00308A0E /* s9.h */,
 				E2FF4F812C429CD000308A0E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -112,6 +119,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E2FF4F8B2C429D1100308A0E /* main.c in Sources */,
+				E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
