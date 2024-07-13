@@ -130,11 +130,11 @@ static TTF_Font* load_font_from_memory(const uint8_t *font_data, int data_size, 
 	// create an SDL_RWops from the font data
 	SDL_RWops *rw = SDL_RWFromConstMem(font_data, data_size);
 	CHECK_ERROR(rw != NULL, return NULL, "SDL_RWFromConstMem failed: %s", SDL_GetError());
-
+	
 	// load the font from the SDL_RWops
 	TTF_Font *font = TTF_OpenFontRW(rw, 1, point_size); // 1 means SDL will free the RWops
 	CHECK_ERROR(font != NULL, return NULL, "TTF_OpenFontRW failed: %s", TTF_GetError());
-
+	
 	return font;
 }
 
@@ -223,7 +223,7 @@ int s9_app_create(const s9_app_config_t *config)
 				SDL_Quit();
 				return -1,
 				"Failed to create fps instance");
-
+	
 	print_renderer_info(g_app->window, g_app->renderer);
 	
 	return 0;
