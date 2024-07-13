@@ -17,7 +17,10 @@ int main(int argc, const char * argv[]) {
 	s9_app_config_t config = {
 		.log_line = log_line,
 		.log_level = LOG_LEVEL_TRACE,
-		.console_print = console_print,		
+		.console_print = console_print,
+		
+		.window_width = 1920,
+		.window_height = 1080,
 	};
 	
 	ret = s9_app_create(&config);

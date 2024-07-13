@@ -11,6 +11,9 @@ typedef struct {
 	// function that prints some text to the console
 	void (*console_print)(const char *text);
 	
+	uint16_t window_width;
+	uint16_t window_height;
+	
 } s9_app_config_t;
 
 int s9_app_create(const s9_app_config_t *config);
