@@ -133,38 +133,48 @@ void drawPolygonCurve(SDL_Renderer *renderer, float thickness, const SDL_FPoint 
 	// Draw the array of 2 * count points
 	if (filled) {
 		// Convert SDL_FPoint to SDL_Vertex for filled rendering
-		SDL_Vertex* vertices = (SDL_Vertex*)malloc(2 * count * sizeof(SDL_Vertex));
-		for (int i = 0; i < 2 * count; ++i) {
+		int numVertices = 2 * count;
+		SDL_Vertex* vertices = (SDL_Vertex*)malloc(numVertices * sizeof(SDL_Vertex));
+		for (int i = 0; i < numVertices; ++i) {
 			vertices[i].position = polygonPoints[i];
 			vertices[i].color = (SDL_Color){255, 255, 255, 255}; // White color
 		}
-
-		// Define indices for the filled polygon
-		int numTriangles = 2 * (count - 1);
-		int* indices = (int*)malloc(numTriangles * 3 * sizeof(int));
-
-		for (int i = 0; i < count - 1; ++i) {
-			// First triangle of the quad
-			indices[i * 6 + 0] = i;
-			indices[i * 6 + 1] = i + count;
-			indices[i * 6 + 2] = i + 1;
-			// Second triangle of the quad
-			indices[i * 6 + 3] = i + 1;
-			indices[i * 6 + 4] = i + count;
-			indices[i * 6 + 5] = i + count + 1;
+		
+		int numTriangles = numVertices - 2;
+		
+		int numIndices = numTriangles * 3;
+		int* indices = (int*)malloc(numIndices * sizeof(int));
+		
+		int i = 0;
+		indices[i++] = 0;
+		indices[i++] = numVertices - 1;
+		indices[i++] = 1;
+		
+		indices[i++] = numVertices - 1;
+		indices[i++] = 1;
+		indices[i++] = numVertices - 2;
+		
+		while(i < numIndices) {
+			indices[i] = indices[i-6] + 1;
+			i++;
+			indices[i] = indices[i-6] - 1;
+			i++;
+			indices[i] = indices[i-6] + 1;
+			i++;
+			
+			indices[i] = indices[i-6] - 1;
+			i++;
+			indices[i] = indices[i-6] + 1;
+			i++;
+			indices[i] = indices[i-6] - 1;
+			i++;
 		}
-		// Close the last quad
-		indices[(count - 1) * 6 + 0] = count - 1;
-		indices[(count - 1) * 6 + 1] = 2 * count - 1;
-		indices[(count - 1) * 6 + 2] = 0;
-		indices[(count - 1) * 6 + 3] = 0;
-		indices[(count - 1) * 6 + 4] = 2 * count - 1;
-		indices[(count - 1) * 6 + 5] = count;
 
-		SDL_RenderGeometry(renderer, NULL, vertices, 2 * count, indices, numTriangles * 3);
+		SDL_RenderGeometry(renderer, NULL, vertices, numVertices, indices, numIndices);
 
-		free(vertices);
 		free(indices);
+		free(vertices);
+		
 	} else {
 		SDL_RenderDrawLinesF(renderer, polygonPoints, 2 * count);
 		SDL_RenderDrawLineF(renderer, polygonPoints[2 * count - 1].x, polygonPoints[2 * count - 1].y, polygonPoints[0].x, polygonPoints[0].y);
