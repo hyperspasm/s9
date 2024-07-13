@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E21F2E6B2C3AC54800135373 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E21F2E6A2C3AC54800135373 /* main.c */; };
 		E21F2E7B2C3B3D0800135373 /* libSDL2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */; };
 		E2FF4F312C3CD98600308A0E /* libSDL2_ttf.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */; };
+		E2FF4F762C429C6900308A0E /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F752C429C6900308A0E /* main.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,9 +26,9 @@
 
 /* Begin PBXFileReference section */
 		E21F2E672C3AC54800135373 /* scratchpad */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = scratchpad; sourceTree = BUILT_PRODUCTS_DIR; };
-		E21F2E6A2C3AC54800135373 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		E21F2E7A2C3B3D0800135373 /* libSDL2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2.dylib; path = ../../../../../../../usr/local/lib/libSDL2.dylib; sourceTree = "<group>"; };
 		E2FF4F302C3CD98600308A0E /* libSDL2_ttf.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libSDL2_ttf.dylib; path = ../../../../../../../usr/local/lib/libSDL2_ttf.dylib; sourceTree = "<group>"; };
+		E2FF4F752C429C6900308A0E /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,7 +47,7 @@
 		E21F2E5E2C3AC54800135373 = {
 			isa = PBXGroup;
 			children = (
-				E21F2E692C3AC54800135373 /* scratchpad */,
+				E2FF4F752C429C6900308A0E /* main.c */,
 				E21F2E682C3AC54800135373 /* Products */,
 				E21F2E752C3B3CC800135373 /* Frameworks */,
 			);
@@ -59,14 +59,6 @@
 				E21F2E672C3AC54800135373 /* scratchpad */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		E21F2E692C3AC54800135373 /* scratchpad */ = {
-			isa = PBXGroup;
-			children = (
-				E21F2E6A2C3AC54800135373 /* main.c */,
-			);
-			path = scratchpad;
 			sourceTree = "<group>";
 		};
 		E21F2E752C3B3CC800135373 /* Frameworks */ = {
@@ -135,7 +127,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E21F2E6B2C3AC54800135373 /* main.c in Sources */,
+				E2FF4F762C429C6900308A0E /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
