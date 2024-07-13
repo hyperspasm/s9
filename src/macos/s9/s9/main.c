@@ -19,6 +19,8 @@ const int AMPLITUDE_BAR_WIDTH = WINDOW_WIDTH - 40;
 const int AMPLITUDE_BAR_HEIGHT = 30;
 const int AMPLITUDE_BAR_Y = 20;
 const int NUM_CIRCLE_SEGMENTS = 100;
+const int SINE_WAVE_START_X = 50;
+const int SINE_WAVE_END_X = WINDOW_WIDTH - 100;
 
 float amplitude = -60.0f; // Global variable for amplitude in dB
 SDL_mutex* amplitude_mutex; // Mutex for amplitude variable
@@ -82,6 +84,110 @@ SDL_Texture* createTextTexture(SDL_Renderer* renderer, TTF_Font* font, const cha
 	return texture;
 }
 
+void drawPolygonCurve(SDL_Renderer *renderer, float thickness, const SDL_FPoint *points, int count, int filled)
+{
+	// Allocate an array of 2 * count SDL_FPoint
+	SDL_FPoint* polygonPoints = (SDL_FPoint*)malloc(2 * count * sizeof(SDL_FPoint));
+	if (!polygonPoints) {
+		logSDLError("malloc");
+		return;
+	}
+
+	// Compute the offsets
+	float halfThickness = 0.5f * thickness;
+
+	// Populate the first half of the array, offsetting points by halfThickness in one direction
+	for (int i = 0; i < count; ++i) {
+		float dx = 0, dy = 0;
+		if (i < count - 1) {
+			dx = points[i + 1].y - points[i].y;
+			dy = points[i].x - points[i + 1].x;
+		} else {
+			dx = points[i].y - points[i - 1].y;
+			dy = points[i - 1].x - points[i].x;
+		}
+		float length = sqrt(dx * dx + dy * dy);
+		dx = (dx / length) * halfThickness;
+		dy = (dy / length) * halfThickness;
+		polygonPoints[i].x = points[i].x + dx;
+		polygonPoints[i].y = points[i].y + dy;
+	}
+
+	// Populate the second half of the array by iterating points in reverse and offsetting by halfThickness in the other direction
+	for (int i = 0; i < count; ++i) {
+		float dx = 0, dy = 0;
+		if (i < count - 1) {
+			dx = points[i + 1].y - points[i].y;
+			dy = points[i].x - points[i + 1].x;
+		} else {
+			dx = points[i].y - points[i - 1].y;
+			dy = points[i - 1].x - points[i].x;
+		}
+		float length = sqrt(dx * dx + dy * dy);
+		dx = (dx / length) * halfThickness;
+		dy = (dy / length) * halfThickness;
+		polygonPoints[count + i].x = points[count - 1 - i].x - dx;
+		polygonPoints[count + i].y = points[count - 1 - i].y - dy;
+	}
+
+	// Draw the array of 2 * count points
+	if (filled) {
+		// Convert SDL_FPoint to SDL_Vertex for filled rendering
+		SDL_Vertex* vertices = (SDL_Vertex*)malloc(2 * count * sizeof(SDL_Vertex));
+		for (int i = 0; i < 2 * count; ++i) {
+			vertices[i].position = polygonPoints[i];
+			vertices[i].color = (SDL_Color){255, 255, 255, 255}; // White color
+		}
+
+		// Define indices for the filled polygon
+		int numTriangles = 2 * (count - 1);
+		int* indices = (int*)malloc(numTriangles * 3 * sizeof(int));
+
+		for (int i = 0; i < count - 1; ++i) {
+			// First triangle of the quad
+			indices[i * 6 + 0] = i;
+			indices[i * 6 + 1] = i + count;
+			indices[i * 6 + 2] = i + 1;
+			// Second triangle of the quad
+			indices[i * 6 + 3] = i + 1;
+			indices[i * 6 + 4] = i + count;
+			indices[i * 6 + 5] = i + count + 1;
+		}
+		// Close the last quad
+		indices[(count - 1) * 6 + 0] = count - 1;
+		indices[(count - 1) * 6 + 1] = 2 * count - 1;
+		indices[(count - 1) * 6 + 2] = 0;
+		indices[(count - 1) * 6 + 3] = 0;
+		indices[(count - 1) * 6 + 4] = 2 * count - 1;
+		indices[(count - 1) * 6 + 5] = count;
+
+		SDL_RenderGeometry(renderer, NULL, vertices, 2 * count, indices, numTriangles * 3);
+
+		free(vertices);
+		free(indices);
+	} else {
+		SDL_RenderDrawLinesF(renderer, polygonPoints, 2 * count);
+		SDL_RenderDrawLineF(renderer, polygonPoints[2 * count - 1].x, polygonPoints[2 * count - 1].y, polygonPoints[0].x, polygonPoints[0].y);
+	}
+
+	// Free the allocated memory
+	free(polygonPoints);
+}
+
+
+void drawSineWave(SDL_Renderer* renderer, int startX, int endX, int height, int amplitude) {
+	int width = endX - startX;
+	SDL_FPoint points[width];
+	
+	for (int x = 0; x < width; x++) {
+		float y = height / 2 + amplitude * sinf(2 * M_PI * x / width);
+		points[x] = (SDL_FPoint){ .x = startX + x, .y = y };
+	}
+	
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White color
+	drawPolygonCurve(renderer, 100, points, width, 1 );
+}
+
 void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) {
 	// Triangulate the polygon (assuming it's convex)
 	// This example assumes numVertices is at least 3 and that the polygon is convex.
@@ -106,196 +212,6 @@ void drawPolygonOutline(SDL_Renderer* renderer, SDL_Point* points, int numPoints
 		SDL_RenderDrawLine(renderer, points[numPoints - 1].x, points[numPoints - 1].y, points[0].x, points[0].y); // Close the polygon
 	}
 }
-
-#if 1
-typedef struct {
-	float x;
-	float y;
-} PointF;
-
-// Function to normalize a vector
-void normalize(PointF* v) {
-	float length = sqrtf(v->x * v->x + v->y * v->y);
-	if (length != 0) {
-		v->x /= length;
-		v->y /= length;
-	}
-}
-
-// Function to compute the normal of a segment
-PointF compute_normal(SDL_Point p1, SDL_Point p2) {
-	float dx = (float)(p2.x - p1.x);
-	float dy = (float)(p2.y - p1.y);
-	PointF normal;
-	float length = sqrtf(dx * dx + dy * dy);
-
-	// Handle small lengths to avoid instability
-	if (length > 1e-6) {
-		normal.x = dy / length;
-		normal.y = -dx / length;
-	} else {
-		normal.x = 0;
-		normal.y = 0;
-	}
-	return normal;
-}
-
-// Function to smooth an array of points using a moving average
-void smooth_points(PointF* input_points, PointF* smoothed_points, int num_points, int window_size) {
-	for (int i = 0; i < num_points; ++i) {
-		int count = 0;
-		float sum_x = 0.0f;
-		float sum_y = 0.0f;
-		for (int j = -window_size; j <= window_size; ++j) {
-			int index = i + j;
-			if (index >= 0 && index < num_points) {
-				sum_x += input_points[index].x;
-				sum_y += input_points[index].y;
-				count++;
-			}
-		}
-		smoothed_points[i].x = sum_x / count;
-		smoothed_points[i].y = sum_y / count;
-	}
-}
-
-// Function to smooth an array of SDL points using a moving average
-void smooth_sdl_points(SDL_Point* input_points, SDL_Point* smoothed_points, int num_points, int window_size) {
-	for (int i = 0; i < num_points; ++i) {
-		int count = 0;
-		float sum_x = 0.0f;
-		float sum_y = 0.0f;
-		for (int j = -window_size; j <= window_size; ++j) {
-			int index = i + j;
-			if (index >= 0 && index < num_points) {
-				sum_x += input_points[index].x;
-				sum_y += input_points[index].y;
-				count++;
-			}
-		}
-		smoothed_points[i].x = (int)(sum_x / count);
-		smoothed_points[i].y = (int)(sum_y / count);
-	}
-}
-
-void compute_offset_curve(SDL_Point* input_points, SDL_Point* offset_points, int num_points, float offset, int window_size) {
-	if (num_points < 2) return;  // Need at least 2 points to define a curve
-
-	PointF* normals = (PointF*)malloc(num_points * sizeof(PointF));
-	PointF* smoothed_normals = (PointF*)malloc(num_points * sizeof(PointF));
-	SDL_Point* smoothed_offset_points = (SDL_Point*)malloc(num_points * sizeof(SDL_Point));
-
-	// Compute normals for each segment
-	for (int i = 0; i < num_points - 1; ++i) {
-		normals[i] = compute_normal(input_points[i], input_points[i + 1]);
-	}
-
-	// Handle the first and last normals separately
-	normals[0] = compute_normal(input_points[0], input_points[1]);
-	normals[num_points - 1] = compute_normal(input_points[num_points - 2], input_points[num_points - 1]);
-
-	// Smooth normals using a moving average with the specified window size
-	smooth_points(normals, smoothed_normals, num_points, window_size);
-
-	// Offset each point using the smoothed normals
-	for (int i = 0; i < num_points; ++i) {
-		normalize(&smoothed_normals[i]); // Ensure normal is unit length
-		offset_points[i].x = (int)(input_points[i].x + offset * smoothed_normals[i].x);
-		offset_points[i].y = (int)(input_points[i].y + offset * smoothed_normals[i].y);
-	}
-
-	// Smooth the offset points
-	smooth_sdl_points(offset_points, smoothed_offset_points, num_points, window_size);
-
-	// Copy the smoothed offset points back to offset_points
-	for (int i = 0; i < num_points; ++i) {
-		offset_points[i] = smoothed_offset_points[i];
-	}
-
-	free(normals);
-	free(smoothed_normals);
-	free(smoothed_offset_points);
-}
-
-
-
-void drawPolygonCurve(SDL_Renderer* renderer, float thickness, SDL_Point* points, int numPoints) {
-	if (numPoints < 2) return;
-
-	SDL_Point* thickPoints = (SDL_Point*)malloc(2 * numPoints * sizeof(SDL_Point));
-	if (!thickPoints) return;
-
-	SDL_Point* nextThickPoint = thickPoints;
-
-	// Copy original points to the first half
-	for (int i = 0; i < numPoints; ++i) {
-		*nextThickPoint++ = points[i];	
-	}
-	
-	SDL_Point *offsetPoints = alloca(sizeof(SDL_Point) * numPoints);
-	
-	compute_offset_curve(points, offsetPoints, numPoints, 50, 5);
-
-//	thickness = 50;
-	
-	// Calculate offset points for the second half (thickness)
-	for (int i = numPoints - 1; i >= 0; i--) {
-		
-		*nextThickPoint++ = offsetPoints[i]; 		
-	}
-
-	drawPolygonOutline(renderer, thickPoints, numPoints * 2);
-//	drawPolygonOutline(renderer, points, numPoints);
-//	SDL_RenderDrawLines(renderer, points, numPoints);
-
-	free(thickPoints);
-}
-
-
-#else
-void drawPolygonCurve(SDL_Renderer* renderer, float thickness, SDL_Point* points, int numPoints) {
-	if (numPoints < 2) return; // Need at least two points to form a line
-
-	// Allocate memory for the expanded array
-	int totalPoints = 2 * numPoints;
-	SDL_Point* expandedPoints = (SDL_Point*)malloc(totalPoints * sizeof(SDL_Point));
-	if (!expandedPoints) return; // Allocation failed
-
-	// Copy the original points to the first half of the array
-	for (int i = 0; i < numPoints; ++i) {
-		expandedPoints[i] = points[i];
-	}
-
-	// Compute the offset points for the second half of the array
-	for (int i = 0; i < numPoints; ++i) {
-		int j = numPoints - 1 - i;
-		float dx, dy, length;
-		
-		if (j == 0) {
-			dx = points[j + 1].x - points[j].x;
-			dy = points[j + 1].y - points[j].y;
-		} else {
-			dx = points[j].x - points[j - 1].x;
-			dy = points[j].y - points[j - 1].y;
-		}
-
-		length = sqrtf(dx * dx + dy * dy);
-		dx /= length;
-		dy /= length;
-
-		expandedPoints[numPoints + i].x = points[j].x + (int)(dy * thickness);
-		expandedPoints[numPoints + i].y = points[j].y - (int)(dx * thickness);
-	}
-
-	// Draw the filled polygon
-	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White color
-	SDL_RenderDrawLines(renderer, expandedPoints, totalPoints);
-	SDL_RenderDrawLine(renderer, expandedPoints[totalPoints - 1].x, expandedPoints[totalPoints - 1].y, expandedPoints[0].x, expandedPoints[0].y); // Close the polygon
-
-	// Free the allocated memory
-	free(expandedPoints);
-}
-#endif
 
 void precomputeCircleVertices(SDL_Point* points, int radius) {
 	double angleIncrement = 2 * M_PI / NUM_CIRCLE_SEGMENTS;
@@ -532,14 +448,8 @@ int main(int argc, char* argv[]) {
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black color
 		SDL_RenderClear(renderer);
 
-		// Draw thick sine wave using drawPolygonCurve
-		SDL_Point sineWavePoints[WINDOW_WIDTH-100];
-		for (int x = 0; x < WINDOW_WIDTH-100; x++) {
-			int y = WINDOW_HEIGHT / 2 + (int)(SINE_WAVE_AMPLITUDE * sin(2 * M_PI * x / (WINDOW_WIDTH-100)));
-			sineWavePoints[x].x = x+50;
-			sineWavePoints[x].y = y;
-		}
-		drawPolygonCurve(renderer, 20.0f, sineWavePoints, WINDOW_WIDTH-100);
+		// Draw thick sine wave
+		drawSineWave(renderer, SINE_WAVE_START_X, SINE_WAVE_END_X, WINDOW_HEIGHT, SINE_WAVE_AMPLITUDE);
 
 		// Render "Hello, world!" text
 		SDL_Rect textRect = { (WINDOW_WIDTH - textWidth) / 2, (WINDOW_HEIGHT - textHeight) / 2, textWidth, textHeight };
