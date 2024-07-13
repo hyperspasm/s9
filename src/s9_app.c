@@ -242,7 +242,6 @@ int s9_app_create(const s9_app_config_t *config) {
 				"No available audio input devices");
 	
 	// choose first device as default
-	int selected_device_index = 0;
 	const char *selected_audio_device_name = SDL_GetAudioDeviceName(0, SDL_TRUE);
 	
 	// enumerate audio devices and select the specified one, if any
@@ -251,7 +250,6 @@ int s9_app_create(const s9_app_config_t *config) {
 		const char *device_name = SDL_GetAudioDeviceName(i, SDL_TRUE);
 		s9_log(LOG_LEVEL_INFO, "    %s", device_name);
 		if (g_app->config.audio_device != NULL && device_name && strcmp(device_name, g_app->config.audio_device) == 0) {
-			selected_device_index = i;
 			selected_audio_device_name = device_name;
 		}
 	}	
