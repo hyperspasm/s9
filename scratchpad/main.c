@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "draw_sdl.h"
+
 // Define font path
 #ifdef __APPLE__
 #define FONT_PATH "/Users/shea/work/s9/scratchpad/Roboto-Regular.ttf"
@@ -84,95 +86,7 @@ SDL_Texture* createTextTexture(SDL_Renderer* renderer, TTF_Font* font, const cha
 	return texture;
 }
 
-void drawPolygonCurve(SDL_Renderer *renderer, SDL_Color color, float thickness, const SDL_FPoint *points, int count, int filled)
-{
-	// Allocate an array of 2 * count SDL_FPoint
-	SDL_FPoint* polygonPoints = (SDL_FPoint*)malloc(2 * count * sizeof(SDL_FPoint));
-	if (!polygonPoints) {
-		logSDLError("malloc");
-		return;
-	}
-
-	// Compute the offsets
-	float halfThickness = 0.5f * thickness;
-
-	// Populate the first half of the array, offsetting points by halfThickness in one direction
-	for (int i = 0; i < count; ++i) {
-		float dx = 0, dy = 0;
-		if (i < count - 1) {
-			dx = points[i + 1].y - points[i].y;
-			dy = points[i].x - points[i + 1].x;
-		} else {
-			dx = points[i].y - points[i - 1].y;
-			dy = points[i - 1].x - points[i].x;
-		}
-		float length = sqrt(dx * dx + dy * dy);
-		dx = (dx / length) * halfThickness;
-		dy = (dy / length) * halfThickness;
-		polygonPoints[i].x = points[i].x + dx;
-		polygonPoints[i].y = points[i].y + dy;
-	}
-
-	// Populate the second half of the array by iterating points in reverse and offsetting by halfThickness in the other direction
-	for (int i = 0; i < count; ++i) {
-		float dx = 0, dy = 0;
-		if (i < count - 1) {
-			dx = points[i + 1].y - points[i].y;
-			dy = points[i].x - points[i + 1].x;
-		} else {
-			dx = points[i].y - points[i - 1].y;
-			dy = points[i - 1].x - points[i].x;
-		}
-		float length = sqrt(dx * dx + dy * dy);
-		dx = (dx / length) * halfThickness;
-		dy = (dy / length) * halfThickness;
-		polygonPoints[count + i].x = points[count - 1 - i].x - dx;
-		polygonPoints[count + i].y = points[count - 1 - i].y - dy;
-	}
-
-	// Draw the array of 2 * count points
-	if (filled) {
-		// Convert SDL_FPoint to SDL_Vertex for filled rendering
-		int numVertices = 2 * count;
-		SDL_Vertex* vertices = (SDL_Vertex*)malloc(numVertices * sizeof(SDL_Vertex));
-		for (int i = 0; i < numVertices; ++i) {
-			vertices[i].position = polygonPoints[i];
-			vertices[i].color = color;
-		}
-		
-		int numTriangles = numVertices - 2;		
-		int numIndices = numTriangles * 3;
-		int* indices = (int*)malloc(numIndices * sizeof(int));
-		
-		int *ix = indices;
-		for(int i=0; i<count-1; i++)
-		{
-			*ix++ = i;
-			*ix++ = (numVertices - 1) - i;
-			*ix++ = i + 1;
-			
-			*ix++ = (numVertices - 1) - i;
-			*ix++ = i + 1;
-			*ix++ = (numVertices - 1) - (i + 1);
-		}
-
-		SDL_RenderGeometry(renderer, NULL, vertices, numVertices, indices, numIndices);
-
-		free(indices);
-		free(vertices);
-		
-	} else {
-		SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-		SDL_RenderDrawLinesF(renderer, polygonPoints, 2 * count);
-		SDL_RenderDrawLineF(renderer, polygonPoints[2 * count - 1].x, polygonPoints[2 * count - 1].y, polygonPoints[0].x, polygonPoints[0].y);
-	}
-
-	// Free the allocated memory
-	free(polygonPoints);
-}
-
-
-void drawSineWave(SDL_Renderer* renderer, int startX, int endX, int height, int amplitude) {
+void drawSineWave(SDL_Renderer* renderer, int startX, int endX, int height, int amplitude, int filled) {
 	int width = endX - startX;
 	SDL_FPoint points[width];
 	
@@ -182,7 +96,48 @@ void drawSineWave(SDL_Renderer* renderer, int startX, int endX, int height, int 
 	}
 	
 	SDL_Color color = {255, 0, 255, 255}; // Magenta color
-	drawPolygonCurve(renderer, color, 50, points, width, 1);
+	draw_sdl_path(renderer, color, 50, filled, points, width);
+}
+
+void drawPolygonOutline(SDL_Renderer* renderer, SDL_Point* points, int numPoints);
+	
+void drawClosedPolygon(SDL_Renderer* renderer, int x, int y, int n, int r, int filled) {	
+	SDL_FPoint points[n+1];
+	
+	double factor = (M_PI * 2.0) / n;
+	
+	int i;
+	
+	SDL_FPoint *d = points;
+	for(i=0; i<n; i++) {
+		double v = i * factor;
+		
+		d->x = cos(v);
+		d->y = sin(v);
+		
+		d->x *= r;
+		d->y *= r;
+		
+		d->x += x;
+		d->y += y;
+		
+		d++;
+	}
+	
+	// closed
+	points[n] = points[0];
+	
+	SDL_Color color = {255, 255, 0, 255}; // Yellow color
+	draw_sdl_path(renderer, color, 30, filled, points, n+1);
+	
+	SDL_Point pts[n+1];
+	for(i=0; i<=n; i++) {
+		pts[i].x = points[i].x;
+		pts[i].y = points[i].y;
+	}
+	drawPolygonOutline(renderer, pts, n+1);
+	
+	
 }
 
 void drawPolygon(SDL_Renderer* renderer, SDL_Vertex* vertices, int numVertices) {
@@ -403,7 +358,6 @@ int main(int argc, char* argv[]) {
 
 	int mouseX, mouseY;
 	SDL_Texture* mouseTexture = NULL;
-	int mouseWidth, mouseHeight;
 
 	// Define a polygon with 5 vertices
 	SDL_Vertex vertices[5] = {
@@ -445,12 +399,19 @@ int main(int argc, char* argv[]) {
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black color
 		SDL_RenderClear(renderer);
 
-		// Draw thick sine wave
-		drawSineWave(renderer, SINE_WAVE_START_X, SINE_WAVE_END_X, WINDOW_HEIGHT, SINE_WAVE_AMPLITUDE);
-
 		// Render "Hello, world!" text
 		SDL_Rect textRect = { (WINDOW_WIDTH - textWidth) / 2, (WINDOW_HEIGHT - textHeight) / 2, textWidth, textHeight };
 		SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+		
+		// Draw filled polygon
+		drawPolygon(renderer, vertices, 5);
+		
+		// Draw thick sine wave
+		drawSineWave(renderer, SINE_WAVE_START_X, SINE_WAVE_END_X, WINDOW_HEIGHT, SINE_WAVE_AMPLITUDE, 0);
+		
+		drawClosedPolygon(renderer, 350, 350, 6, 300, 0);
+
+		
 
 		// Calculate frame rate
 		frameCount++;
@@ -519,9 +480,6 @@ int main(int argc, char* argv[]) {
 		// Draw circle outline following the mouse
 		SDL_SetRenderDrawColor(renderer, circleColor.r, circleColor.g, circleColor.b, circleColor.a);
 		drawCircle(renderer, mouseX, mouseY, precomputedCircleVertices);
-
-		// Draw filled polygon
-		drawPolygon(renderer, vertices, 5);
 
 		// Draw polygon outline
 		drawPolygonOutline(renderer, points, 5);

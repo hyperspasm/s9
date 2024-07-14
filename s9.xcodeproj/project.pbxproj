@@ -14,6 +14,7 @@
 		E2FF4F972C42BABC00308A0E /* fps.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F962C42BABC00308A0E /* fps.c */; };
 		E2FF4FD02C432FA900308A0E /* libfftw3f.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4FCF2C432FA900308A0E /* libfftw3f.dylib */; };
 		E2FF4FD62C4337AE00308A0E /* window_function.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FD42C4337AE00308A0E /* window_function.c */; };
+		E2FF4FD92C43691400308A0E /* draw_sdl.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FD82C43691400308A0E /* draw_sdl.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -41,6 +42,8 @@
 		E2FF4FCF2C432FA900308A0E /* libfftw3f.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libfftw3f.dylib; path = ../../../../usr/local/lib/libfftw3f.dylib; sourceTree = "<group>"; };
 		E2FF4FD42C4337AE00308A0E /* window_function.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = window_function.c; path = src/window_function.c; sourceTree = "<group>"; };
 		E2FF4FD52C4337AE00308A0E /* window_function.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = window_function.h; path = src/window_function.h; sourceTree = "<group>"; };
+		E2FF4FD72C43691400308A0E /* draw_sdl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = draw_sdl.h; path = src/draw_sdl.h; sourceTree = "<group>"; };
+		E2FF4FD82C43691400308A0E /* draw_sdl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = draw_sdl.c; path = src/draw_sdl.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +71,8 @@
 				E2FF4F962C42BABC00308A0E /* fps.c */,
 				E2FF4FD42C4337AE00308A0E /* window_function.c */,
 				E2FF4FD52C4337AE00308A0E /* window_function.h */,
+				E2FF4FD72C43691400308A0E /* draw_sdl.h */,
+				E2FF4FD82C43691400308A0E /* draw_sdl.c */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
 			);
@@ -152,6 +157,7 @@
 				E2FF4FD62C4337AE00308A0E /* window_function.c in Sources */,
 				E2FF4F8B2C429D1100308A0E /* main.c in Sources */,
 				E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */,
+				E2FF4FD92C43691400308A0E /* draw_sdl.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
