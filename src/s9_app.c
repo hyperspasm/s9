@@ -154,7 +154,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	CHECK_ERROR(g_app == NULL, return -1, "ignoring attempt to create a second app instance");
 	
 	g_app = malloc(sizeof(s9_app_t));
-	CHECK_ERROR(g_app != NULL, return -1, "failed to allocate app memory");
+	CHECK_ALLOC(g_app, return -1);
 	memset(g_app, 0, sizeof(*g_app));
 	
 	g_app->config = *config;

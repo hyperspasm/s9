@@ -21,7 +21,7 @@ typedef struct fps {
 
 fps_t *fps_new(SDL_Renderer *renderer, TTF_Font *font, SDL_Color color, uint32_t interval_ms) {
 	fps_t *fps = (fps_t *)malloc(sizeof(fps_t));
-	CHECK_ERROR(fps != NULL, return NULL, "failed to allocate fps struct");
+	CHECK_ALLOC(fps, return NULL);
 	memset(fps, 0, sizeof(*fps));
 
 	fps->renderer = renderer;

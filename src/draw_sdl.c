@@ -29,9 +29,7 @@ int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int fill
 	
 	// allocate an array of points to draw
 	SDL_FPoint* draw_points = (SDL_FPoint*)malloc(2 * count * sizeof(SDL_FPoint));
-	CHECK_ERROR(draw_points != NULL,
-				return -1,
-				"failed to allocate memory");
+	CHECK_ALLOC(draw_points, return -1);
 
 	// compute offset to be applied in both directions
 	float offset = 0.5f * width;
@@ -105,10 +103,9 @@ int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int fill
 		// convert draw_points to vertices for triangulation
 		int n_vertices = count *  2; 
 		SDL_Vertex* vertices = (SDL_Vertex*) malloc(n_vertices * sizeof(SDL_Vertex));
-		CHECK_ERROR(vertices != NULL,
+		CHECK_ALLOC(vertices,
 					free(draw_points);
-					return -1,
-					"failed to allocate memory");
+					return -1);
 		
 		for (int i = 0; i < n_vertices; i++) {
 			vertices[i].position = draw_points[i];
@@ -118,11 +115,10 @@ int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int fill
 		// compute indices for rendering triangles
 		int n_indices = (n_vertices - 2) * 3;
 		int *indices = (int*) malloc(n_indices * sizeof(int));
-		CHECK_ERROR(indices != NULL,
+		CHECK_ALLOC(indices,
 					free(vertices);
 					free(draw_points);
-					return -1,
-					"failed to allocate memory");
+					return -1);
 		
 		for(int i = 0, *idx = indices; i < count-1; i++, idx+= 6) {
 			idx[0] = i;
