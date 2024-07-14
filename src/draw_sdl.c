@@ -163,3 +163,25 @@ int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int fill
 	
 	return 0;
 }
+
+int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font *font, SDL_Color *color, const char *text, int *out_width, int *out_height) {		
+	CHECK_PARAMETER(renderer != NULL, return -1);
+	CHECK_PARAMETER(texture != NULL, return -1);	
+	CHECK_PARAMETER(font != NULL, return -1);
+	CHECK_PARAMETER(color != NULL, return -1);
+	CHECK_PARAMETER(text != NULL, return -1);
+
+	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, *color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+
+	if(*texture) SDL_DestroyTexture(*texture);
+	
+	*texture = SDL_CreateTextureFromSurface(renderer, surface);
+	CHECK_ERROR(texture != NULL, SDL_FreeSurface(surface); return -1, "failed to create texture: %s", SDL_GetError());
+	
+	if(out_width) *out_width = surface->w;
+	if(out_height) *out_height = surface->h;
+	SDL_FreeSurface(surface);
+	
+	return 0;
+}

@@ -1,4 +1,5 @@
 #include "fps.h"
+#include "draw_sdl.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -17,24 +18,6 @@ typedef struct fps {
 	int height;
 	
 } fps_t;
-
-static void update_fps_texture(fps_t *fps) {
-	char fps_text[32];
-	snprintf(fps_text, sizeof(fps_text), "FPS: %.2f", fps->fps_value);
-
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(fps->font, fps_text, fps->color);
-	CHECK_ERROR(surface != NULL, return, "failed to create FPS surface: %s", TTF_GetError());
-
-	if (fps->fps_texture) {
-		SDL_DestroyTexture(fps->fps_texture);
-	}
-	fps->fps_texture = SDL_CreateTextureFromSurface(fps->renderer, surface);
-	CHECK_ERROR(fps->fps_texture != NULL, SDL_FreeSurface(surface); return, "failed to create fps texture: %s", SDL_GetError());
-
-	fps->width = surface->w;
-	fps->height = surface->h;
-	SDL_FreeSurface(surface);
-}
 
 fps_t *fps_new(SDL_Renderer *renderer, TTF_Font *font, SDL_Color color, uint32_t interval_ms) {
 	fps_t *fps = (fps_t *)malloc(sizeof(fps_t));
@@ -63,6 +46,12 @@ void fps_free(fps_t **fps) {
 		free(*fps);
 		*fps = NULL;
 	}
+}
+
+static void update_fps_texture(fps_t *fps) {
+	char fps_text[32];
+	snprintf(fps_text, sizeof(fps_text), "FPS: %.2f", fps->fps_value);	
+	draw_sdl_render_text(fps->renderer, &fps->fps_texture, fps->font, &fps->color, fps_text, &fps->width, &fps->height);
 }
 
 void fps_render(fps_t *fps) {
