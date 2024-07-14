@@ -25,7 +25,7 @@ int s9_print(const char *format, ...);
 do { \
 	if(!(assertion)) \
 	{ \
-		if(message) s9_log(LOG_LEVEL_ERROR, message " (%s line %d)", ##__VA_ARGS__, S9_BASE_FILENAME(__FILE__), __LINE__); \
+		if(message) s9_log(LOG_LEVEL_ERROR, message " (%s: %d)", ##__VA_ARGS__, S9_BASE_FILENAME(__FILE__), __LINE__); \
 		fail_action; \
 	} \
 } while(0)
@@ -33,7 +33,15 @@ do { \
 #define CHECK_PARAMETER(assertion, fail_action) \
 	do { \
 		if (!(assertion)) { \
-			s9_log(LOG_LEVEL_ERROR, "bad parameter: " S9_TOSTRING(assertion) " (%s line %d)", S9_BASE_FILENAME(__FILE__), __LINE__); \
+			s9_log(LOG_LEVEL_ERROR, "bad parameter: " S9_TOSTRING(assertion) " (%s: %d)", S9_BASE_FILENAME(__FILE__), __LINE__); \
+			fail_action; \
+		} \
+	} while (0)
+
+#define CHECK_ALLOC(ptr, fail_action) \
+	do { \
+		if (ptr == NULL) { \
+			s9_log(LOG_LEVEL_ERROR, "allocation failed (%s: %d)", S9_BASE_FILENAME(__FILE__), __LINE__); \
 			fail_action; \
 		} \
 	} while (0)
