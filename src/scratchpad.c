@@ -34,46 +34,49 @@ void scratchpad_free(scratchpad_t **sp) {
 	}
 }
 
-static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
-	SDL_Rect viewport;
+static inline void prepare_wave(scratchpad_t *sp) {
 	
+	if(sp->wave_points) {
+		free(sp->wave_points);
+		sp->wave_points = NULL;
+		sp->n_wave_points = 0;
+	}
+	
+	int inset = 10;
+	float width = sp->viewport.w - 2 * inset;
+	float height = sp->viewport.h - 2 * inset;
+	float frequency = 1.0f / width;
+	float amplitude = height / 2.0f;
+	float offset_y = inset + amplitude;
+	
+	CHECK_ERROR(width > 10, return, "scratchpad viewport too narrow");
+	
+	sp->wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * (size_t)width);
+	CHECK_ALLOC(sp->wave_points, return);
+	sp->n_wave_points = (int)width;
+	
+	for(int i = 0; i < sp->n_wave_points; i++) {
+		float x = inset + (float)i;
+		float base_wave = sinf(frequency * (float)i * 2.0f * M_PI);
+		float second_harmonic = 0.1f * sinf(2.0f * frequency * (float)i * 2.0f * M_PI);
+		float fourth_harmonic = 0.2f * sinf(4.0f * frequency * (float)i * 2.0f * M_PI);
+		float fifth_harmonic = 0.1f * sinf(5.0f * frequency * (float)i * 2.0f * M_PI);
+		float y = offset_y + amplitude * (base_wave + second_harmonic + fourth_harmonic + fifth_harmonic) / 1.4f; // Normalizing by 1.4 to maintain the amplitude within bounds
+		sp->wave_points[i].x = x;
+		sp->wave_points[i].y = y;
+	}
+}
+
+static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
+	SDL_Rect viewport;	
 	SDL_RenderGetViewport(renderer, &viewport);
 	
 	if(sp->renderer != renderer || !SDL_RectEquals(&sp->viewport, &viewport)) {
 		sp->renderer = renderer;
-		sp->viewport = viewport;
-		
+		sp->viewport = viewport;		
 		s9_log(LOG_LEVEL_DEBUG, "scratchpad viewport { %d, %d, %d, %d }", viewport.x, viewport.y, viewport.w, viewport.h);
-		
-		if(sp->wave_points) {
-			free(sp->wave_points);
-			sp->wave_points = NULL;
-			sp->n_wave_points = 0;
-		}
-		
-		int inset = 10;
-		float width = sp->viewport.w - 2 * inset;
-		float height = sp->viewport.h - 2 * inset;
-		float frequency = 1.0f / width;
-		float amplitude = height / 2.0f;
-		float offset_y = inset + amplitude;
-		
-		CHECK_ERROR(width > 10, return, "scratchpad viewport too narrow");
-		
-		sp->wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * (size_t)width);
-		CHECK_ALLOC(sp->wave_points, return);
-		sp->n_wave_points = (int)width;
-		
-		for(int i = 0; i < sp->n_wave_points; i++) {
-			float x = inset + (float)i;
-			float base_wave = sinf(frequency * (float)i * 2.0f * M_PI);
-			float second_harmonic = 0.1f * sinf(2.0f * frequency * (float)i * 2.0f * M_PI);
-			float fourth_harmonic = 0.2f * sinf(4.0f * frequency * (float)i * 2.0f * M_PI);
-			float fifth_harmonic = 0.1f * sinf(5.0f * frequency * (float)i * 2.0f * M_PI);
-			float y = offset_y + amplitude * (base_wave + second_harmonic + fourth_harmonic + fifth_harmonic) / 1.4f; // Normalizing by 1.4 to maintain the amplitude within bounds
-			sp->wave_points[i].x = x;
-			sp->wave_points[i].y = y;
-		}
+				
+		prepare_wave(sp);
 	}
 }
 
