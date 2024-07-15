@@ -26,7 +26,7 @@ void load_config_file(s9_app_config_t *config) {
 	if (home == NULL) {
 		return;
 	}
-
+	
 	char path[1024];
 	snprintf(path, sizeof(path), "%s/.s9rc", home);
 	
@@ -34,9 +34,9 @@ void load_config_file(s9_app_config_t *config) {
 	if (file == NULL) {
 		return;
 	}
-
+	
 	s9_log(LOG_LEVEL_INFO, "parsing %s", path);
-
+	
 	char line[256];
 	while (fgets(line, sizeof(line), file) != NULL) {
 		// Ignore comments
@@ -63,7 +63,7 @@ void load_config_file(s9_app_config_t *config) {
 			config->audio_device[strcspn(config->audio_device, "\n")] = '\0';
 		}
 	}
-
+	
 	fclose(file);
 }
 
@@ -76,11 +76,19 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "  -a, --audio_device <device>      Set audio device\n");
 	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
 	fprintf(stdout, "  --help                           Display this help message\n");
+	fprintf(stdout, "\nConfiguration File:\n");
+	fprintf(stdout, "  The application can also be configured using a ~/.s9rc file.\n");
+	fprintf(stdout, "  The configuration file supports the following key-value pairs:\n");
+	fprintf(stdout, "    window_width=<width>\n");
+	fprintf(stdout, "    window_height=<height>\n");
+	fprintf(stdout, "    log_level=<log_level>\n");
+	fprintf(stdout, "    sample_rate=<rate>\n");
+	fprintf(stdout, "    audio_device=<device>\n");
 }
 
 int main(int argc, const char * argv[]) {
 	int ret;
-
+	
 	s9_app_config_t config = {
 		.log_line = log_line,
 		.log_level = DEFAULT_LOG_LEVEL,
@@ -90,10 +98,10 @@ int main(int argc, const char * argv[]) {
 		.audio_device = NULL,
 		.sample_rate = DEFAULT_SAMPLE_RATE,
 	};
-
+	
 	// load configuration from file
 	load_config_file(&config);
-
+	
 	// define long options
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 0},
@@ -104,7 +112,7 @@ int main(int argc, const char * argv[]) {
 		{"sample_rate", required_argument, 0, 'r'},
 		{0, 0, 0, 0}
 	};
-
+	
 	// parse command line arguments
 	int opt;
 	int long_index = 0;
@@ -137,15 +145,15 @@ int main(int argc, const char * argv[]) {
 				exit(EXIT_FAILURE);
 		}
 	}
-
+	
 	ret = s9_app_create(&config);
 	while (ret == 0) {
 		ret = s9_app_run();
 	}
-
+	
 	s9_app_destroy();
-
+	
 	if(config.audio_device) free(config.audio_device);
-
+	
 	return ret >= 0 ? 0 : ret;
 }
