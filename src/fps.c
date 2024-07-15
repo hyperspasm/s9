@@ -54,7 +54,7 @@ static void update_fps_texture(fps_t *fps) {
 	draw_sdl_render_text(fps->renderer, &fps->fps_texture, fps->font, &fps->color, fps_text, &fps->width, &fps->height);
 }
 
-void fps_render(fps_t *fps) {
+void fps_render(fps_t *fps, SDL_Renderer *renderer) {
 	uint32_t current_time = SDL_GetTicks();
 	fps->frame_count++;
 	if (current_time - fps->last_time >= fps->interval_ms) {

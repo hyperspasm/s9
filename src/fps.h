@@ -15,6 +15,6 @@ fps_t *fps_new(SDL_Renderer *renderer, TTF_Font *font, SDL_Color color, uint32_t
 void fps_free(fps_t **fps);
 
 // renders the current measurement at the top left corner of the viewport
-void fps_render(fps_t *fps);
+void fps_render(fps_t *fps, SDL_Renderer *renderer);
 
 #endif /* fps_h */

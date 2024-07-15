@@ -1,6 +1,7 @@
 #include "s9_app.h"
 #include "Roboto-Regular.h"
 #include "fps.h"
+#include "scratchpad.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -18,6 +19,7 @@ typedef struct s9_app {
 	TTF_Font *small_font;
 	
 	fps_t *fps;
+	scratchpad_t *scratchpad;
 	
 	SDL_AudioDeviceID audio_device_id;
 	SDL_AudioSpec audio_spec;
@@ -136,9 +138,27 @@ static TTF_Font* load_font_from_memory(const uint8_t *font_data, int data_size, 
 	return font;
 }
 
-static void render(void) {
+static void render(SDL_Renderer *renderer) {
+	SDL_Rect default_viewport;		
+	SDL_RenderGetViewport(renderer, &default_viewport);
+	
+	// scratchpad
+	if(g_app->scratchpad) {
+		int margin_x = 200;
+		SDL_Rect viewport = {
+			.x = default_viewport.x + margin_x,
+			.y = default_viewport.y,
+			.w = default_viewport.w - margin_x,
+			.h = default_viewport.h,
+		};
+		SDL_RenderSetViewport(renderer, &viewport);
+		scratchpad_render(g_app->scratchpad, g_app->renderer);		
+	}
+	
+	// fps
 	if(g_app->fps) {
-		fps_render(g_app->fps);
+		SDL_RenderSetViewport(renderer, &default_viewport);		
+		fps_render(g_app->fps, renderer);
 	}
 }
 
@@ -214,6 +234,22 @@ int s9_app_create(const s9_app_config_t *config) {
 				SDL_Quit();
 				return -1,
 				"Failed to load small font");
+	
+	// enable blending mode for anti-aliasing
+	SDL_SetRenderDrawBlendMode(g_app->renderer, SDL_BLENDMODE_BLEND);
+	
+	// create scratchpad instance
+	g_app->scratchpad = scratchpad_new();
+	CHECK_ERROR(g_app->scratchpad != NULL,
+				TTF_CloseFont(g_app->small_font);
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to create scratchpad instance");
 	
 	// create fps instance
 	g_app->fps = fps_new(g_app->renderer, g_app->small_font, (SDL_Color){255, 255, 255, 255}, 1000);
@@ -299,6 +335,11 @@ void s9_app_destroy(void) {
 		g_app->small_font = NULL;
 	}
 	
+	// destroy scratchpad instance
+	if (g_app->scratchpad) {
+		scratchpad_free(&g_app->scratchpad);
+	}
+	
 	// destroy fps instance
 	if (g_app->fps) {
 		fps_free(&g_app->fps);
@@ -337,12 +378,15 @@ int s9_app_run(void) {
 	// exit if necessary
 	if (g_app->ret) return g_app->ret;
 	
+	// reset viewport to default
+	SDL_RenderSetViewport(g_app->renderer, NULL);
+	
 	// clear screen
 	SDL_SetRenderDrawColor(g_app->renderer, 0, 0, 0, 255);
 	SDL_RenderClear(g_app->renderer);
 	
 	// perform all rendering
-	render();
+	render(g_app->renderer);
 	
 	// present renderer
 	SDL_RenderPresent(g_app->renderer);
