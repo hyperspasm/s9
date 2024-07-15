@@ -9,7 +9,7 @@
 // default configuration values
 #define DEFAULT_WINDOW_WIDTH 1280
 #define DEFAULT_WINDOW_HEIGHT 720
-#define DEFAULT_LOG_LEVEL LOG_LEVEL_TRACE
+#define DEFAULT_LOG_LEVEL LOG_LEVEL_INFO
 #define DEFAULT_SAMPLE_RATE 44100
 
 static void log_line(const char *text) {
