@@ -67,6 +67,17 @@ void load_config_file(s9_app_config_t *config) {
 	fclose(file);
 }
 
+void print_help(const char *prog_name) {
+	fprintf(stdout, "Usage: %s [options]\n", prog_name);
+	fprintf(stdout, "Options:\n");
+	fprintf(stdout, "  -w, --window_width <width>       Set window width (default: %d)\n", DEFAULT_WINDOW_WIDTH);
+	fprintf(stdout, "  -h, --window_height <height>     Set window height (default: %d)\n", DEFAULT_WINDOW_HEIGHT);
+	fprintf(stdout, "  -l, --log_level <log_level>      Set log level (default: %d)\n", DEFAULT_LOG_LEVEL);
+	fprintf(stdout, "  -a, --audio_device <device>      Set audio device\n");
+	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
+	fprintf(stdout, "  --help                           Display this help message\n");
+}
+
 int main(int argc, const char * argv[]) {
 	int ret;
 
@@ -83,10 +94,28 @@ int main(int argc, const char * argv[]) {
 	// load configuration from file
 	load_config_file(&config);
 
+	// define long options
+	static struct option long_options[] = {
+		{"help", no_argument, 0, 0},
+		{"window_width", required_argument, 0, 'w'},
+		{"window_height", required_argument, 0, 'h'},
+		{"log_level", required_argument, 0, 'l'},
+		{"audio_device", required_argument, 0, 'a'},
+		{"sample_rate", required_argument, 0, 'r'},
+		{0, 0, 0, 0}
+	};
+
 	// parse command line arguments
 	int opt;
-	while ((opt = getopt(argc, (char * const *)argv, "w:h:l:a:r:")) != -1) {
+	int long_index = 0;
+	while ((opt = getopt_long(argc, (char * const *)argv, "w:h:l:a:r:", long_options, &long_index)) != -1) {
 		switch (opt) {
+			case 0:
+				if (strcmp("help", long_options[long_index].name) == 0) {
+					print_help(argv[0]);
+					exit(EXIT_SUCCESS);
+				}
+				break;
 			case 'w':
 				config.window_width = (uint16_t)atoi(optarg);
 				break;
@@ -104,7 +133,7 @@ int main(int argc, const char * argv[]) {
 				config.sample_rate = atoi(optarg);
 				break;
 			default:
-				fprintf(stderr, "Usage: %s [-w window_width] [-h window_height] [-l log_level] [-a audio_device] [-r sample_rate]\n", argv[0]);
+				print_help(argv[0]);
 				exit(EXIT_FAILURE);
 		}
 	}
