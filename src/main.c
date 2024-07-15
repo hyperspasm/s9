@@ -73,7 +73,7 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "  -w, --window_width <width>       Set window width (default: %d)\n", DEFAULT_WINDOW_WIDTH);
 	fprintf(stdout, "  -h, --window_height <height>     Set window height (default: %d)\n", DEFAULT_WINDOW_HEIGHT);
 	fprintf(stdout, "  -l, --log_level <log_level>      Set log level (default: %d)\n", DEFAULT_LOG_LEVEL);
-	fprintf(stdout, "  -a, --audio_device <device>      Set audio device\n");
+	fprintf(stdout, "  -a, --audio_device <device name> Set audio device\n");
 	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
 	fprintf(stdout, "  --help                           Display this help message\n");
 	fprintf(stdout, "\nConfiguration File:\n");
@@ -83,7 +83,20 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "    window_height=<height>\n");
 	fprintf(stdout, "    log_level=<log_level>\n");
 	fprintf(stdout, "    sample_rate=<rate>\n");
-	fprintf(stdout, "    audio_device=<device>\n");
+	fprintf(stdout, "    audio_device=<device name>\n");
+}
+
+void log_config_options(const s9_app_config_t *config) {
+	s9_log(LOG_LEVEL_INFO, "Configuration options:");
+	s9_log(LOG_LEVEL_INFO, "  window_width: %hu", config->window_width);
+	s9_log(LOG_LEVEL_INFO, "  window_height: %hu", config->window_height);
+	s9_log(LOG_LEVEL_INFO, "  log_level: %d", config->log_level);
+	s9_log(LOG_LEVEL_INFO, "  sample_rate: %d", config->sample_rate);
+	if (config->audio_device) {
+		s9_log(LOG_LEVEL_INFO, "  audio_device: %s", config->audio_device);
+	} else {
+		s9_log(LOG_LEVEL_INFO, "  audio_device: (default)");
+	}
 }
 
 int main(int argc, const char * argv[]) {
@@ -145,6 +158,8 @@ int main(int argc, const char * argv[]) {
 				exit(EXIT_FAILURE);
 		}
 	}
+	
+	log_config_options(&config);
 	
 	ret = s9_app_create(&config);
 	while (ret == 0) {
