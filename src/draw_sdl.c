@@ -75,6 +75,10 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 	path->draw_points = (SDL_FPoint*)malloc(path->n_draw_points * sizeof(SDL_FPoint));
 	CHECK_ALLOC(path->draw_points, sdl_path_free(&path); sdl_path_free(&path); return NULL);
 	
+	// separate inner and outer draw_points into separate arrays
+	SDL_FPoint *i_draw_points = path->draw_points;
+	SDL_FPoint *o_draw_points = path->draw_points + count;
+	
 	// compute offset to be applied in both directions
 	float offset = 0.5f * width;
 	
@@ -87,11 +91,13 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 		p1 = &path_points[i - 1];
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
-		path->draw_points[i].x = path_points[i].x + dx;
-		path->draw_points[i].y = path_points[i].y - dy;
+		// compute inner draw_points, iterating forward
+		i_draw_points[i].x = path_points[i].x + dx;
+		i_draw_points[i].y = path_points[i].y - dy;
 		
-		path->draw_points[count * 2 - i - 1].x = path_points[i].x - dx;
-		path->draw_points[count * 2 - i - 1].y = path_points[i].y + dy;
+		// compute outer draw_points, iterating in reverse
+		o_draw_points[count-1 - i].x = path_points[i].x - dx;
+		o_draw_points[count-1 - i].y = path_points[i].y + dy;
 	}
 	
 	// compute draw_points for the first and last path_points 
@@ -103,12 +109,12 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
 		// compute inner draw_points associated with first and last path_points
-		path->draw_points[0].x = path->draw_points[count-1].x = path_points[0].x + dx;
-		path->draw_points[0].y = path->draw_points[count-1].y = path_points[0].y - dy;
+		i_draw_points[0].x = i_draw_points[count-1].x = path_points[0].x + dx;
+		i_draw_points[0].y = i_draw_points[count-1].y = path_points[0].y - dy;
 		
 		// compute outer draw_points associated with first and last path_points
-		path->draw_points[count * 2 - 0 - 1].x = path->draw_points[count * 2 - (count-1) - 1].x = path_points[0].x - dx;
-		path->draw_points[count * 2 - 0 - 1].y = path->draw_points[count * 2 - (count-1) - 1].y = path_points[0].y + dy;
+		o_draw_points[count-1].x = o_draw_points[0].x = path_points[0].x - dx;
+		o_draw_points[count-1].y = o_draw_points[0].y = path_points[0].y + dy;
 		
 	} else {
 		
@@ -118,26 +124,26 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
 		// compute inner draw_point associated with first path_point
-		path->draw_points[0].x = path_points[0].x + dx;
-		path->draw_points[0].y = path_points[0].y - dy;
+		i_draw_points[0].x = path_points[0].x + dx;
+		i_draw_points[0].y = path_points[0].y - dy;
 		
 		// compute outer draw_point associated with first path_point
-		path->draw_points[count * 2 - 0 - 1].x = path_points[0].x - dx;
-		path->draw_points[count * 2 - 0 - 1].y = path_points[0].y + dy;
+		o_draw_points[count-1].x = path_points[0].x - dx;
+		o_draw_points[count-1].y = path_points[0].y + dy;
 		
 		
-		// compute vector associated with list path_point
+		// compute vector associated with last path_point
 		p0 = &path_points[count-1];
 		p1 = &path_points[count-2];
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
 		// compute inner draw_point associated with last path_point
-		path->draw_points[count-1].x = path_points[count-1].x + dx;
-		path->draw_points[count-1].y = path_points[count-1].y - dy;
+		i_draw_points[count-1].x = path_points[count-1].x + dx;
+		i_draw_points[count-1].y = path_points[count-1].y - dy;
 		
 		// compute outer draw_point associated with last path_point
-		path->draw_points[count * 2 - (count-1) - 1].x = path_points[count-1].x - dx;
-		path->draw_points[count * 2 - (count-1) - 1].y = path_points[count-1].y + dy;
+		o_draw_points[0].x = path_points[count-1].x - dx;
+		o_draw_points[0].y = path_points[count-1].y + dy;
 		
 	}
 	
