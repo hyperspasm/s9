@@ -7,8 +7,7 @@ typedef struct scratchpad {
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
 	
-	SDL_FPoint *wave_points;
-	int n_wave_points;
+	sdl_path_t *wave_path;
 	
 } scratchpad_t;
 
@@ -23,10 +22,8 @@ scratchpad_t *scratchpad_new(void) {
 void scratchpad_free(scratchpad_t **sp) {
 	if (sp && *sp) {
 		
-		if((*sp)->wave_points) {
-			free((*sp)->wave_points);
-			(*sp)->wave_points = NULL;
-			(*sp)->n_wave_points = 0;
+		if((*sp)->wave_path) {
+			sdl_path_free(&((*sp)->wave_path));
 		}
 		
 		free(*sp);
@@ -36,10 +33,8 @@ void scratchpad_free(scratchpad_t **sp) {
 
 static inline void prepare_wave(scratchpad_t *sp) {
 	
-	if(sp->wave_points) {
-		free(sp->wave_points);
-		sp->wave_points = NULL;
-		sp->n_wave_points = 0;
+	if(sp->wave_path) {
+		sdl_path_free(&sp->wave_path);
 	}
 	
 	int inset = 10;
@@ -51,20 +46,25 @@ static inline void prepare_wave(scratchpad_t *sp) {
 	
 	CHECK_ERROR(width > 10, return, "scratchpad viewport too narrow");
 	
-	sp->wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * (size_t)width);
-	CHECK_ALLOC(sp->wave_points, return);
-	sp->n_wave_points = (int)width;
+	SDL_FPoint *wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * (size_t)width);
+	CHECK_ALLOC(wave_points, return);
+	int n_wave_points = (int)width;
 	
-	for(int i = 0; i < sp->n_wave_points; i++) {
+	for(int i = 0; i < n_wave_points; i++) {
 		float x = inset + (float)i;
 		float base_wave = sinf(frequency * (float)i * 2.0f * M_PI);
 		float second_harmonic = 0.1f * sinf(2.0f * frequency * (float)i * 2.0f * M_PI);
 		float fourth_harmonic = 0.2f * sinf(4.0f * frequency * (float)i * 2.0f * M_PI);
 		float fifth_harmonic = 0.1f * sinf(5.0f * frequency * (float)i * 2.0f * M_PI);
 		float y = offset_y + amplitude * (base_wave + second_harmonic + fourth_harmonic + fifth_harmonic) / 1.4f; // Normalizing by 1.4 to maintain the amplitude within bounds
-		sp->wave_points[i].x = x;
-		sp->wave_points[i].y = y;
+		wave_points[i].x = x;
+		wave_points[i].y = y;
 	}
+	
+	SDL_Color color = { .r = 255, .g = 255, .b = 0, .a = 255 };
+	sp->wave_path = sdl_path_new(&color, 10, 1, wave_points, n_wave_points);
+	
+	free(wave_points);
 }
 
 static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
@@ -75,19 +75,18 @@ static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
 		sp->renderer = renderer;
 		sp->viewport = viewport;		
 		s9_log(LOG_LEVEL_DEBUG, "scratchpad viewport { %d, %d, %d, %d }", viewport.x, viewport.y, viewport.w, viewport.h);
-				
+		
 		prepare_wave(sp);
 	}
 }
 
-static inline void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {	
-	SDL_Color color = { .r = 255, .g = 255, .b = 0, .a = 255 };	
-	if(sp->wave_points == NULL || sp->n_wave_points < 3) return;
-	draw_sdl_path(renderer, color, 10, 1, sp->wave_points, sp->n_wave_points);
+static inline void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {
+	if(sp->wave_path) {
+		sdl_path_render(sp->wave_path, renderer);
+	}
 }
 
 void scratchpad_render(scratchpad_t *sp, SDL_Renderer *renderer) {
 	prepare_to_draw(sp, renderer);
 	draw_wave(sp, renderer);
 }
-

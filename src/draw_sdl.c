@@ -14,23 +14,67 @@ static inline void compute_perpendicular_vector(const SDL_FPoint *p0, const SDL_
 	*out_dy = dy;
 }
 
-int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int filled, const SDL_FPoint *path_points, int count)
-{
-	CHECK_PARAMETER(renderer != NULL, return -1);
-	CHECK_PARAMETER(width >= 1.0f, return -1);	
-	CHECK_PARAMETER(path_points != NULL, return -1);	
-	CHECK_PARAMETER(count >= 2, return -1); // a path requires at least two points
+typedef struct sdl_path {
+	SDL_FPoint*	draw_points;
+	uint32_t 	n_draw_points;
+	SDL_Color 	color;
+	int 		closed;
+	
+	// for filled paths
+	SDL_Vertex*	vertices;
+	int*		indices;
+	uint32_t 	n_indices;	
+} sdl_path_t;
+
+void sdl_path_free(sdl_path_t **path) {
+	if(path && *path) {
+		
+		if( (*path)->draw_points ) {
+			free((*path)->draw_points);
+			(*path)->draw_points = NULL;
+			(*path)->n_draw_points = 0;
+		}
+		
+		if( (*path)->vertices ) {
+			free((*path)->vertices);
+			(*path)->vertices = NULL;
+		}
+		
+		if( (*path)->indices ) {
+			free((*path)->indices);
+			(*path)->indices = NULL;
+			(*path)->n_indices = 0;
+		}
+		
+		free(*path);
+		*path = NULL;
+	}
+}
+
+sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FPoint *path_points, int count) {
+	
+	CHECK_PARAMETER(width >= 1.0f, return NULL);	
+	CHECK_PARAMETER(path_points != NULL, return NULL);	
+	CHECK_PARAMETER(count >= 2, return NULL); // a path requires at least two points
+	
+	// allocate struct
+	sdl_path_t *path = malloc(sizeof(sdl_path_t));
+	CHECK_ALLOC(path, return NULL);
+	memset(path, 0, sizeof(*path));
+	
+	path->color = *color;
 	
 	// the path is closed when the first and last path_points are equal
-	int closed = path_points[0].x == path_points[count-1].x && path_points[0].y == path_points[count-1].y;
+	path->closed = path_points[0].x == path_points[count-1].x && path_points[0].y == path_points[count-1].y;
 	
 	// a closed path requires at least three points
-	CHECK_PARAMETER(closed == 0 || count >= 3, return -1);
+	CHECK_PARAMETER(path->closed == 0 || count >= 3, sdl_path_free(&path); return NULL);
 	
 	// allocate an array of points to draw
-	SDL_FPoint* draw_points = (SDL_FPoint*)malloc(2 * count * sizeof(SDL_FPoint));
-	CHECK_ALLOC(draw_points, return -1);
-
+	path->n_draw_points = 2 * count;
+	path->draw_points = (SDL_FPoint*)malloc(path->n_draw_points * sizeof(SDL_FPoint));
+	CHECK_ALLOC(path->draw_points, sdl_path_free(&path); sdl_path_free(&path); return NULL);
+	
 	// compute offset to be applied in both directions
 	float offset = 0.5f * width;
 	
@@ -43,15 +87,15 @@ int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int fill
 		p1 = &path_points[i - 1];
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
-		draw_points[i].x = path_points[i].x + dx;
-		draw_points[i].y = path_points[i].y - dy;
+		path->draw_points[i].x = path_points[i].x + dx;
+		path->draw_points[i].y = path_points[i].y - dy;
 		
-		draw_points[count * 2 - i - 1].x = path_points[i].x - dx;
-		draw_points[count * 2 - i - 1].y = path_points[i].y + dy;
+		path->draw_points[count * 2 - i - 1].x = path_points[i].x - dx;
+		path->draw_points[count * 2 - i - 1].y = path_points[i].y + dy;
 	}
 	
 	// compute draw_points for the first and last path_points 
-	if(closed) {
+	if(path->closed) {
 		
 		// compute vector associated with first and last path_points
 		p0 = &path_points[1];
@@ -59,103 +103,105 @@ int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int fill
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
 		// compute inner draw_points associated with first and last path_points
-		draw_points[0].x = draw_points[count-1].x = path_points[0].x + dx;
-		draw_points[0].y = draw_points[count-1].y = path_points[0].y - dy;
+		path->draw_points[0].x = path->draw_points[count-1].x = path_points[0].x + dx;
+		path->draw_points[0].y = path->draw_points[count-1].y = path_points[0].y - dy;
 		
 		// compute outer draw_points associated with first and last path_points
-		draw_points[count * 2 - 0 - 1].x = draw_points[count * 2 - (count-1) - 1].x = path_points[0].x - dx;
-		draw_points[count * 2 - 0 - 1].y = draw_points[count * 2 - (count-1) - 1].y = path_points[0].y + dy;
+		path->draw_points[count * 2 - 0 - 1].x = path->draw_points[count * 2 - (count-1) - 1].x = path_points[0].x - dx;
+		path->draw_points[count * 2 - 0 - 1].y = path->draw_points[count * 2 - (count-1) - 1].y = path_points[0].y + dy;
 		
 	} else {
-
+		
 		// compute vector associated with first path_point
 		p0 = &path_points[1];
 		p1 = &path_points[0];
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
 		// compute inner draw_point associated with first path_point
-		draw_points[0].x = path_points[0].x + dx;
-		draw_points[0].y = path_points[0].y - dy;
+		path->draw_points[0].x = path_points[0].x + dx;
+		path->draw_points[0].y = path_points[0].y - dy;
 		
 		// compute outer draw_point associated with first path_point
-		draw_points[count * 2 - 0 - 1].x = path_points[0].x - dx;
-		draw_points[count * 2 - 0 - 1].y = path_points[0].y + dy;
+		path->draw_points[count * 2 - 0 - 1].x = path_points[0].x - dx;
+		path->draw_points[count * 2 - 0 - 1].y = path_points[0].y + dy;
 		
-				
+		
 		// compute vector associated with list path_point
 		p0 = &path_points[count-1];
 		p1 = &path_points[count-2];
 		compute_perpendicular_vector(p0, p1, offset, &dx, &dy);
 		
 		// compute inner draw_point associated with last path_point
-		draw_points[count-1].x = path_points[count-1].x + dx;
-		draw_points[count-1].y = path_points[count-1].y - dy;
+		path->draw_points[count-1].x = path_points[count-1].x + dx;
+		path->draw_points[count-1].y = path_points[count-1].y - dy;
 		
 		// compute outer draw_point associated with last path_point
-		draw_points[count * 2 - (count-1) - 1].x = path_points[count-1].x - dx;
-		draw_points[count * 2 - (count-1) - 1].y = path_points[count-1].y + dy;
+		path->draw_points[count * 2 - (count-1) - 1].x = path_points[count-1].x - dx;
+		path->draw_points[count * 2 - (count-1) - 1].y = path_points[count-1].y + dy;
 		
 	}
 	
-
+	
 	if (filled) {
 		
-		// convert draw_points to vertices for triangulation
-		int n_vertices = count *  2; 
-		SDL_Vertex* vertices = (SDL_Vertex*) malloc(n_vertices * sizeof(SDL_Vertex));
-		CHECK_ALLOC(vertices,
-					free(draw_points);
-					return -1);
+		// convert draw_points to vertices for triangulation 
+		path->vertices = (SDL_Vertex*) malloc(path->n_draw_points * sizeof(SDL_Vertex));
+		CHECK_ALLOC(path->vertices,
+					sdl_path_free(&path);
+					return NULL);
 		
-		for (int i = 0; i < n_vertices; i++) {
-			vertices[i].position = draw_points[i];
-			vertices[i].color = color;
+		for (int i = 0; i < path->n_draw_points; i++) {
+			path->vertices[i].position = path->draw_points[i];
+			path->vertices[i].color = path->color;
 		}
-
-		// compute indices for rendering triangles
-		int n_indices = (n_vertices - 2) * 3;
-		int *indices = (int*) malloc(n_indices * sizeof(int));
-		CHECK_ALLOC(indices,
-					free(vertices);
-					free(draw_points);
-					return -1);
 		
-		for(int i = 0, *idx = indices; i < count-1; i++, idx+= 6) {
+		// compute indices for rendering triangles
+		path->n_indices = (path->n_draw_points - 2) * 3;
+		path->indices = (int*) malloc(path->n_indices * sizeof(int));
+		CHECK_ALLOC(path->indices,
+					sdl_path_free(&path);
+					return NULL);
+		
+		for(int i = 0, *idx = path->indices; i < count-1; i++, idx+= 6) {
 			idx[0] = i;
-			idx[1] = (n_vertices - 1) - i;
+			idx[1] = (path->n_draw_points - 1) - i;
 			idx[2] = i + 1;
 			
-			idx[3] = (n_vertices - 1) - i;
+			idx[3] = (path->n_draw_points - 1) - i;
 			idx[4] = i + 1;
-			idx[5] = (n_vertices - 1) - (i + 1);
-		}
+			idx[5] = (path->n_draw_points - 1) - (i + 1);
+		}		
+	}
+	
+	return path;
+}
 
-		SDL_RenderGeometry(renderer, NULL, vertices, n_vertices, indices, n_indices);
-
-		free(indices);
-		free(vertices);
-		
+int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
+	CHECK_PARAMETER(path != NULL, return -1);
+	CHECK_PARAMETER(renderer != NULL, return -1);
+	
+	if(path->vertices) {
+		// render filled path
+		SDL_RenderGeometry(renderer, NULL, path->vertices, path->n_draw_points, path->indices, path->n_indices);
 	} else {
 		
 		// set color for lines
-		SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+		SDL_SetRenderDrawColor(renderer, path->color.r, path->color.g, path->color.b, path->color.a);
 		
-		if(closed) {
+		if(path->closed) {
 			// draw inner closed polygon
-			SDL_RenderDrawLinesF(renderer, draw_points, count);
+			SDL_RenderDrawLinesF(renderer, path->draw_points, path->n_draw_points/2);
 			
 			// draw outer closed polygon
-			SDL_RenderDrawLinesF(renderer, draw_points + count, count);
+			SDL_RenderDrawLinesF(renderer, path->draw_points + (path->n_draw_points/2), path->n_draw_points/2);
 		} else {			
 			// draw open polygon
-			SDL_RenderDrawLinesF(renderer, draw_points, 2 * count);
+			SDL_RenderDrawLinesF(renderer, path->draw_points, path->n_draw_points);
 			
 			// close polygon
-			SDL_RenderDrawLineF(renderer, draw_points[2 * count - 1].x, draw_points[2 * count - 1].y, draw_points[0].x, draw_points[0].y);			
-		}		
+			SDL_RenderDrawLineF(renderer, path->draw_points[path->n_draw_points - 1].x, path->draw_points[path->n_draw_points - 1].y, path->draw_points[0].x, path->draw_points[0].y);			
+		}
 	}
-
-	free(draw_points);
 	
 	return 0;
 }
@@ -166,10 +212,10 @@ int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font
 	CHECK_PARAMETER(font != NULL, return -1);
 	CHECK_PARAMETER(color != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
-
+	
 	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, *color);
 	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
-
+	
 	if(*texture) SDL_DestroyTexture(*texture);
 	
 	*texture = SDL_CreateTextureFromSurface(renderer, surface);

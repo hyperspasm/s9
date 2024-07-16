@@ -4,8 +4,19 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-// Draws a path with specified width, color, and fill option using SDL. The path can be open or closed and requires at least two points.
-int draw_sdl_path(SDL_Renderer *renderer, SDL_Color color, float width, int filled, const SDL_FPoint *path_points, int count);
+// A path is a defined by a series of points.
+// When the first and last points of a path are equal it is considered closed.
+typedef struct sdl_path sdl_path_t;
+
+// create a new path
+sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FPoint *path_points, int count);
+
+// free a path
+void sdl_path_free(sdl_path_t **path);
+
+// render the path
+int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer);
+
 
 // Renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
 int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font *font, SDL_Color *color, const char *text, int *out_width, int *out_height);
