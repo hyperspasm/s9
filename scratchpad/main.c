@@ -108,7 +108,10 @@ void drawSineWave(SDL_Renderer* renderer, int startX, int endX, int height, int 
 	}
 	
 	SDL_Color color = {255, 0, 255, 255}; // Magenta color
-	draw_sdl_path(renderer, color, 50, filled, points, width);
+	
+	sdl_path_t *path = sdl_path_new(&color, 50, filled, points, width);
+	sdl_path_render(path, renderer);
+	sdl_path_free(&path);
 }
 
 void drawPolygonOutline(SDL_Renderer* renderer, SDL_Point* points, int numPoints);
@@ -140,7 +143,9 @@ void drawClosedPolygon(SDL_Renderer* renderer, int x, int y, int n, int r, int f
 	points[n] = points[0];
 	
 	SDL_Color color = {255, 255, 0, 255}; // Yellow color
-	draw_sdl_path(renderer, color, 30, filled, points, n+1);
+	sdl_path_t *path = sdl_path_new(&color, 30, filled, points, n+1);
+	sdl_path_render(path, renderer);
+	sdl_path_free(&path);
 	
 	SDL_Point pts[n+1];
 	for(i=0; i<=n; i++) {
