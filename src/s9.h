@@ -16,6 +16,13 @@ typedef enum {
 int s9_log(s9_log_level_t log_level, const char *format, ...);
 int s9_print(const char *format, ...);
 
+#define S9_LOG_TRACE(format, ...) 		s9_log(LOG_LEVEL_TRACE, format, ##__VA_ARGS__)
+#define S9_LOG_DEBUG(format, ...) 		s9_log(LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
+#define S9_LOG_INFO(format, ...) 		s9_log(LOG_LEVEL_INFO, format, ##__VA_ARGS__)
+#define S9_LOG_WARNING(format, ...) 	s9_log(LOG_LEVEL_WARNING, format, ##__VA_ARGS__)
+#define S9_LOG_ERROR(format, ...) 		s9_log(LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
+#define S9_LOG_CRITICAL(format, ...)	s9_log(LOG_LEVEL_CRITICAL, format, ##__VA_ARGS__)
+
 #define S9_STRINGIFY(x) #x
 #define S9_TOSTRING(x) S9_STRINGIFY(x)
 #define S9_BASE_FILENAME(file) (strrchr(file, '/') ? strrchr(file, '/') + 1 : (strrchr(file, '\\') ? strrchr(file, '\\') + 1 : file))
