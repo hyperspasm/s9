@@ -6,17 +6,6 @@
 
 #include "draw_sdl.h"
 
-int s9_log(int log_level, const char *format, ...) {
-	int ret;
-	va_list args;	
-	
-	va_start(args, format);
-	ret = vprintf(format, args);
-	va_end(args);
-	
-	return ret;
-}
-
 
 // Define font path
 #ifdef __APPLE__

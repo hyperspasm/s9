@@ -12,14 +12,6 @@
 #define DEFAULT_LOG_LEVEL LOG_LEVEL_INFO
 #define DEFAULT_SAMPLE_RATE 44100
 
-static void log_line(const char *text) {
-	fprintf(stderr, "%s", text);
-}
-
-static void console_print(const char *text) {
-	fprintf(stdout, "%s", text);
-}
-
 // function to load configuration from ~/.s9rc
 void load_config_file(s9_app_config_t *config) {
 	char *home = getenv("HOME");
@@ -103,9 +95,9 @@ int main(int argc, const char * argv[]) {
 	int ret;
 	
 	s9_app_config_t config = {
-		.log_line = log_line,
+		.log_line = NULL, // default
 		.log_level = DEFAULT_LOG_LEVEL,
-		.console_print = console_print,
+		.console_print = NULL, // default
 		.window_width = DEFAULT_WINDOW_WIDTH,
 		.window_height = DEFAULT_WINDOW_HEIGHT,
 		.audio_device = NULL,

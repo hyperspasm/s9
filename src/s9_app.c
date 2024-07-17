@@ -29,71 +29,6 @@ typedef struct s9_app {
 
 static s9_app_t *g_app = NULL; // singleton instance
 
-// -- logging
-
-#define PRINT_BUFFER_SIZE 1024
-
-static void default_log_func(const char *text) {
-	fprintf(stderr, "%s", text);
-}
-
-static void default_print_func(const char *text) {
-	fprintf(stdout, "%s", text);
-}
-
-int s9_log(s9_log_level_t log_level, const char *format, ...) {
-	int ret;
-	va_list args;
-	char buffer[PRINT_BUFFER_SIZE];
-	void (*print_func)(const char *text) = default_log_func;
-	
-	if(g_app != NULL && g_app->config.log_line != NULL) print_func = g_app->config.log_line;
-	
-	if (log_level < LOG_LEVEL_TRACE || log_level > LOG_LEVEL_CRITICAL) {
-		return -1;
-	}
-	
-	va_start(args, format);
-	ret = vsnprintf(buffer, sizeof(buffer), format, args);
-	va_end(args);
-	
-	if(ret > 0) {
-		static const char *prefixes[] = {
-			"TRACE: ",
-			"DEBUG: ",
-			"INFO: ",
-			"WARNING: ",
-			"ERROR: ",
-			"CRITICAL: ",
-		};
-		
-		print_func(prefixes[log_level]);        
-		print_func(buffer);
-		print_func("\n");
-	}
-	
-	return ret;
-}
-
-int s9_print(const char *format, ...) {
-	int ret;
-	va_list args;
-	char buffer[PRINT_BUFFER_SIZE];
-	void (*print_func)(const char *text) = default_print_func;
-	
-	if(g_app != NULL && g_app->config.console_print != NULL) print_func = g_app->config.console_print;
-	
-	va_start(args, format);
-	ret = vsnprintf(buffer, sizeof(buffer), format, args);
-	va_end(args);
-	
-	if(ret > 0) {
-		print_func(buffer);
-	}
-	
-	return ret;
-}
-
 // -- private
 
 static void print_renderer_info(SDL_Window *window, SDL_Renderer *renderer) {
@@ -171,7 +106,13 @@ static void audio_callback(void *userdata, Uint8 *stream, int len) {
 
 int s9_app_create(const s9_app_config_t *config) {
 	int ret;
+	CHECK_PARAMETER(config != NULL, return -1);
 	CHECK_ERROR(g_app == NULL, return -1, "ignoring attempt to create a second app instance");
+	
+	// set these up ASAP
+	if(config->log_line) s9_set_logging_function(config->log_line);
+	if(config->console_print) s9_set_console_print_function(config->console_print);
+	s9_set_log_level(config->log_level);
 	
 	g_app = malloc(sizeof(s9_app_t));
 	CHECK_ALLOC(g_app, return -1);

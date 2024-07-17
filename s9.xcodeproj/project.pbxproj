@@ -52,6 +52,7 @@
 		E2FF4FE02C46209E00308A0E /* ring_buffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ring_buffer.h; path = src/ring_buffer.h; sourceTree = "<group>"; };
 		E2FF4FE12C46209E00308A0E /* ring_buffer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = ring_buffer.c; path = src/ring_buffer.c; sourceTree = "<group>"; };
 		E2FF4FE32C47730500308A0E /* s9_log.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = s9_log.c; path = src/s9_log.c; sourceTree = "<group>"; };
+		E2FF4FE52C485D4B00308A0E /* s9_log.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = s9_log.h; path = src/s9_log.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,6 +74,7 @@
 			children = (
 				E2FF4F8A2C429D1100308A0E /* main.c */,
 				E2FF4FE32C47730500308A0E /* s9_log.c */,
+				E2FF4FE52C485D4B00308A0E /* s9_log.h */,
 				E2FF4F8D2C429E9A00308A0E /* s9.h */,
 				E2FF4F8E2C429E9A00308A0E /* s9_app.h */,
 				E2FF4F8C2C429E9900308A0E /* s9_app.c */,
