@@ -74,7 +74,7 @@ static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
 	if(sp->renderer != renderer || !SDL_RectEquals(&sp->viewport, &viewport)) {
 		sp->renderer = renderer;
 		sp->viewport = viewport;		
-		s9_log(LOG_LEVEL_DEBUG, "scratchpad viewport { %d, %d, %d, %d }", viewport.x, viewport.y, viewport.w, viewport.h);
+		S9_LOG_DEBUG("scratchpad viewport { %d, %d, %d, %d }", viewport.x, viewport.y, viewport.w, viewport.h);
 		
 		prepare_wave(sp);
 	}

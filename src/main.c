@@ -35,7 +35,7 @@ void load_config_file(s9_app_config_t *config) {
 		return;
 	}
 	
-	s9_log(LOG_LEVEL_INFO, "parsing %s", path);
+	S9_LOG_INFO("parsing %s", path);
 	
 	char line[256];
 	while (fgets(line, sizeof(line), file) != NULL) {
@@ -87,15 +87,15 @@ void print_help(const char *prog_name) {
 }
 
 void log_config_options(const s9_app_config_t *config) {
-	s9_log(LOG_LEVEL_INFO, "Configuration options:");
-	s9_log(LOG_LEVEL_INFO, "  window_width: %hu", config->window_width);
-	s9_log(LOG_LEVEL_INFO, "  window_height: %hu", config->window_height);
-	s9_log(LOG_LEVEL_INFO, "  log_level: %d", config->log_level);
-	s9_log(LOG_LEVEL_INFO, "  sample_rate: %d", config->sample_rate);
+	S9_LOG_INFO("Configuration options:");
+	S9_LOG_INFO("  window_width: %hu", config->window_width);
+	S9_LOG_INFO("  window_height: %hu", config->window_height);
+	S9_LOG_INFO("  log_level: %d", config->log_level);
+	S9_LOG_INFO("  sample_rate: %d", config->sample_rate);
 	if (config->audio_device) {
-		s9_log(LOG_LEVEL_INFO, "  audio_device: %s", config->audio_device);
+		S9_LOG_INFO("  audio_device: %s", config->audio_device);
 	} else {
-		s9_log(LOG_LEVEL_INFO, "  audio_device: (default)");
+		S9_LOG_INFO("  audio_device: (default)");
 	}
 }
 

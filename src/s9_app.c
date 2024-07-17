@@ -102,12 +102,12 @@ static void print_renderer_info(SDL_Window *window, SDL_Renderer *renderer) {
 				return,
 				"SDL_GetRendererInfo failed: %s", SDL_GetError());
 	
-	s9_log(LOG_LEVEL_INFO, "Renderer: %s", info.name);
-	if (info.flags & SDL_RENDERER_SOFTWARE) s9_log(LOG_LEVEL_INFO, "    * Software");
-	if (info.flags & SDL_RENDERER_ACCELERATED) s9_log(LOG_LEVEL_INFO, "    * Accelerated");
-	if (info.flags & SDL_RENDERER_PRESENTVSYNC) s9_log(LOG_LEVEL_INFO, "    * VSync");
-	if (info.flags & SDL_RENDERER_TARGETTEXTURE) s9_log(LOG_LEVEL_INFO, "    * Render to texture");
-	s9_log(LOG_LEVEL_INFO, "    Max texture %d x %d", info.max_texture_width, info.max_texture_height);
+	S9_LOG_INFO("Renderer: %s", info.name);
+	if (info.flags & SDL_RENDERER_SOFTWARE) S9_LOG_INFO("    * Software");
+	if (info.flags & SDL_RENDERER_ACCELERATED) S9_LOG_INFO("    * Accelerated");
+	if (info.flags & SDL_RENDERER_PRESENTVSYNC) S9_LOG_INFO("    * VSync");
+	if (info.flags & SDL_RENDERER_TARGETTEXTURE) S9_LOG_INFO("    * Render to texture");
+	S9_LOG_INFO("    Max texture %d x %d", info.max_texture_width, info.max_texture_height);
 	
 	int display_index = SDL_GetWindowDisplayIndex(window);
 	CHECK_ERROR(display_index >= 0,
@@ -119,10 +119,10 @@ static void print_renderer_info(SDL_Window *window, SDL_Renderer *renderer) {
 				return,
 				"SDL_GetCurrentDisplayMode failed: %s", SDL_GetError());
 	
-	s9_log(LOG_LEVEL_INFO, "Display mode:");
-	s9_log(LOG_LEVEL_INFO, "    %s", SDL_GetPixelFormatName(display_mode.format));
-	s9_log(LOG_LEVEL_INFO, "    %d x %d", display_mode.w, display_mode.h);
-	s9_log(LOG_LEVEL_INFO, "    %d Hz", display_mode.refresh_rate);
+	S9_LOG_INFO("Display mode:");
+	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(display_mode.format));
+	S9_LOG_INFO("    %d x %d", display_mode.w, display_mode.h);
+	S9_LOG_INFO("    %d Hz", display_mode.refresh_rate);
 }
 
 // static function to load a font
@@ -281,10 +281,10 @@ int s9_app_create(const s9_app_config_t *config) {
 	const char *selected_audio_device_name = SDL_GetAudioDeviceName(0, SDL_TRUE);
 	
 	// enumerate audio devices and select the specified one, if any
-	s9_log(LOG_LEVEL_INFO, "Available audio input devices:");
+	S9_LOG_INFO("Available audio input devices:");
 	for (int i = 0; i < num_audio_devices; i++) {
 		const char *device_name = SDL_GetAudioDeviceName(i, SDL_TRUE);
-		s9_log(LOG_LEVEL_INFO, "    %s", device_name);
+		S9_LOG_INFO("    %s", device_name);
 		if (g_app->config.audio_device != NULL && device_name && strcmp(device_name, g_app->config.audio_device) == 0) {
 			selected_audio_device_name = device_name;
 		}
@@ -312,10 +312,10 @@ int s9_app_create(const s9_app_config_t *config) {
 				"Failed to open audio device: %s", SDL_GetError());
 	
 	// print audio device info
-	s9_log(LOG_LEVEL_INFO, "Selected audio input device: %s", selected_audio_device_name);
-	s9_log(LOG_LEVEL_INFO, "    Sample Rate: %d Hz", g_app->audio_spec.freq);
-	s9_log(LOG_LEVEL_INFO, "    Channels: %d", g_app->audio_spec.channels);
-	s9_log(LOG_LEVEL_INFO, "    Buffer Size: %d samples", g_app->audio_spec.samples);
+	S9_LOG_INFO("Selected audio input device: %s", selected_audio_device_name);
+	S9_LOG_INFO("    Sample Rate: %d Hz", g_app->audio_spec.freq);
+	S9_LOG_INFO("    Channels: %d", g_app->audio_spec.channels);
+	S9_LOG_INFO("    Buffer Size: %d samples", g_app->audio_spec.samples);
 	
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
@@ -371,7 +371,7 @@ int s9_app_run(void) {
 		if (e.type == SDL_QUIT) {
 			g_app->ret = 1;
 		} else if (e.type == SDL_KEYDOWN) {
-			s9_log(LOG_LEVEL_TRACE, "key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
+			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
 		}
 	}
 	
