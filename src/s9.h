@@ -13,8 +13,8 @@ typedef enum {
 	LOG_LEVEL_CRITICAL = 5,
 } s9_log_level_t;
 
-int s9_log(s9_log_level_t log_level, const char *format, ...);
-int s9_print(const char *format, ...);
+extern int s9_log(s9_log_level_t log_level, const char *format, ...);
+extern int s9_print(const char *format, ...);
 
 #define S9_LOG_TRACE(format, ...) 		s9_log(LOG_LEVEL_TRACE, format, ##__VA_ARGS__)
 #define S9_LOG_DEBUG(format, ...) 		s9_log(LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
