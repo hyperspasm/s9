@@ -16,6 +16,7 @@
 		E2FF4FD62C4337AE00308A0E /* window_function.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FD42C4337AE00308A0E /* window_function.c */; };
 		E2FF4FD92C43691400308A0E /* draw_sdl.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FD82C43691400308A0E /* draw_sdl.c */; };
 		E2FF4FDF2C445B0D00308A0E /* scratchpad.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FDE2C445B0D00308A0E /* scratchpad.c */; };
+		E2FF4FE22C46209E00308A0E /* ring_buffer.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FE12C46209E00308A0E /* ring_buffer.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -47,6 +48,8 @@
 		E2FF4FD82C43691400308A0E /* draw_sdl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = draw_sdl.c; path = src/draw_sdl.c; sourceTree = "<group>"; };
 		E2FF4FDD2C445B0D00308A0E /* scratchpad.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = scratchpad.h; path = src/scratchpad.h; sourceTree = "<group>"; };
 		E2FF4FDE2C445B0D00308A0E /* scratchpad.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = scratchpad.c; path = src/scratchpad.c; sourceTree = "<group>"; };
+		E2FF4FE02C46209E00308A0E /* ring_buffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = ring_buffer.h; path = src/ring_buffer.h; sourceTree = "<group>"; };
+		E2FF4FE12C46209E00308A0E /* ring_buffer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = ring_buffer.c; path = src/ring_buffer.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +80,8 @@
 				E2FF4FD72C43691400308A0E /* draw_sdl.h */,
 				E2FF4FD82C43691400308A0E /* draw_sdl.c */,
 				E2FF4FDD2C445B0D00308A0E /* scratchpad.h */,
+				E2FF4FE02C46209E00308A0E /* ring_buffer.h */,
+				E2FF4FE12C46209E00308A0E /* ring_buffer.c */,
 				E2FF4FDE2C445B0D00308A0E /* scratchpad.c */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
@@ -163,6 +168,7 @@
 				E2FF4F8B2C429D1100308A0E /* main.c in Sources */,
 				E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */,
 				E2FF4FDF2C445B0D00308A0E /* scratchpad.c in Sources */,
+				E2FF4FE22C46209E00308A0E /* ring_buffer.c in Sources */,
 				E2FF4FD92C43691400308A0E /* draw_sdl.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
