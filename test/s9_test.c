@@ -175,6 +175,91 @@ void test_ring_buffer_concurrent_access(void) {
 	ring_buffer_free(&ring_buffer);
 }
 
+// Test for full buffer write
+void test_ring_buffer_full_write(void) {
+	uint32_t size = 8; // Small size to test easily
+	ring_buffer_t *ring_buffer = ring_buffer_new(size);
+	
+	// Fill the buffer completely
+	uint8_t write_data[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+	uint32_t write_size = ring_buffer_write(ring_buffer, write_data, 8);
+	CU_ASSERT_EQUAL(write_size, 8);
+	
+	// Attempt to write to a full buffer
+	uint8_t extra_data[3] = {9, 10, 11};
+	write_size = ring_buffer_write(ring_buffer, extra_data, 3);
+	CU_ASSERT_EQUAL(write_size, 0); // Expect to drop all bytes
+	
+	// Read data back to ensure buffer integrity
+	uint8_t read_data[8] = {0};
+	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 8);
+	CU_ASSERT_EQUAL(read_size, 8);
+	
+	// Expected read data should be {1, 2, 3, 4, 5, 6, 7, 8}
+	for (uint32_t i = 0; i < 8; ++i) {
+		CU_ASSERT_EQUAL(read_data[i], i + 1);
+	}
+	
+	ring_buffer_free(&ring_buffer);
+}
+
+// Test for large data writes and reads
+void test_ring_buffer_large_write_read(void) {
+	uint32_t size = 8; // Small size to test easily
+	ring_buffer_t *ring_buffer = ring_buffer_new(size);
+	
+	// Write more data than the buffer can hold
+	uint8_t write_data[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+	uint32_t write_size = ring_buffer_write(ring_buffer, write_data, 12);
+	CU_ASSERT_EQUAL(write_size, 8); // Should only write up to buffer capacity
+	
+	// Read the data back
+	uint8_t read_data[8] = {0};
+	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 8);
+	CU_ASSERT_EQUAL(read_size, 8);
+	
+	// Expected read data should be the first 8 bytes of write_data
+	for (uint32_t i = 0; i < 8; ++i) {
+		CU_ASSERT_EQUAL(read_data[i], i + 1);
+	}
+	
+	ring_buffer_free(&ring_buffer);
+}
+
+// Test for alternating writes and reads
+void test_ring_buffer_alternating_write_read(void) {
+	uint32_t size = 8; // Small size to test easily
+	ring_buffer_t *ring_buffer = ring_buffer_new(size);
+	
+	uint8_t write_data1[4] = {1, 2, 3, 4};
+	uint8_t write_data2[4] = {5, 6, 7, 8};
+	uint8_t read_data[4] = {0};
+	
+	// Write first part
+	uint32_t write_size = ring_buffer_write(ring_buffer, write_data1, 4);
+	CU_ASSERT_EQUAL(write_size, 4);
+	
+	// Read first part
+	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 4);
+	CU_ASSERT_EQUAL(read_size, 4);
+	for (uint32_t i = 0; i < 4; ++i) {
+		CU_ASSERT_EQUAL(read_data[i], write_data1[i]);
+	}
+	
+	// Write second part
+	write_size = ring_buffer_write(ring_buffer, write_data2, 4);
+	CU_ASSERT_EQUAL(write_size, 4);
+	
+	// Read second part
+	read_size = ring_buffer_read(ring_buffer, read_data, 4);
+	CU_ASSERT_EQUAL(read_size, 4);
+	for (uint32_t i = 0; i < 4; ++i) {
+		CU_ASSERT_EQUAL(read_data[i], write_data2[i]);
+	}
+	
+	ring_buffer_free(&ring_buffer);
+}
+
 int main(void) {
 	// Initialize SDL
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
@@ -194,6 +279,9 @@ int main(void) {
 	CU_add_test(suite, "test_ring_buffer_write_avail", test_ring_buffer_write_avail);
 	CU_add_test(suite, "test_ring_buffer_wraparound", test_ring_buffer_wraparound);
 	CU_add_test(suite, "test_ring_buffer_concurrent_access", test_ring_buffer_concurrent_access);
+	CU_add_test(suite, "test_ring_buffer_full_write", test_ring_buffer_full_write);
+	CU_add_test(suite, "test_ring_buffer_large_write_read", test_ring_buffer_large_write_read);
+	CU_add_test(suite, "test_ring_buffer_alternating_write_read", test_ring_buffer_alternating_write_read);
 	
 	CU_basic_run_tests();
 	CU_cleanup_registry();
