@@ -72,6 +72,7 @@
 		E2FF4FFB2C48C4CD00308A0E /* s9_test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = s9_test; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2FF4FFE2C48C50100308A0E /* s9_test.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = s9_test.c; sourceTree = "<group>"; };
 		E2FF50002C48C55D00308A0E /* libcunit.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcunit.dylib; path = ../../../../usr/local/lib/libcunit.dylib; sourceTree = "<group>"; };
+		E2FF50022C48D69500308A0E /* serialization.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = serialization.h; path = src/serialization.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,14 +111,15 @@
 				E2FF4F8C2C429E9900308A0E /* s9_app.c */,
 				E2FF4F952C42BABC00308A0E /* fps.h */,
 				E2FF4F962C42BABC00308A0E /* fps.c */,
-				E2FF4FD42C4337AE00308A0E /* window_function.c */,
 				E2FF4FD52C4337AE00308A0E /* window_function.h */,
+				E2FF4FD42C4337AE00308A0E /* window_function.c */,
 				E2FF4FD72C43691400308A0E /* draw_sdl.h */,
 				E2FF4FD82C43691400308A0E /* draw_sdl.c */,
-				E2FF4FDD2C445B0D00308A0E /* scratchpad.h */,
 				E2FF4FE02C46209E00308A0E /* ring_buffer.h */,
 				E2FF4FE12C46209E00308A0E /* ring_buffer.c */,
+				E2FF4FDD2C445B0D00308A0E /* scratchpad.h */,
 				E2FF4FDE2C445B0D00308A0E /* scratchpad.c */,
+				E2FF50022C48D69500308A0E /* serialization.h */,
 				E2FF4FFD2C48C50100308A0E /* test */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
