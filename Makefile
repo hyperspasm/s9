@@ -11,6 +11,15 @@ TARGET = $(BINDIR)/s9
 SOURCES := $(wildcard $(SRCDIR)/*.c)
 OBJECTS := $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
+# Test variables
+TEST_SRCDIR = tests
+TEST_OBJDIR = test_obj
+TEST_BINDIR = .
+TEST_TARGET = $(TEST_BINDIR)/s9_tests
+TEST_SOURCES := $(wildcard $(TEST_SRCDIR)/*.c)
+TEST_OBJECTS := $(TEST_SOURCES:$(TEST_SRCDIR)/%.c=$(TEST_OBJDIR)/%.o)
+TEST_LDFLAGS = -lcunit -lSDL2 -lSDL2_ttf -lm -lfftw3
+
 # Rules
 all: $(TARGET)
 
@@ -22,7 +31,18 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -rf $(OBJDIR) $(TARGET)
+test: $(TEST_TARGET)
+	$(TEST_TARGET)
 
-.PHONY: all clean
+$(TEST_TARGET): $(TEST_OBJECTS) $(OBJDIR)/ring_buffer.o $(OBJDIR)/s9_log.o
+	@mkdir -p $(TEST_BINDIR)
+	$(CC) $(TEST_OBJECTS) $(OBJDIR)/ring_buffer.o $(OBJDIR)/s9_log.o -o $@ $(TEST_LDFLAGS)
+
+$(TEST_OBJDIR)/%.o: $(TEST_SRCDIR)/%.c
+	@mkdir -p $(TEST_OBJDIR)
+	$(CC) $(CFLAGS) -I$(SRCDIR) -c $< -o $@
+
+clean:
+	rm -rf $(OBJDIR) $(BINDIR)/s9 $(TEST_OBJDIR) $(TEST_BINDIR)/s9_tests
+
+.PHONY: all clean test
