@@ -18,10 +18,26 @@
 		E2FF4FDF2C445B0D00308A0E /* scratchpad.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FDE2C445B0D00308A0E /* scratchpad.c */; };
 		E2FF4FE22C46209E00308A0E /* ring_buffer.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FE12C46209E00308A0E /* ring_buffer.c */; };
 		E2FF4FE42C47730500308A0E /* s9_log.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FE32C47730500308A0E /* s9_log.c */; };
+		E2FF4FF02C48C4CD00308A0E /* ring_buffer.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FE12C46209E00308A0E /* ring_buffer.c */; };
+		E2FF4FF12C48C4CD00308A0E /* s9_log.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FE32C47730500308A0E /* s9_log.c */; };
+		E2FF4FF42C48C4CD00308A0E /* libSDL2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F912C42A34D00308A0E /* libSDL2.dylib */; };
+		E2FF4FF52C48C4CD00308A0E /* libSDL2_ttf.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F932C42A35C00308A0E /* libSDL2_ttf.dylib */; };
+		E2FF4FF62C48C4CD00308A0E /* libfftw3f.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4FCF2C432FA900308A0E /* libfftw3f.dylib */; };
+		E2FF4FFF2C48C50100308A0E /* s9_test.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FFE2C48C50100308A0E /* s9_test.c */; };
+		E2FF50012C48C55D00308A0E /* libcunit.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF50002C48C55D00308A0E /* libcunit.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		E2FF4F7E2C429CD000308A0E /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		E2FF4FF72C48C4CD00308A0E /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
@@ -53,6 +69,9 @@
 		E2FF4FE12C46209E00308A0E /* ring_buffer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = ring_buffer.c; path = src/ring_buffer.c; sourceTree = "<group>"; };
 		E2FF4FE32C47730500308A0E /* s9_log.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = s9_log.c; path = src/s9_log.c; sourceTree = "<group>"; };
 		E2FF4FE52C485D4B00308A0E /* s9_log.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = s9_log.h; path = src/s9_log.h; sourceTree = "<group>"; };
+		E2FF4FFB2C48C4CD00308A0E /* s9_test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = s9_test; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2FF4FFE2C48C50100308A0E /* s9_test.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = s9_test.c; sourceTree = "<group>"; };
+		E2FF50002C48C55D00308A0E /* libcunit.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcunit.dylib; path = ../../../../usr/local/lib/libcunit.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +82,17 @@
 				E2FF4F922C42A34D00308A0E /* libSDL2.dylib in Frameworks */,
 				E2FF4F942C42A35C00308A0E /* libSDL2_ttf.dylib in Frameworks */,
 				E2FF4FD02C432FA900308A0E /* libfftw3f.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2FF4FF32C48C4CD00308A0E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E2FF50012C48C55D00308A0E /* libcunit.dylib in Frameworks */,
+				E2FF4FF42C48C4CD00308A0E /* libSDL2.dylib in Frameworks */,
+				E2FF4FF52C48C4CD00308A0E /* libSDL2_ttf.dylib in Frameworks */,
+				E2FF4FF62C48C4CD00308A0E /* libfftw3f.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,6 +118,7 @@
 				E2FF4FE02C46209E00308A0E /* ring_buffer.h */,
 				E2FF4FE12C46209E00308A0E /* ring_buffer.c */,
 				E2FF4FDE2C445B0D00308A0E /* scratchpad.c */,
+				E2FF4FFD2C48C50100308A0E /* test */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
 			);
@@ -97,6 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				E2FF4F802C429CD000308A0E /* s9 */,
+				E2FF4FFB2C48C4CD00308A0E /* s9_test */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -104,11 +136,20 @@
 		E2FF4F902C42A34D00308A0E /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E2FF50002C48C55D00308A0E /* libcunit.dylib */,
 				E2FF4FCF2C432FA900308A0E /* libfftw3f.dylib */,
 				E2FF4F932C42A35C00308A0E /* libSDL2_ttf.dylib */,
 				E2FF4F912C42A34D00308A0E /* libSDL2.dylib */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E2FF4FFD2C48C50100308A0E /* test */ = {
+			isa = PBXGroup;
+			children = (
+				E2FF4FFE2C48C50100308A0E /* s9_test.c */,
+			);
+			path = test;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -129,6 +170,23 @@
 			name = s9;
 			productName = s9;
 			productReference = E2FF4F802C429CD000308A0E /* s9 */;
+			productType = "com.apple.product-type.tool";
+		};
+		E2FF4FE92C48C4CD00308A0E /* s9_test */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2FF4FF82C48C4CD00308A0E /* Build configuration list for PBXNativeTarget "s9_test" */;
+			buildPhases = (
+				E2FF4FEA2C48C4CD00308A0E /* Sources */,
+				E2FF4FF32C48C4CD00308A0E /* Frameworks */,
+				E2FF4FF72C48C4CD00308A0E /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = s9_test;
+			productName = s9;
+			productReference = E2FF4FFB2C48C4CD00308A0E /* s9_test */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -159,6 +217,7 @@
 			projectRoot = "";
 			targets = (
 				E2FF4F7F2C429CD000308A0E /* s9 */,
+				E2FF4FE92C48C4CD00308A0E /* s9_test */,
 			);
 		};
 /* End PBXProject section */
@@ -176,6 +235,16 @@
 				E2FF4FE22C46209E00308A0E /* ring_buffer.c in Sources */,
 				E2FF4FE42C47730500308A0E /* s9_log.c in Sources */,
 				E2FF4FD92C43691400308A0E /* draw_sdl.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2FF4FEA2C48C4CD00308A0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E2FF4FFF2C48C50100308A0E /* s9_test.c in Sources */,
+				E2FF4FF02C48C4CD00308A0E /* ring_buffer.c in Sources */,
+				E2FF4FF12C48C4CD00308A0E /* s9_log.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -317,6 +386,22 @@
 			};
 			name = Release;
 		};
+		E2FF4FF92C48C4CD00308A0E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		E2FF4FFA2C48C4CD00308A0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -334,6 +419,15 @@
 			buildConfigurations = (
 				E2FF4F882C429CD000308A0E /* Debug */,
 				E2FF4F892C429CD000308A0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E2FF4FF82C48C4CD00308A0E /* Build configuration list for PBXNativeTarget "s9_test" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E2FF4FF92C48C4CD00308A0E /* Debug */,
+				E2FF4FFA2C48C4CD00308A0E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
