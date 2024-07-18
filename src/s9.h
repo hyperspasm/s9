@@ -6,6 +6,13 @@
 
 #include "s9_log.h"
 
+#if defined(__GNUC__) || defined(__clang__)
+#define S9_FORCE_INLINE __attribute__((always_inline)) inline
+#elif defined(_MSC_VER)
+#define S9_FORCE_INLINE __forceinline
+#else
+#define S9_FORCE_INLINE inline
+#endif
 
 #define S9_STRINGIFY(x) #x
 #define S9_TOSTRING(x) S9_STRINGIFY(x)
