@@ -156,7 +156,7 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 					sdl_path_free(&path);
 					return NULL);
 		
-		for (int i = 0; i < path->n_draw_points; i++) {
+		for (uint32_t i = 0; i < path->n_draw_points; i++) {
 			path->vertices[i].position = path->draw_points[i];
 			path->vertices[i].color = path->color;
 		}
