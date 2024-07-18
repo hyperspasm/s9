@@ -25,6 +25,7 @@
 		E2FF4FF62C48C4CD00308A0E /* libfftw3f.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4FCF2C432FA900308A0E /* libfftw3f.dylib */; };
 		E2FF4FFF2C48C50100308A0E /* s9_test.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4FFE2C48C50100308A0E /* s9_test.c */; };
 		E2FF50012C48C55D00308A0E /* libcunit.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF50002C48C55D00308A0E /* libcunit.dylib */; };
+		E2FF50052C499AFF00308A0E /* template.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF50042C4999CC00308A0E /* template.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -73,6 +74,8 @@
 		E2FF4FFE2C48C50100308A0E /* s9_test.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = s9_test.c; sourceTree = "<group>"; };
 		E2FF50002C48C55D00308A0E /* libcunit.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcunit.dylib; path = ../../../../usr/local/lib/libcunit.dylib; sourceTree = "<group>"; };
 		E2FF50022C48D69500308A0E /* serialization.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = serialization.h; path = src/serialization.h; sourceTree = "<group>"; };
+		E2FF50032C4999CC00308A0E /* template.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = template.h; path = src/template.h; sourceTree = "<group>"; };
+		E2FF50042C4999CC00308A0E /* template.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = template.c; path = src/template.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,6 +108,7 @@
 			children = (
 				E2FF4F8A2C429D1100308A0E /* main.c */,
 				E2FF4F8D2C429E9A00308A0E /* s9.h */,
+				E2FF50022C48D69500308A0E /* serialization.h */,
 				E2FF4FE52C485D4B00308A0E /* s9_log.h */,
 				E2FF4FE32C47730500308A0E /* s9_log.c */,
 				E2FF4F8E2C429E9A00308A0E /* s9_app.h */,
@@ -119,7 +123,8 @@
 				E2FF4FE12C46209E00308A0E /* ring_buffer.c */,
 				E2FF4FDD2C445B0D00308A0E /* scratchpad.h */,
 				E2FF4FDE2C445B0D00308A0E /* scratchpad.c */,
-				E2FF50022C48D69500308A0E /* serialization.h */,
+				E2FF50032C4999CC00308A0E /* template.h */,
+				E2FF50042C4999CC00308A0E /* template.c */,
 				E2FF4FFD2C48C50100308A0E /* test */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
@@ -231,6 +236,7 @@
 			files = (
 				E2FF4F972C42BABC00308A0E /* fps.c in Sources */,
 				E2FF4FD62C4337AE00308A0E /* window_function.c in Sources */,
+				E2FF50052C499AFF00308A0E /* template.c in Sources */,
 				E2FF4F8B2C429D1100308A0E /* main.c in Sources */,
 				E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */,
 				E2FF4FDF2C445B0D00308A0E /* scratchpad.c in Sources */,
