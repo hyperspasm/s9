@@ -12,10 +12,10 @@ SOURCES := $(wildcard $(SRCDIR)/*.c)
 OBJECTS := $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test variables
-TEST_SRCDIR = tests
+TEST_SRCDIR = test
 TEST_OBJDIR = test_obj
 TEST_BINDIR = .
-TEST_TARGET = $(TEST_BINDIR)/s9_tests
+TEST_TARGET = $(TEST_BINDIR)/s9_test
 TEST_SOURCES := $(wildcard $(TEST_SRCDIR)/*.c)
 TEST_OBJECTS := $(TEST_SOURCES:$(TEST_SRCDIR)/%.c=$(TEST_OBJDIR)/%.o)
 TEST_LDFLAGS = -lcunit -lSDL2 -lSDL2_ttf -lm -lfftw3
