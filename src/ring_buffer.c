@@ -67,7 +67,9 @@ uint32_t ring_buffer_write(ring_buffer_t *rb, const uint8_t *data, uint32_t size
 	
 	avail = WRITE_AVAIL(rb);
 	if(size > avail) {
+#ifndef TESTING
 		S9_LOG_WARNING("ring buffer overflow, dropping %d bytes", size - avail);
+#endif /* TESTING */
 		size = avail;
 	}
 	
@@ -94,7 +96,9 @@ uint32_t ring_buffer_read(ring_buffer_t *rb, uint8_t *out_buffer, uint32_t size)
 	avail = READ_AVAIL(rb);
 	if(size > avail) { 
 		size = avail;
+#ifndef TESTING
 		S9_LOG_WARNING("ring buffer underflow, dropping %d bytes", size - avail);
+#endif /* TESTING */
 	}
 	
 	uint32_t first_part_size = rb->size - rb->tail;
