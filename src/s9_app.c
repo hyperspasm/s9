@@ -1,6 +1,7 @@
 #include "s9_app.h"
 #include "Roboto-Regular.h"
 #include "fps.h"
+#include "vu.h"
 #include "scratchpad.h"
 
 #include <stdlib.h>
@@ -16,13 +17,17 @@ typedef struct s9_app {
 	s9_app_config_t config;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
+	SDL_RendererInfo renderer_info;
+	SDL_DisplayMode display_mode;
 	TTF_Font *small_font;
 	
 	fps_t *fps;
+	vu_t *vu;
 	scratchpad_t *scratchpad;
 	
 	SDL_AudioDeviceID audio_device_id;
 	SDL_AudioSpec audio_spec;
+	s9_audio_stream_config_t stream_config;
 	
 	int ret;
 } s9_app_t;
@@ -31,33 +36,18 @@ static s9_app_t *g_app = NULL; // singleton instance
 
 // -- private
 
-static void print_renderer_info(SDL_Window *window, SDL_Renderer *renderer) {
-	SDL_RendererInfo info;
-	CHECK_ERROR(SDL_GetRendererInfo(renderer, &info) == 0,
-				return,
-				"SDL_GetRendererInfo failed: %s", SDL_GetError());
-	
-	S9_LOG_INFO("Renderer: %s", info.name);
-	if (info.flags & SDL_RENDERER_SOFTWARE) S9_LOG_INFO("    * Software");
-	if (info.flags & SDL_RENDERER_ACCELERATED) S9_LOG_INFO("    * Accelerated");
-	if (info.flags & SDL_RENDERER_PRESENTVSYNC) S9_LOG_INFO("    * VSync");
-	if (info.flags & SDL_RENDERER_TARGETTEXTURE) S9_LOG_INFO("    * Render to texture");
-	S9_LOG_INFO("    Max texture %d x %d", info.max_texture_width, info.max_texture_height);
-	
-	int display_index = SDL_GetWindowDisplayIndex(window);
-	CHECK_ERROR(display_index >= 0,
-				return,
-				"SDL_GetWindowDisplayIndex failed: %s", SDL_GetError());
-	
-	SDL_DisplayMode display_mode;
-	CHECK_ERROR(SDL_GetCurrentDisplayMode(display_index, &display_mode) == 0,
-				return,
-				"SDL_GetCurrentDisplayMode failed: %s", SDL_GetError());
+static void print_renderer_info(void) {
+	S9_LOG_INFO("Renderer: %s", g_app->renderer_info.name);
+	if (g_app->renderer_info.flags & SDL_RENDERER_SOFTWARE) S9_LOG_INFO("    * Software");
+	if (g_app->renderer_info.flags & SDL_RENDERER_ACCELERATED) S9_LOG_INFO("    * Accelerated");
+	if (g_app->renderer_info.flags & SDL_RENDERER_PRESENTVSYNC) S9_LOG_INFO("    * VSync");
+	if (g_app->renderer_info.flags & SDL_RENDERER_TARGETTEXTURE) S9_LOG_INFO("    * Render to texture");
+	S9_LOG_INFO("    Max texture %d x %d", g_app->renderer_info.max_texture_width, g_app->renderer_info.max_texture_height);
 	
 	S9_LOG_INFO("Display mode:");
-	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(display_mode.format));
-	S9_LOG_INFO("    %d x %d", display_mode.w, display_mode.h);
-	S9_LOG_INFO("    %d Hz", display_mode.refresh_rate);
+	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(g_app->display_mode.format));
+	S9_LOG_INFO("    %d x %d", g_app->display_mode.w, g_app->display_mode.h);
+	S9_LOG_INFO("    %d Hz", g_app->display_mode.refresh_rate);
 }
 
 // static function to load a font
@@ -95,11 +85,19 @@ static void render(SDL_Renderer *renderer) {
 		SDL_RenderSetViewport(renderer, &default_viewport);		
 		fps_render(g_app->fps, renderer);
 	}
+	
+	// vu
+	if(g_app->vu) {
+		SDL_RenderSetViewport(renderer, &default_viewport);		
+		vu_render(g_app->vu, renderer);
+	}
 }
 
 // empty audio callback
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
-	// currently does nothing
+	if(g_app->vu) {
+		vu_enqueue_audio_data(g_app->vu, stream, len);
+	}
 }
 
 // --
@@ -164,6 +162,40 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"SDL_CreateRenderer failed: %s", SDL_GetError());
 	
+	// get renderer info
+	CHECK_ERROR(SDL_GetRendererInfo(g_app->renderer, &g_app->renderer_info) == 0,
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"SDL_GetRendererInfo failed: %s", SDL_GetError());
+		
+	// get display index
+	int display_index = SDL_GetWindowDisplayIndex(g_app->window);
+	CHECK_ERROR(display_index >= 0,
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"SDL_GetWindowDisplayIndex failed: %s", SDL_GetError());
+	
+	// get display mode
+	CHECK_ERROR(SDL_GetCurrentDisplayMode(display_index, &g_app->display_mode) == 0,
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"SDL_GetCurrentDisplayMode failed: %s", SDL_GetError());
+	
+	// print info
+	print_renderer_info();
+	
 	// load small font
 	g_app->small_font = load_font_from_memory(Roboto_Regular_TTF, sizeof(Roboto_Regular_TTF), 16);
 	CHECK_ERROR(g_app->small_font != NULL,
@@ -204,6 +236,19 @@ int s9_app_create(const s9_app_config_t *config) {
 				SDL_Quit();
 				return -1,
 				"Failed to create fps instance");
+	
+	// create vu instance
+	g_app->vu = vu_new();
+	CHECK_ERROR(g_app->vu != NULL,
+				TTF_CloseFont(g_app->small_font);
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to create vu instance");
 	
 	// check for audio input device
 	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
@@ -258,11 +303,22 @@ int s9_app_create(const s9_app_config_t *config) {
 	S9_LOG_INFO("    Channels: %d", g_app->audio_spec.channels);
 	S9_LOG_INFO("    Buffer Size: %d samples", g_app->audio_spec.samples);
 	
+	// init stream_config
+	g_app->stream_config = (s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32,
+		.sample_rate = g_app->audio_spec.freq,
+		.channels = g_app->audio_spec.channels,
+		.buffer_frames = g_app->audio_spec.samples,
+		.samples_per_display_frame = ceil(g_app->audio_spec.freq / g_app->display_mode.refresh_rate),
+	};
+	
+	// prepare to stream
+	if(g_app->vu) {
+		vu_prepare_to_stream(g_app->vu, &g_app->stream_config);
+	}
+	
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
-	
-	// print info
-	print_renderer_info(g_app->window, g_app->renderer);
 	
 	return 0;
 }
@@ -284,6 +340,11 @@ void s9_app_destroy(void) {
 	// destroy fps instance
 	if (g_app->fps) {
 		fps_free(&g_app->fps);
+	}
+	
+	// destroy vu instance
+	if (g_app->vu) {
+		vu_free(&g_app->vu);
 	}
 	
 	// close audio device
