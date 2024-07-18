@@ -2,6 +2,40 @@
 #include <SDL2/SDL.h>
 #include "ring_buffer.h"
 
+#define BUFFER_SIZE 1024
+#define NUM_WRITES 10000
+#define NUM_READS 10000
+
+typedef struct {
+	ring_buffer_t *ring_buffer;
+	const uint8_t *data;
+	uint32_t data_size;
+	uint32_t num_writes;
+} writer_args_t;
+
+typedef struct {
+	ring_buffer_t *ring_buffer;
+	uint8_t *out_buffer;
+	uint32_t buffer_size;
+	uint32_t num_reads;
+} reader_args_t;
+
+int writer_thread(void *args) {
+	writer_args_t *wargs = (writer_args_t *)args;
+	for (uint32_t i = 0; i < wargs->num_writes; ++i) {
+		ring_buffer_write(wargs->ring_buffer, wargs->data, wargs->data_size);
+	}
+	return 0;
+}
+
+int reader_thread(void *args) {
+	reader_args_t *rargs = (reader_args_t *)args;
+	for (uint32_t i = 0; i < rargs->num_reads; ++i) {
+		ring_buffer_read(rargs->ring_buffer, rargs->out_buffer, rargs->buffer_size);
+	}
+	return 0;
+}
+
 void test_ring_buffer_new_free(void) {
 	uint32_t size = 1024;
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -110,6 +144,37 @@ void test_ring_buffer_wraparound(void) {
 	ring_buffer_free(&ring_buffer);
 }
 
+// Test for concurrent access to the ring buffer
+void test_ring_buffer_concurrent_access(void) {
+	ring_buffer_t *ring_buffer = ring_buffer_new(BUFFER_SIZE);
+	CU_ASSERT_PTR_NOT_NULL(ring_buffer);
+	
+	uint8_t write_data[128] = {0};
+	uint8_t read_data[128] = {0};
+	
+	writer_args_t wargs = {
+		.ring_buffer = ring_buffer,
+		.data = write_data,
+		.data_size = sizeof(write_data),
+		.num_writes = NUM_WRITES
+	};
+	
+	reader_args_t rargs = {
+		.ring_buffer = ring_buffer,
+		.out_buffer = read_data,
+		.buffer_size = sizeof(read_data),
+		.num_reads = NUM_READS
+	};
+	
+	SDL_Thread *writer = SDL_CreateThread(writer_thread, "WriterThread", &wargs);
+	SDL_Thread *reader = SDL_CreateThread(reader_thread, "ReaderThread", &rargs);
+	
+	SDL_WaitThread(writer, NULL);
+	SDL_WaitThread(reader, NULL);
+	
+	ring_buffer_free(&ring_buffer);
+}
+
 int main(void) {
 	// Initialize SDL
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
@@ -128,6 +193,7 @@ int main(void) {
 	CU_add_test(suite, "test_ring_buffer_read_avail", test_ring_buffer_read_avail);
 	CU_add_test(suite, "test_ring_buffer_write_avail", test_ring_buffer_write_avail);
 	CU_add_test(suite, "test_ring_buffer_wraparound", test_ring_buffer_wraparound);
+	CU_add_test(suite, "test_ring_buffer_concurrent_access", test_ring_buffer_concurrent_access);
 	
 	CU_basic_run_tests();
 	CU_cleanup_registry();
