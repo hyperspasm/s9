@@ -24,4 +24,10 @@ uint32_t ring_buffer_read_avail(ring_buffer_t *ring_buffer);
 // returns the free space available for writing
 uint32_t ring_buffer_write_avail(ring_buffer_t *ring_buffer);
 
+// returns number of overflows and underflows
+void ring_buffer_get_faults(ring_buffer_t *ring_buffer, uint64_t *out_overflow_bytes, uint64_t *out_underflow_bytes);
+
+// clear number of overflows and underflows
+void ring_buffer_clear_faults(ring_buffer_t *ring_buffer);
+
 #endif /* ring_buffer_h */

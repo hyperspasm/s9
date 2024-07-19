@@ -10,7 +10,9 @@ struct ring_buffer_t {
 	uint32_t head;
 	uint32_t tail;
 	uint32_t size;
-	SDL_mutex *mutex;
+	uint64_t overflow_bytes;
+	uint64_t underflow_bytes;
+	SDL_mutex *mutex;	
 	uint8_t buffer[];
 };
 
@@ -35,6 +37,7 @@ ring_buffer_t *ring_buffer_new(uint32_t size) {
 	
 	ring_buffer_t *ring_buffer = (ring_buffer_t *)malloc(sizeof(ring_buffer_t) + size);
 	CHECK_ALLOC(ring_buffer, return NULL);
+	memset(ring_buffer, 0, sizeof(ring_buffer_t) + size);
 	
 	ring_buffer->head = 0;
 	ring_buffer->tail = 0;
@@ -63,13 +66,11 @@ void ring_buffer_free(ring_buffer_t **ring_buffer) {
 uint32_t ring_buffer_write(ring_buffer_t *rb, const uint8_t *data, uint32_t size) {
 	uint32_t avail;
 	
-	SDL_LockMutex(rb->mutex);    
+	SDL_LockMutex(rb->mutex);   
 	
 	avail = WRITE_AVAIL(rb);
 	if(size > avail) {
-#ifndef TESTING
-		S9_LOG_WARNING("ring buffer overflow, dropping %d bytes", size - avail);
-#endif /* TESTING */
+		rb->overflow_bytes += size - avail;
 		size = avail;
 	}
 	
@@ -94,11 +95,9 @@ uint32_t ring_buffer_read(ring_buffer_t *rb, uint8_t *out_buffer, uint32_t size)
 	SDL_LockMutex(rb->mutex);    
 	
 	avail = READ_AVAIL(rb);
-	if(size > avail) { 
+	if(size > avail) {
+		rb->underflow_bytes += size - avail;
 		size = avail;
-#ifndef TESTING
-		S9_LOG_WARNING("ring buffer underflow, dropping %d bytes", size - avail);
-#endif /* TESTING */
 	}
 	
 	uint32_t first_part_size = rb->size - rb->tail;
@@ -136,3 +135,19 @@ uint32_t ring_buffer_write_avail(ring_buffer_t *rb) {
 	
 	return avail;
 }
+
+// returns number of overflows and underflows
+void ring_buffer_get_faults(ring_buffer_t *rb, uint64_t *out_overflow_bytes, uint64_t *out_underflow_bytes) {
+	SDL_LockMutex(rb->mutex);
+	*out_overflow_bytes = rb->overflow_bytes;
+	*out_underflow_bytes = rb->underflow_bytes;
+	SDL_UnlockMutex(rb->mutex);
+}
+
+// clear number of overflows and underflows
+void ring_buffer_clear_faults(ring_buffer_t *rb) {
+	SDL_LockMutex(rb->mutex);
+	rb->overflow_bytes = rb->underflow_bytes = 0;
+	SDL_UnlockMutex(rb->mutex);	
+}
+

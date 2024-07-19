@@ -56,6 +56,11 @@ void test_ring_buffer_write_read(void) {
 	uint8_t read_data[256] = {0};
 	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 256);
 	CU_ASSERT_EQUAL(read_size, 256);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
@@ -67,6 +72,11 @@ void test_ring_buffer_write_overflow(void) {
 	uint8_t write_data[2048] = {0};
 	uint32_t write_size = ring_buffer_write(ring_buffer, write_data, 2048);
 	CU_ASSERT_EQUAL(write_size, size);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 1024);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
@@ -78,6 +88,11 @@ void test_ring_buffer_read_empty(void) {
 	uint8_t read_data[256] = {0};
 	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 256);
 	CU_ASSERT_EQUAL(read_size, 0);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 256);
 	
 	ring_buffer_free(&ring_buffer);
 }
@@ -91,6 +106,11 @@ void test_ring_buffer_read_avail(void) {
 	
 	uint32_t read_avail = ring_buffer_read_avail(ring_buffer);
 	CU_ASSERT_EQUAL(read_avail, 256);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
@@ -104,11 +124,15 @@ void test_ring_buffer_write_avail(void) {
 	
 	uint32_t write_avail = ring_buffer_write_avail(ring_buffer);
 	CU_ASSERT_EQUAL(write_avail, 768);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for wrapping when rb->head < rb->tail
 void test_ring_buffer_wraparound(void) {
 	uint32_t size = 8; // Small size to test wrapping easily
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -140,11 +164,15 @@ void test_ring_buffer_wraparound(void) {
 	CU_ASSERT_EQUAL(read_data2[3], 8);
 	CU_ASSERT_EQUAL(read_data2[4], 9);
 	CU_ASSERT_EQUAL(read_data2[5], 10);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for concurrent access to the ring buffer
 void test_ring_buffer_concurrent_access(void) {
 	ring_buffer_t *ring_buffer = ring_buffer_new(BUFFER_SIZE);
 	CU_ASSERT_PTR_NOT_NULL(ring_buffer);
@@ -175,7 +203,6 @@ void test_ring_buffer_concurrent_access(void) {
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for full buffer write
 void test_ring_buffer_full_write(void) {
 	uint32_t size = 8; // Small size to test easily
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -199,11 +226,15 @@ void test_ring_buffer_full_write(void) {
 	for (uint32_t i = 0; i < 8; ++i) {
 		CU_ASSERT_EQUAL(read_data[i], i + 1);
 	}
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 3);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for large data writes and reads
 void test_ring_buffer_large_write_read(void) {
 	uint32_t size = 8; // Small size to test easily
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -222,11 +253,15 @@ void test_ring_buffer_large_write_read(void) {
 	for (uint32_t i = 0; i < 8; ++i) {
 		CU_ASSERT_EQUAL(read_data[i], i + 1);
 	}
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 4);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for alternating writes and reads
 void test_ring_buffer_alternating_write_read(void) {
 	uint32_t size = 8; // Small size to test easily
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -256,11 +291,15 @@ void test_ring_buffer_alternating_write_read(void) {
 	for (uint32_t i = 0; i < 4; ++i) {
 		CU_ASSERT_EQUAL(read_data[i], write_data2[i]);
 	}
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for zero-length writes and reads
 void test_ring_buffer_zero_length(void) {
 	uint32_t size = 8;
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -274,11 +313,15 @@ void test_ring_buffer_zero_length(void) {
 	uint8_t read_data[1] = {0};
 	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 0);
 	CU_ASSERT_EQUAL(read_size, 0);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for single-byte writes and reads
 void test_ring_buffer_single_byte(void) {
 	uint32_t size = 8;
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -293,11 +336,15 @@ void test_ring_buffer_single_byte(void) {
 	uint32_t read_size = ring_buffer_read(ring_buffer, read_data, 1);
 	CU_ASSERT_EQUAL(read_size, 1);
 	CU_ASSERT_EQUAL(read_data[0], 1);
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for maximum capacity writes and reads
 void test_ring_buffer_max_capacity(void) {
 	uint32_t size = 8;
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -316,11 +363,15 @@ void test_ring_buffer_max_capacity(void) {
 	for (uint32_t i = 0; i < 8; ++i) {
 		CU_ASSERT_EQUAL(read_data[i], write_data[i]);
 	}
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for boundary conditions
 void test_ring_buffer_boundary_conditions(void) {
 	uint32_t size = 8;
 	ring_buffer_t *ring_buffer = ring_buffer_new(size);
@@ -350,11 +401,15 @@ void test_ring_buffer_boundary_conditions(void) {
 	for (uint32_t i = 0; i < 8; ++i) {
 		CU_ASSERT_EQUAL(read_data2[i], expected_data[i]);
 	}
+
+	uint64_t overflows = 0, underflows = 0;
+	ring_buffer_get_faults(ring_buffer, &overflows, &underflows);
+	CU_ASSERT_EQUAL(overflows, 0);
+	CU_ASSERT_EQUAL(underflows, 0);
 	
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for concurrent writes
 void test_ring_buffer_concurrent_writes(void) {
 	ring_buffer_t *ring_buffer = ring_buffer_new(BUFFER_SIZE);
 	CU_ASSERT_PTR_NOT_NULL(ring_buffer);
@@ -385,7 +440,6 @@ void test_ring_buffer_concurrent_writes(void) {
 	ring_buffer_free(&ring_buffer);
 }
 
-// Test for concurrent reads
 void test_ring_buffer_concurrent_reads(void) {
 	ring_buffer_t *ring_buffer = ring_buffer_new(BUFFER_SIZE);
 	CU_ASSERT_PTR_NOT_NULL(ring_buffer);
