@@ -82,13 +82,27 @@ static void render(SDL_Renderer *renderer) {
 	
 	// fps
 	if(g_app->fps) {
-		SDL_RenderSetViewport(renderer, &default_viewport);		
+		int margin = 10;
+		SDL_Rect viewport = {
+			.x = default_viewport.x + margin,
+			.y = default_viewport.y + margin,
+			.w = default_viewport.w - margin,
+			.h = default_viewport.h - margin,
+		};
+		SDL_RenderSetViewport(renderer, &viewport);		
 		fps_render(g_app->fps, renderer);
 	}
 	
 	// vu
 	if(g_app->vu) {
-		SDL_RenderSetViewport(renderer, &default_viewport);		
+		int margin_x = 10;
+		SDL_Rect viewport = {
+			.x = default_viewport.x + margin_x,
+			.y = default_viewport.y + 40,
+			.w = 50,
+			.h = default_viewport.h - 50,
+		};		
+		SDL_RenderSetViewport(renderer, &viewport);		
 		vu_render(g_app->vu, renderer);
 	}
 }
