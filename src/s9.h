@@ -44,4 +44,12 @@ do { \
 		} \
 	} while (0)
 
+#define S9_ASSERT(assertion) \
+	do { \
+		if (!(assertion)) { \
+			S9_LOG_ERROR("assertion failed: " S9_TOSTRING(assertion) " (%s: %d)", S9_BASE_FILENAME(__FILE__), __LINE__); \
+			abort(); \
+		} \
+	} while (0)
+
 #endif /* s9_h */
