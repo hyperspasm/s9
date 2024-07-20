@@ -19,6 +19,7 @@ typedef struct {
 	int margin;
 	uint32_t peak_hold_ms;
 	SDL_Color rms_color;
+	SDL_Color bar_background_color;
 	SDL_Color peak_color;
 	SDL_Color peak_hold_color;
 	SDL_Color peak_over_color;
@@ -30,6 +31,7 @@ static const vu_config_t default_vu_config = {
 	.min_dbfs = -60.f,
 	.margin = 8,
 	.peak_hold_ms = 1000,
+	.bar_background_color = { .r = 20, .g = 20, .b = 20, .a = 255 },
 	.rms_color = { .r = 0, .g = 255, .b = 0, .a = 255 },
 	.peak_color = { .r = 0, .g = 255, .b = 0, .a = 255 },
 	.peak_hold_color = { .r = 255, .g = 255, .b = 255, .a = 255 },

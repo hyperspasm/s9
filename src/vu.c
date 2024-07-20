@@ -116,6 +116,21 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		}
 	}
 	
+	// draw bar background
+	for(uint32_t j = 0, x = 0; j < n_channels; j++) {		
+		SDL_Rect bar_rect = (SDL_Rect) {
+			.x = x,
+			.y = 0,
+			.w = bar_width,
+			.h = vu->viewport.h,
+		};
+		
+		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.bar_background_color);
+		SDL_RenderFillRect(renderer, &bar_rect);
+		
+		x += bar_width + vu->config.margin;
+	}
+	
 	// draw rms
 	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
 		float top = vu->channel_vals[j].db_rms;
