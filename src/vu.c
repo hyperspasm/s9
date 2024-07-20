@@ -165,7 +165,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 			.h = 4,
 		};
 		
-		if(vu->peak_holds[j].db_peak > -0.0f) {
+		if(vu->peak_holds[j].db_peak > vu->config.over_threshold_db) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_over_color);				
 		} else {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_hold_color);

@@ -16,6 +16,7 @@ typedef struct {
 	
 	// drawing configuration parameters
 	float min_dbfs;
+	float over_threshold_db;
 	int margin;
 	uint32_t peak_hold_ms;
 	SDL_Color rms_color;
@@ -29,6 +30,7 @@ static const vu_config_t default_vu_config = {
 	.rms_window_seconds = 0.25f,
 	.rms_window_function = WINDOW_FUNCTION_HAMMING,
 	.min_dbfs = -60.f,
+	.over_threshold_db = -0.25f,
 	.margin = 8,
 	.peak_hold_ms = 1000,
 	.bar_background_color = { .r = 20, .g = 20, .b = 20, .a = 255 },
