@@ -233,3 +233,15 @@ int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font
 	
 	return 0;
 }
+
+SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset) {
+	
+	SDL_Rect new_rect = rect;
+	
+	new_rect.x += inset;
+	new_rect.y += inset;
+	new_rect.w -= 2 * inset;
+	new_rect.h -= 2 * inset;
+	
+	return new_rect;
+}

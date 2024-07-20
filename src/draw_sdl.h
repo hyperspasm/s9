@@ -24,4 +24,7 @@ int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer);
 // Renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
 int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font *font, SDL_Color *color, const char *text, int *out_width, int *out_height);
 
+// inset a rect
+SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset);
+
 #endif /* draw_sdl_h */
