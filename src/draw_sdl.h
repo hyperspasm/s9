@@ -4,6 +4,9 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
+#define SDL_SET_RENDER_DRAW_COLOR(renderer, color) \
+	SDL_SetRenderDrawColor((renderer), (color)->r, (color)->g, (color)->b, (color)->a)
+
 // A path is a defined by a series of points.
 // When the first and last points of a path are equal it is considered closed.
 typedef struct sdl_path sdl_path_t;
