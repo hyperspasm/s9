@@ -296,7 +296,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	desired_spec.freq = g_app->config.sample_rate;
 	desired_spec.format = AUDIO_F32;
 	desired_spec.channels = 2;
-	desired_spec.samples = 512;
+	desired_spec.samples = 256;
 	desired_spec.callback = audio_callback;
 	
 	g_app->audio_device_id = SDL_OpenAudioDevice(selected_audio_device_name, SDL_TRUE, &desired_spec, &g_app->audio_spec, 0);
