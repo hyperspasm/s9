@@ -2,7 +2,6 @@
 #include "s9.h"
 #include "draw_sdl.h"
 #include "ring_buffer.h"
-#include "window_function.h"
 
 typedef struct {
 	float rms;
@@ -34,34 +33,19 @@ typedef struct vu {
 	float *rms_window_buffers[2];
 	int current_rms_window_buffer_ix;
 	
-	// dsp configuration parameters
-	float rms_window_seconds;
-	window_function_t rms_window_function;
-	
-	// drawing configuration parameters
-	float min_dbfs;
-	int margin;
-	uint32_t peak_hold_ms;
-	SDL_Color rms_color;
-	SDL_Color peak_color;
-	SDL_Color peak_hold_color;
-	SDL_Color peak_over_color;
+	vu_config_t config;
 } vu_t;
 
-vu_t *vu_new(void) {
+vu_t *vu_new(const vu_config_t *config) {
 	vu_t *vu = (vu_t *) malloc(sizeof(vu_t));
 	CHECK_ALLOC(vu, return NULL);
 	memset(vu, 0, sizeof(*vu));
 	
-	vu->rms_window_seconds = 0.25f;
-	vu->min_dbfs = -60.f;
-	vu->margin = 8;
-	vu->peak_hold_ms = 1000;
-	
-	vu->rms_color = 		(SDL_Color) { .r = 0,   .g = 255, .b = 0, 	.a = 255 };
-	vu->peak_color = 		(SDL_Color) { .r = 0,   .g = 255, .b = 0,   .a = 255 };
-	vu->peak_hold_color = 	(SDL_Color) { .r = 255, .g = 255, .b = 255, .a = 255 };
-	vu->peak_over_color = 	(SDL_Color) { .r = 255, .g = 0,   .b = 0,   .a = 255 };
+	if (config == NULL) {
+		vu->config = default_vu_config;
+	} else {
+		vu->config = *config;
+	}
 	
 	return vu;
 }
@@ -121,21 +105,21 @@ static S9_FORCE_INLINE void prepare_to_draw(vu_t *vu, SDL_Renderer *renderer) {
 static void draw(vu_t *vu, SDL_Renderer *renderer) {
 	
 	uint32_t n_channels = vu->stream_config.channels;
-	int bar_width = (vu->viewport.w - (n_channels - 1) * vu->margin) / n_channels;
+	int bar_width = (vu->viewport.w - (n_channels - 1) * vu->config.margin) / n_channels;
 	
 	// update peak holds
-	for(int j=0; j < n_channels; j++) {
+	for(int j = 0; j < n_channels; j++) {
 		uint32_t now = SDL_GetTicks();
-		if(vu->channel_vals[j].db_peak > vu->peak_holds[j].db_peak || (now - vu->peak_holds[j].t0) > vu->peak_hold_ms ) {
+		if(vu->channel_vals[j].db_peak > vu->peak_holds[j].db_peak || (now - vu->peak_holds[j].t0) > vu->config.peak_hold_ms) {
 			vu->peak_holds[j].db_peak = vu->channel_vals[j].db_peak;
 			vu->peak_holds[j].t0 = now;
 		}
 	}
 	
 	// draw rms
-	for(uint32_t j=0, x=0; j < n_channels; j++) {
+	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
 		float top = vu->channel_vals[j].db_rms;
-		top = (top - vu->min_dbfs) / (-vu->min_dbfs);			
+		top = (top - vu->config.min_dbfs) / (-vu->config.min_dbfs);			
 		top = top < 0.f ? 0.f : top > 1.f ? 1.f : top; // clamp 0 - 1
 		top *= vu->viewport.h;
 		
@@ -146,16 +130,16 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 			.h = top,
 		};
 		
-		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->rms_color);
+		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.rms_color);
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->margin;
+		x += bar_width + vu->config.margin;
 	}
 	
 	// draw peak
-	for(uint32_t j=0, x=0; j < n_channels; j++) {
+	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
 		float top = vu->peak_holds[j].db_peak;
-		top = (top - vu->min_dbfs) / (-vu->min_dbfs);			
+		top = (top - vu->config.min_dbfs) / (-vu->config.min_dbfs);			
 		top = top < 0.f ? 0.f : top > 1.f ? 1.f : top; // clamp 0 - 1
 		top *= vu->viewport.h;
 		
@@ -167,19 +151,19 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		};
 		
 		if(vu->peak_holds[j].db_peak > -0.0f) {
-			SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->peak_over_color);				
+			SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_over_color);				
 		} else {
-			SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->peak_hold_color);
+			SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_hold_color);
 		}
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->margin;
+		x += bar_width + vu->config.margin;
 	}
 	
 	// draw peak hold
-	for(uint32_t j=0, x=0; j < n_channels; j++) {
+	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
 		float top = vu->channel_vals[j].db_peak;
-		top = (top - vu->min_dbfs) / (-vu->min_dbfs);			
+		top = (top - vu->config.min_dbfs) / (-vu->config.min_dbfs);			
 		top = top < 0.f ? 0.f : top > 1.f ? 1.f : top; // clamp 0 - 1
 		top *= vu->viewport.h;
 		
@@ -190,10 +174,10 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 			.h = 2,
 		};
 		
-		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->peak_color);
+		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_color);
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->margin;
+		x += bar_width + vu->config.margin;
 	}
 	
 }
@@ -221,14 +205,14 @@ static void compute_channel_vals(vu_t *vu) {
 	
 	// -- compute peak --
 	{
-		for(uint32_t j=0; j < n_channels; j++) {			
+		for(uint32_t j = 0; j < n_channels; j++) {			
 			vu->channel_vals[j].peak = 0.f;
 			vu->channel_vals[j].db_peak = -INFINITY;
 		}		
 		
 		float *src = vu->input_buffer;
-		for(uint32_t i=0; i < frames_to_consume; i++) {
-			for(uint32_t j=0; j < n_channels; j++, src++) {
+		for(uint32_t i = 0; i < frames_to_consume; i++) {
+			for(uint32_t j = 0; j < n_channels; j++, src++) {
 				float peak_sample = fabs(*src);
 				if(vu->channel_vals[j].peak < peak_sample) {
 					vu->channel_vals[j].peak = peak_sample;
@@ -237,7 +221,7 @@ static void compute_channel_vals(vu_t *vu) {
 		}
 		
 		// compute dB values
-		for(uint32_t j=0; j < n_channels; j++) {
+		for(uint32_t j = 0; j < n_channels; j++) {
 			vu->channel_vals[j].db_peak = 20.f * log10f(vu->channel_vals[j].peak);
 		}
 	}
@@ -271,7 +255,7 @@ static void compute_channel_vals(vu_t *vu) {
 		}
 		
 		// prepare to compute
-		for(uint32_t j=0; j < n_channels; j++) {			
+		for(uint32_t j = 0; j < n_channels; j++) {			
 			vu->channel_vals[j].rms = 0.f;
 			vu->channel_vals[j].db_rms = -INFINITY;
 		}
@@ -280,21 +264,21 @@ static void compute_channel_vals(vu_t *vu) {
 		{
 			float *src = current_rms_window_buffer;
 			for(uint32_t i = 0; i < vu->rms_window_frames; i++) {
-				for(uint32_t j=0; j < n_channels; j++, src++) {
+				for(uint32_t j = 0; j < n_channels; j++, src++) {
 					float rms_sample = *src;			
 					
 					rms_sample *= vu->rms_window_function_buffer[i];			
 					vu->channel_vals[j].rms += rms_sample * rms_sample;
 				}
 			}	
-			for(uint32_t j=0; j < n_channels; j++) {
+			for(uint32_t j = 0; j < n_channels; j++) {
 				vu->channel_vals[j].rms /= vu->rms_window_frames;
 				vu->channel_vals[j].rms = sqrtf(vu->channel_vals[j].rms);
 			}
 		}
 		
 		// compute dB values
-		for(uint32_t j=0; j < n_channels; j++) {
+		for(uint32_t j = 0; j < n_channels; j++) {
 			vu->channel_vals[j].db_rms = 20.f * log10f(vu->channel_vals[j].rms);
 		}
 	}
@@ -369,7 +353,7 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 	vu->input_buffer = malloc(size_bytes);
 	CHECK_ALLOC(vu->input_buffer, return);
 	
-	vu->rms_window_frames = ceil(stream_config->sample_rate * vu->rms_window_seconds);
+	vu->rms_window_frames = ceil(stream_config->sample_rate * vu->config.rms_window_seconds);
 	vu->rms_window_buffer = malloc(2 * vu->rms_window_frames * stream_config->channels * stream_config->audio_format.bytes_per_sample); // allocate for both rms_window_buffers
 	CHECK_ALLOC(vu->rms_window_buffer, return);
 	vu->rms_window_buffers[0] = &vu->rms_window_buffer[0];
@@ -378,15 +362,15 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 	
 	vu->rms_window_function_buffer = malloc(vu->rms_window_frames * stream_config->audio_format.bytes_per_sample);
 	CHECK_ALLOC(vu->rms_window_function_buffer, return);
-	create_window_function(vu->rms_window_function, vu->rms_window_frames, vu->rms_window_function_buffer);
+	create_window_function(vu->config.rms_window_function, vu->rms_window_frames, vu->rms_window_function_buffer);
 	
 	// normalize window function buffer
 	float window_function_factor = 0;
-	for(uint32_t i=0; i < vu->rms_window_frames; i++) {
+	for(uint32_t i = 0; i < vu->rms_window_frames; i++) {
 		window_function_factor += vu->rms_window_function_buffer[i];
 	}
 	window_function_factor = vu->rms_window_frames / window_function_factor;
-	for(uint32_t i=0; i < vu->rms_window_frames; i++) {
+	for(uint32_t i = 0; i < vu->rms_window_frames; i++) {
 		vu->rms_window_function_buffer[i] *= window_function_factor;
 	}
 		
@@ -395,7 +379,7 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 	
 	vu->peak_holds = malloc(sizeof(peak_hold_t) * stream_config->channels);
 	CHECK_ALLOC(vu->peak_holds, return);	
-	for(int j=0; j < stream_config->channels; j++) {
+	for(int j = 0; j < stream_config->channels; j++) {
 		vu->peak_holds[j].db_peak = -INFINITY;
 	}
 	

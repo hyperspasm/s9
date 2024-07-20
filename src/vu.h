@@ -2,14 +2,42 @@
 #define vu_h
 
 #include "s9_dsp.h"
+#include "window_function.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
 typedef struct vu vu_t;
 
+typedef struct {
+	// dsp configuration parameters
+	float rms_window_seconds;
+	window_function_t rms_window_function;
+	
+	// drawing configuration parameters
+	float min_dbfs;
+	int margin;
+	uint32_t peak_hold_ms;
+	SDL_Color rms_color;
+	SDL_Color peak_color;
+	SDL_Color peak_hold_color;
+	SDL_Color peak_over_color;
+} vu_config_t;
+
+static const vu_config_t default_vu_config = {
+	.rms_window_seconds = 0.25f,
+	.rms_window_function = WINDOW_FUNCTION_HAMMING,
+	.min_dbfs = -60.f,
+	.margin = 8,
+	.peak_hold_ms = 1000,
+	.rms_color = { .r = 0, .g = 255, .b = 0, .a = 255 },
+	.peak_color = { .r = 0, .g = 255, .b = 0, .a = 255 },
+	.peak_hold_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
+	.peak_over_color = { .r = 255, .g = 0, .b = 0, .a = 255 }
+};
+
 // create vu
-vu_t *vu_new(void);
+vu_t *vu_new(const vu_config_t *config);
 
 // destroy vu
 void vu_free(vu_t **tp);

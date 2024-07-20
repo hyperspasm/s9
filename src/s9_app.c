@@ -252,7 +252,7 @@ int s9_app_create(const s9_app_config_t *config) {
 				"Failed to create fps instance");
 	
 	// create vu instance
-	g_app->vu = vu_new();
+	g_app->vu = vu_new(NULL);
 	CHECK_ERROR(g_app->vu != NULL,
 				TTF_CloseFont(g_app->small_font);
 				SDL_DestroyRenderer(g_app->renderer);
