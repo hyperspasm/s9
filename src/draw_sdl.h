@@ -14,6 +14,12 @@ typedef struct sdl_path sdl_path_t;
 // create a new path
 sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FPoint *path_points, int count);
 
+// create a new path from an SDL_FRect
+sdl_path_t *sdl_path_new_from_frect(SDL_Color *color, float width, int filled, SDL_FRect rect);
+
+// create a new path from an SDL_Rect
+sdl_path_t *sdl_path_new_from_rect(SDL_Color *color, float width, int filled, SDL_Rect rect);
+
 // free a path
 void sdl_path_free(sdl_path_t **path);
 

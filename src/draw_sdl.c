@@ -182,6 +182,30 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 	return path;
 }
 
+sdl_path_t *sdl_path_new_from_frect(SDL_Color *color, float width, int filled, SDL_FRect rect) {
+		SDL_FPoint path_points[5] = {
+			{ rect.x, rect.y },
+			{ rect.x + rect.w, rect.y },
+			{ rect.x + rect.w, rect.y + rect.h },
+			{ rect.x, rect.y + rect.h },
+			{ rect.x, rect.y }, // closed path
+		};
+
+		return sdl_path_new(color, width, filled, path_points, 5);
+}
+
+sdl_path_t *sdl_path_new_from_rect(SDL_Color *color, float width, int filled, SDL_Rect rect) {
+		SDL_FPoint path_points[5] = {
+			{ rect.x, rect.y },
+			{ rect.x + rect.w, rect.y },
+			{ rect.x + rect.w, rect.y + rect.h },
+			{ rect.x, rect.y + rect.h },
+			{ rect.x, rect.y }, // closed path
+		};
+
+		return sdl_path_new(color, width, filled, path_points, 5);
+}
+
 int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
 	CHECK_PARAMETER(path != NULL, return -1);
 	CHECK_PARAMETER(renderer != NULL, return -1);
