@@ -19,7 +19,6 @@ typedef struct s9_app {
 	SDL_Renderer *renderer;
 	SDL_RendererInfo renderer_info;
 	SDL_DisplayMode display_mode;
-	TTF_Font *small_font;
 	
 	fps_t *fps;
 	vu_t *vu;
@@ -61,6 +60,10 @@ static TTF_Font* load_font_from_memory(const uint8_t *font_data, int data_size, 
 	CHECK_ERROR(font != NULL, return NULL, "TTF_OpenFontRW failed: %s", TTF_GetError());
 	
 	return font;
+}
+
+static TTF_Font* load_font(int point_size) {
+	return load_font_from_memory(Roboto_Regular_TTF, sizeof(Roboto_Regular_TTF), point_size);
 }
 
 static void render(SDL_Renderer *renderer) {
@@ -210,25 +213,12 @@ int s9_app_create(const s9_app_config_t *config) {
 	// print info
 	print_renderer_info();
 	
-	// load small font
-	g_app->small_font = load_font_from_memory(Roboto_Regular_TTF, sizeof(Roboto_Regular_TTF), 16);
-	CHECK_ERROR(g_app->small_font != NULL,
-				SDL_DestroyRenderer(g_app->renderer);
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
-				return -1,
-				"Failed to load small font");
-	
 	// enable blending mode for anti-aliasing
 	SDL_SetRenderDrawBlendMode(g_app->renderer, SDL_BLENDMODE_BLEND);
 	
 	// create scratchpad instance
-	g_app->scratchpad = scratchpad_new();
+	g_app->scratchpad = scratchpad_new(load_font);
 	CHECK_ERROR(g_app->scratchpad != NULL,
-				TTF_CloseFont(g_app->small_font);
 				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -239,9 +229,8 @@ int s9_app_create(const s9_app_config_t *config) {
 				"Failed to create scratchpad instance");
 	
 	// create fps instance
-	g_app->fps = fps_new(g_app->renderer, g_app->small_font, (SDL_Color){255, 255, 255, 255}, 1000);
+	g_app->fps = fps_new(g_app->renderer, load_font, (SDL_Color){255, 255, 255, 255}, 1000);
 	CHECK_ERROR(g_app->fps != NULL,
-				TTF_CloseFont(g_app->small_font);
 				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -254,7 +243,6 @@ int s9_app_create(const s9_app_config_t *config) {
 	// create vu instance
 	g_app->vu = vu_new(NULL);
 	CHECK_ERROR(g_app->vu != NULL,
-				TTF_CloseFont(g_app->small_font);
 				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -267,7 +255,6 @@ int s9_app_create(const s9_app_config_t *config) {
 	// check for audio input device
 	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
 	CHECK_ERROR(num_audio_devices > 0,
-				TTF_CloseFont(g_app->small_font);
 				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -301,7 +288,6 @@ int s9_app_create(const s9_app_config_t *config) {
 	
 	g_app->audio_device_id = SDL_OpenAudioDevice(selected_audio_device_name, SDL_TRUE, &desired_spec, &g_app->audio_spec, 0);
 	CHECK_ERROR(g_app->audio_device_id > 0,
-				TTF_CloseFont(g_app->small_font);
 				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -339,12 +325,6 @@ int s9_app_create(const s9_app_config_t *config) {
 
 void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
-	
-	// close font
-	if (g_app->small_font) {
-		TTF_CloseFont(g_app->small_font);
-		g_app->small_font = NULL;
-	}
 	
 	// destroy scratchpad instance
 	if (g_app->scratchpad) {

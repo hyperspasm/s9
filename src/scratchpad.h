@@ -7,7 +7,7 @@
 typedef struct scratchpad scratchpad_t;
 
 // create scratchpad
-scratchpad_t *scratchpad_new(void);
+scratchpad_t *scratchpad_new(TTF_Font* (*load_font)(int point_size));
 
 // destroy scratchpad
 void scratchpad_free(scratchpad_t **sp);

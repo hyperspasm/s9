@@ -29,7 +29,7 @@ static const fresp_graph_config_t default_fresp_graph_config = {
 };
 
 // create fresp_graph
-fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config);
+fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config, TTF_Font* (*load_font)(int point_size));
 
 // destroy fresp_graph
 void fresp_graph_free(fresp_graph_t **frg);

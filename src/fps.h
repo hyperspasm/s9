@@ -9,7 +9,7 @@
 typedef struct fps fps_t;
 
 // create fps measurement context
-fps_t *fps_new(SDL_Renderer *renderer, TTF_Font *font, SDL_Color color, uint32_t interval_ms);
+fps_t *fps_new(SDL_Renderer *renderer, TTF_Font* (*load_font)(int point_size), SDL_Color color, uint32_t interval_ms);
 
 // destroy fps measurement context
 void fps_free(fps_t **fps);
