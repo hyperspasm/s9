@@ -9,21 +9,21 @@ typedef struct fresp_graph fresp_graph_t;
 
 
 typedef struct {
-	float min_freq;
-	float max_freq;
-	float min_dbfs;
-	float major_db_interval;
-	float minor_db_interval;
+	uint32_t min_freq;
+	uint32_t max_freq;
+	int32_t  min_dbfs;
+	uint32_t major_db_interval;
+	uint32_t minor_db_interval;
 	SDL_Color major_color;
 	SDL_Color minor_color;
 } fresp_graph_config_t;
 
 static const fresp_graph_config_t default_fresp_graph_config = {
-	.min_freq = 20.f,
-	.max_freq = 22000.f,
-	.min_dbfs = -60.f,
-	.major_db_interval = 10.f,
-	.minor_db_interval = 1.f,
+	.min_freq = 20,
+	.max_freq = 22000,
+	.min_dbfs = -60,
+	.major_db_interval = 10,
+	.minor_db_interval = 1,
 	.major_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
 	.minor_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
 };
