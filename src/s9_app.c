@@ -69,7 +69,7 @@ static void render(SDL_Renderer *renderer) {
 	
 	// scratchpad
 	if(g_app->scratchpad) {
-		int margin_x = 200;
+		int margin_x = 60;
 		SDL_Rect viewport = {
 			.x = default_viewport.x + margin_x,
 			.y = default_viewport.y,

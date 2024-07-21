@@ -50,7 +50,7 @@ void fps_free(fps_t **fps) {
 
 static void update_fps_texture(fps_t *fps) {
 	char fps_text[32];
-	snprintf(fps_text, sizeof(fps_text), "FPS: %.2f", fps->fps_value);	
+	snprintf(fps_text, sizeof(fps_text), "%.2f", fps->fps_value);	
 	draw_sdl_render_text(fps->renderer, &fps->fps_texture, fps->font, &fps->color, fps_text, &fps->width, &fps->height);
 }
 
