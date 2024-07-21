@@ -1,6 +1,7 @@
 #include "scratchpad.h"
 #include "s9.h"
 #include "draw_sdl.h"
+#include "fresp_graph.h"
 
 
 typedef struct scratchpad {
@@ -8,6 +9,7 @@ typedef struct scratchpad {
 	SDL_Rect viewport;
 	
 	sdl_path_t *wave_path;
+	fresp_graph_t *frg;
 	
 } scratchpad_t;
 
@@ -15,6 +17,8 @@ scratchpad_t *scratchpad_new(void) {
 	scratchpad_t *sp = (scratchpad_t *) malloc(sizeof(scratchpad_t));
 	CHECK_ALLOC(sp, return NULL);
 	memset(sp, 0, sizeof(*sp));
+	
+	sp->frg = fresp_graph_new(NULL);
 	
 	return sp;
 }
@@ -24,6 +28,10 @@ void scratchpad_free(scratchpad_t **sp) {
 		
 		if((*sp)->wave_path) {
 			sdl_path_free(&((*sp)->wave_path));
+		}
+		
+		if((*sp)->frg) {
+			fresp_graph_free(&((*sp)->frg));
 		}
 		
 		free(*sp);
@@ -321,6 +329,7 @@ void scratchpad_render(scratchpad_t *sp, SDL_Renderer *renderer) {
 	prepare_to_draw(sp, renderer);
 	draw_wave(sp, renderer);
 	
+#if 0
 	graph_config_t graph_config = {
 		.graticule_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
 		.subtick_len = 10.f,
@@ -335,7 +344,14 @@ void scratchpad_render(scratchpad_t *sp, SDL_Renderer *renderer) {
 		.y_vals = NULL,
 		.y_format = "%0.2f",
 	};
-	//	make_graticule(sp, renderer, &graph_config);
+	make_graticule(sp, renderer, &graph_config);
+#endif
 	
-	make_log_graticule(sp, renderer);	
+#if 0
+	make_log_graticule(sp, renderer);
+#endif
+
+	if(sp->frg) {
+		fresp_graph_render(sp->frg, renderer);
+	}	
 }
