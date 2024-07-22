@@ -36,7 +36,13 @@ fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config, TTF_Font* (*load_fo
 // destroy fresp_graph
 void fresp_graph_free(fresp_graph_t **frg);
 
+// callback function invoked by fresp_graph_render()
+// This function returns an array of db values, of length n_points, to plot,
+// with a log10 distribution between the configured min_freq and max_freq.
+// If the the callback function sets out_free_data the returned data will be free()'d after plotting. 
+typedef float* (*fresp_graph_data_callback_t)(void *context, uint32_t n_points, int *out_free_data);
+
 // render fresp_graph
-void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer);
+void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_data_callback_t get_data_callback, void *get_data_callback_context);
 
 #endif /* fresp_graph_h */

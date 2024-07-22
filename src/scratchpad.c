@@ -109,11 +109,21 @@ static inline void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {
 	}
 }
 
+static float *fresp_graph_data_callback(void *context, uint32_t n_points, int *out_free_data) {
+	// scratchpad_t *sp = (scratchpad_t*)context;
+	
+	float *wave_data = compute_wave(n_points, default_fresp_graph_config.max_db - default_fresp_graph_config.min_db, default_fresp_graph_config.min_db);
+	CHECK_ERROR(wave_data != NULL, return NULL, "failed to compute wave");
+	
+	*out_free_data = 1;
+	return wave_data;
+}
+
 void scratchpad_render(scratchpad_t *sp, SDL_Renderer *renderer) {
 	prepare_to_draw(sp, renderer);
 	draw_wave(sp, renderer);
 	
 	if(sp->frg) {
-		fresp_graph_render(sp->frg, renderer);
+		fresp_graph_render(sp->frg, renderer, fresp_graph_data_callback, sp);
 	}	
 }

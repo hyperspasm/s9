@@ -395,9 +395,63 @@ static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *re
 	}
 }
 
-void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer) {
+void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_data_callback_t get_plot_data, void *get_data_callback_context) {
 	prepare_to_draw(frg, renderer);
 	if(!frg->graticule_texture) return;
+	
+	SDL_Color colors[] = {
+		{ .r = 0xff, .g = 0xa5, .b = 0x00, .a = 0xff }, // orange
+		{ .r = 0x55, .g = 0xff, .b = 0x00, .a = 0xff }, // lime_green
+		{ .r = 0x00, .g = 0xff, .b = 0xa9, .a = 0xff }, // aqua
+		{ .r = 0x00, .g = 0x55, .b = 0xff, .a = 0xff }, // blue
+		{ .r = 0xa9, .g = 0x00, .b = 0xff, .a = 0xff }, // purple
+		{ .r = 0xff, .g = 0x00, .b = 0x55, .a = 0xff }  // fuchsia
+	};
+	
+	if(get_plot_data) {
+		
+		int free_data = 0;
+		float *plot_data = get_plot_data(get_data_callback_context, frg->plot_rect.w, &free_data);		
+		
+		if(plot_data) {
+			// save current viewport
+			SDL_Rect save_viewport;
+			SDL_RenderGetViewport(renderer, &save_viewport);			
+			
+			// constrain viewport to plot_rect
+			SDL_Rect plot_viewport = frg->plot_rect;
+			plot_viewport.x += save_viewport.x;
+			plot_viewport.y += save_viewport.y;			
+			SDL_RenderSetViewport(renderer, &plot_viewport);
+			
+			// create path
+			SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * frg->plot_rect.w);			
+			float db_scale = (float)frg->plot_rect.h / (frg->config.max_db - frg->config.min_db);
+			
+			for(int i=0; i < frg->plot_rect.w; i++) {
+				float y = (frg->config.max_db - plot_data[i]) * db_scale;
+				
+				points[i].x = i;
+				points[i].y = y;
+			}						
+			sdl_path_t *path = sdl_path_new(&colors[4], 3, 1, points, frg->plot_rect.w);
+			free(points);
+			
+			// render path
+			sdl_path_render(path, renderer);
+			
+			// free path
+			sdl_path_free(&path);
+			
+			// restore viewport
+			SDL_RenderSetViewport(renderer, &save_viewport);
+			
+			// free data if necessary
+			if(free_data) {
+				free(plot_data);
+			}
+		}
+	}
 	
 	SDL_Rect dst_rect = { 0, 0, frg->viewport.w, frg->viewport.h };
 	SDL_RenderCopy(renderer, frg->graticule_texture, NULL, &dst_rect);
