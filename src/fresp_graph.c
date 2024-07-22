@@ -115,9 +115,9 @@ static char* create_hz_string(long int freq) {
 	return ret;
 }
 
-static char* create_db_string(int dbfs) {
+static char* create_db_string(int db) {
 	char *ret = NULL;
-	fresp_graph_asprintf(&ret, "%d db", dbfs);
+	fresp_graph_asprintf(&ret, "%d dB", db);
 	
 	return ret;
 }
@@ -183,12 +183,12 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 	
 	// set margins to make room for db labels
 	{
-		int dbfs = frg->config.max_dbfs;
-		while (dbfs >= frg->config.min_dbfs) {
-			if(dbfs % (int)frg->config.major_db_interval == 0) {
+		int db = frg->config.max_db;
+		while (db >= frg->config.min_db) {
+			if(db % (int)frg->config.major_db_interval == 0) {
 				// major tick
 				int ret = -1;
-				char *str = create_db_string((int)dbfs);
+				char *str = create_db_string((int)db);
 				if(str) {
 					int width, height;
 					ret = TTF_SizeUTF8(font, str, &width, &height);
@@ -211,7 +211,7 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
 			}
 			
-			dbfs--;
+			db--;
 		}
 	}
 	
@@ -307,17 +307,17 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 		}
 	}
 	
-	// draw dbfs graticule
+	// draw db graticule
 	{
-		float dbfs_scale = (float)frg->plot_rect.h / (frg->config.max_dbfs - frg->config.min_dbfs);
+		float dbfs_scale = (float)frg->plot_rect.h / (frg->config.max_db - frg->config.min_db);
 		
-		int dbfs = frg->config.max_dbfs;
-		while (dbfs >= frg->config.min_dbfs) {
+		int db = frg->config.max_db;
+		while (db >= frg->config.min_db) {
 			float x1, x2, y1, y2;
 			
-			float y = (frg->config.max_dbfs - dbfs) * dbfs_scale;
+			float y = (frg->config.max_db - db) * dbfs_scale;
 			
-			if(dbfs % (int)frg->config.major_db_interval == 0) {
+			if(db % (int)frg->config.major_db_interval == 0) {
 				// major tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = frg->plot_rect.x;
@@ -325,7 +325,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				y1 = y2 = frg->plot_rect.y + y;
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 				
-				char *label = create_db_string(dbfs);
+				char *label = create_db_string(db);
 				if(label) {
 					draw_sdl_render_text_at_position(renderer,
 											font,
@@ -337,7 +337,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 					free(label);
 					label = NULL;
 				}
-			} else if(dbfs % (int)frg->config.minor_db_interval == 0) {
+			} else if(db % (int)frg->config.minor_db_interval == 0) {
 				// minor tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = frg->plot_rect.x;
@@ -346,7 +346,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 			}
 			
-			dbfs--;
+			db--;
 		}
 	}
 	
