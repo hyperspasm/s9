@@ -16,9 +16,6 @@ typedef struct fresp_graph {
 	SDL_Rect plot_rect;
 	SDL_Texture *graticule_texture;
 	
-	
-	// TODO
-	
 } fresp_graph_t;
 
 void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config) {
@@ -30,7 +27,6 @@ void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config) {
 	
 	frg->log10_min_freq = log10f(frg->config.min_freq);
 	frg->log10_max_freq = log10f(frg->config.max_freq);
-	
 	frg->renderer = NULL;
 }
 
@@ -46,9 +42,8 @@ fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config, TTF_Font* (*load_fo
 
 void fresp_graph_free(fresp_graph_t **frg) {
 	if (frg && *frg) {
-		
 		if((*frg)->graticule_texture) {
-			SDL_DestroyTexture((*frg)->graticule_texture);			
+			SDL_DestroyTexture((*frg)->graticule_texture);
 			(*frg)->graticule_texture = NULL;
 		}
 		
@@ -87,22 +82,22 @@ static char* create_hz_string(long int freq) {
 	
 	if(freq >= 1000000000) {
 		if(fmodf(freq, 1000000000.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f GHz", freq/1000000000.f);
+			fresp_graph_asprintf(&ret, "%0.3f GHz", freq / 1000000000.f);
 		} else {
-			fresp_graph_asprintf(&ret, "%d GHz", freq/1000000000);
+			fresp_graph_asprintf(&ret, "%d GHz", freq / 1000000000);
 		}
 	} else if(freq >= 1000000) {
 		if(fmodf(freq, 1000000.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f MHz", freq/1000000.f);
+			fresp_graph_asprintf(&ret, "%0.3f MHz", freq / 1000000.f);
 		} else {
-			fresp_graph_asprintf(&ret, "%d MHz", freq/1000000);
+			fresp_graph_asprintf(&ret, "%d MHz", freq / 1000000);
 		}
 	} else if(freq >= 1000) {
 		if(fmodf(freq, 1000.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f KHz", freq/1000.f);
+			fresp_graph_asprintf(&ret, "%0.3f KHz", freq / 1000.f);
 		} else {
-			fresp_graph_asprintf(&ret, "%d KHz", freq/1000);
-		}		
+			fresp_graph_asprintf(&ret, "%d KHz", freq / 1000);
+		}
 	} else {
 		if(fmodf(freq, 1.f) != 0.f) {
 			fresp_graph_asprintf(&ret, "%0.3f Hz", freq);
@@ -125,49 +120,48 @@ static char* create_db_string(int dbfs) {
 
 // measures unit labels and sets plot_rect member accordingly
 static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
-	
 	const int additional_margin = 10;
 	int top_margin = 0;
 	int left_margin = 0;
-	int bottom_margin = 0;	
+	int bottom_margin = 0;
 	int right_margin = 0;
 	
 	// set margins to make room for frequency labels 
 	{
 		float freq = frg->config.min_freq;
 		while(freq < frg->config.max_freq) {
-			float log10_freq = log10f(freq);		
+			float log10_freq = log10f(freq);
 			float step = powf(10.f, floorf(log10_freq));
 			
-			if( freq == step ) {
+			if(freq == step) {
 				// major tick
 				int ret = -1;
 				char *str = create_hz_string(freq);
 				if(str) {
 					int width, height;
-					ret = TTF_SizeUTF8(font, str, &width, &height);					
+					ret = TTF_SizeUTF8(font, str, &width, &height);
 					if(ret == 0) {
 						if(bottom_margin < height) {
 							bottom_margin = height;
 						}
-					}					
+					}
 					free(str);
 					str = NULL;
 				}
 				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
 			}
 			
-			freq = step * (1.f + floorf(freq/step));
+			freq = step * (1.f + floorf(freq / step));
 		}
 		
-		// handle max_freq		
-		if( powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq ) {
+		// handle max_freq
+		if(powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq) {
 			// major tick
 			int ret = -1;
 			char *str = create_hz_string(frg->config.max_freq);
 			if(str) {
 				int width, height;
-				ret = TTF_SizeUTF8(font, str, &width, &height);					
+				ret = TTF_SizeUTF8(font, str, &width, &height);
 				if(ret == 0) {
 					if(bottom_margin < height) {
 						bottom_margin = height;
@@ -176,26 +170,25 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 					if(right_margin < width / 2) {
 						right_margin = width / 2;
 					}
-				}					
+				}
 				free(str);
 				str = NULL;
 			}
 			CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
 		}
-		
 	}
 	
 	// set margins to make room for db labels
 	{
 		int dbfs = frg->config.max_dbfs;
 		while (dbfs >= frg->config.min_dbfs) {
-			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
+			if(dbfs % (int)frg->config.major_db_interval == 0) {
 				// major tick
 				int ret = -1;
-				char *str = create_db_string((int)dbfs);				
+				char *str = create_db_string((int)dbfs);
 				if(str) {
 					int width, height;
-					ret = TTF_SizeUTF8(font, str, &width, &height);					
+					ret = TTF_SizeUTF8(font, str, &width, &height);
 					if(ret == 0) {
 						if(left_margin < width) {
 							left_margin = width;
@@ -208,14 +201,14 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 						if(bottom_margin < height / 2) {
 							bottom_margin = height / 2;
 						}
-					}			
+					}
 					free(str);
 					str = NULL;
 				}
 				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
 			}
 			
-			dbfs--;				
+			dbfs--;
 		}
 	}
 	
@@ -243,12 +236,12 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 	CHECK_PARAMETER(font != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
 	
-	// Measure the text
+	// measure the text
 	int text_width, text_height;
 	int result = TTF_SizeUTF8(font, text, &text_width, &text_height);
 	CHECK_ERROR(result == 0, return -1, "failed to measure text: %s", TTF_GetError());
 	
-	// Calculate the position based on the anchor position
+	// calculate the position based on the anchor position
 	int render_x = x;
 	int render_y = y;
 	
@@ -281,19 +274,19 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 			break;
 	}
 	
-	// Create the text surface
+	// create the text surface
 	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
 	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
 	
-	// Create the texture from the surface
+	// create the texture from the surface
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
 	SDL_FreeSurface(surface);
 	CHECK_ERROR(texture != NULL, return -1, "failed to create texture: %s", SDL_GetError());
 	
-	// Set up the destination rectangle
+	// set up the destination rectangle
 	SDL_Rect dst_rect = { render_x, render_y, text_width, text_height };
 	
-	// Render the texture
+	// render the texture
 	result = SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 	SDL_DestroyTexture(texture);
 	CHECK_ERROR(result == 0, return -1, "failed to render texture: %s", SDL_GetError());
@@ -302,7 +295,6 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 }
 
 static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
-	
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0); // clear background
 	SDL_RenderClear(renderer);
 	
@@ -313,17 +305,18 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	
 	frg->log10_freq_scale = frg->plot_rect.w / (frg->log10_max_freq - frg->log10_min_freq);
 	
+	// draw frequency graticule
 	{
 		float freq = frg->config.min_freq;
 		while(freq < frg->config.max_freq) {
-			float log10_freq = log10f(freq);		
+			float log10_freq = log10f(freq);
 			float step = powf(10.f, floorf(log10_freq));
 			float x = (log10_freq - frg->log10_min_freq) * frg->log10_freq_scale;
 			
-			if( freq == step ) {
+			if(freq == step) {
 				// major tick
 				SDL_Rect line_rect = { frg->plot_rect.x + x, frg->plot_rect.y, 0.5f, frg->plot_rect.h };
-				sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1,  line_rect);
+				sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1, line_rect);
 				sdl_path_render(line_path, renderer);
 				sdl_path_free(&line_path);
 				
@@ -346,18 +339,18 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = x2  = frg->plot_rect.x + x;
 				y1 = frg->plot_rect.y;
-				y2 = frg->plot_rect.y + frg->plot_rect.h;			
+				y2 = frg->plot_rect.y + frg->plot_rect.h;
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 			}
 			
-			freq = step * (1.f + floorf(freq/step));
+			freq = step * (1.f + floorf(freq / step));
 		}
 		
 		// draw max_freq
-		if( powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq ) {
+		if(powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq) {
 			// major tick
 			SDL_Rect line_rect = { frg->plot_rect.x + frg->plot_rect.w, frg->plot_rect.y, 0.5f, frg->plot_rect.h };
-			sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1,  line_rect);
+			sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1, line_rect);
 			sdl_path_render(line_path, renderer);
 			sdl_path_free(&line_path);
 			
@@ -380,27 +373,27 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 			x1 = x2  = frg->plot_rect.x + frg->plot_rect.w;
 			y1 = frg->plot_rect.y;
-			y2 = frg->plot_rect.y + frg->plot_rect.h;			
+			y2 = frg->plot_rect.y + frg->plot_rect.h;
 			SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 		}
 	}
 	
-	
+	// draw dbfs graticule
 	{
 		float dbfs_scale = (float)frg->plot_rect.h / (frg->config.max_dbfs - frg->config.min_dbfs);
 		
-		int dbfs = frg->config.max_dbfs;		
+		int dbfs = frg->config.max_dbfs;
 		while (dbfs >= frg->config.min_dbfs) {
 			float x1, x2, y1, y2;
 			
 			float y = (frg->config.max_dbfs - dbfs) * dbfs_scale;
 			
-			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
+			if(dbfs % (int)frg->config.major_db_interval == 0) {
 				// major tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = frg->plot_rect.x;
-				x2 = frg->plot_rect.x + frg->plot_rect.w;		
-				y1 = y2 = frg->plot_rect.y + y;			
+				x2 = frg->plot_rect.x + frg->plot_rect.w;
+				y1 = y2 = frg->plot_rect.y + y;
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 				
 				char *label = create_db_string(dbfs);
@@ -415,72 +408,68 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 					free(label);
 					label = NULL;
 				}
-			} else if( dbfs % (int)frg->config.minor_db_interval == 0 ) {
+			} else if(dbfs % (int)frg->config.minor_db_interval == 0) {
 				// minor tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = frg->plot_rect.x;
-				x2 = frg->plot_rect.x + 6.;		
-				y1 = y2 = frg->plot_rect.y + y;			
+				x2 = frg->plot_rect.x + 6.;
+             	y1 = y2 = frg->plot_rect.y + y;
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 			}
 			
-			dbfs--;				
+			dbfs--;
 		}
 	}
 	
-	
 	// draw frame
-	sdl_path_t *frame_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1,  frg->plot_rect);
+	sdl_path_t *frame_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1, frg->plot_rect);
 	sdl_path_render(frame_path, renderer);
 	sdl_path_free(&frame_path);
 	
 	TTF_CloseFont(font);
-	font = NULL;
 }
 
 static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *renderer) {
-	int ret;
-	SDL_Rect viewport;	
+	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);
 	
 	if(frg->renderer != renderer || !SDL_RectEquals(&frg->viewport, &viewport)) {
 		frg->renderer = renderer;
-		frg->viewport = viewport;		
+		frg->viewport = viewport;
 		
 		if(frg->graticule_texture) {
-			SDL_DestroyTexture(frg->graticule_texture);			
+			SDL_DestroyTexture(frg->graticule_texture);
 			frg->graticule_texture = NULL;
-		}		
+		}
 		
 		frg->graticule_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, frg->viewport.w, frg->viewport.h);
 		CHECK_ALLOC(frg->graticule_texture, return);
 		
-		ret = SDL_SetRenderTarget(renderer, frg->graticule_texture);
+		int ret = SDL_SetRenderTarget(renderer, frg->graticule_texture);
 		CHECK_ERROR(ret == 0,
 					SDL_DestroyTexture(frg->graticule_texture);
 					frg->graticule_texture = NULL;
 					return,
-					"Could not set render target");
+					"could not set render target");
 		
 		ret = SDL_SetTextureBlendMode(frg->graticule_texture, SDL_BLENDMODE_BLEND);
 		CHECK_ERROR(ret == 0,
 					SDL_DestroyTexture(frg->graticule_texture);
 					frg->graticule_texture = NULL;
 					return,
-					"Could not set blend mode");
+					"could not set blend mode");
 		
 		draw_graticule(frg, renderer);
 		
 		// reset render target
-		SDL_SetRenderTarget(renderer, NULL);		
+		SDL_SetRenderTarget(renderer, NULL);
 	}
 }
 
 void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer) {
-	prepare_to_draw(frg, renderer);	
+	prepare_to_draw(frg, renderer);
 	if(!frg->graticule_texture) return;
 	
 	SDL_Rect dst_rect = { 0, 0, frg->viewport.w, frg->viewport.h };
 	SDL_RenderCopy(renderer, frg->graticule_texture, NULL, &dst_rect);
-	
 }
