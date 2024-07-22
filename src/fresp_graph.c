@@ -187,7 +187,7 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 	
 	// set margins to make room for db labels
 	{
-		int dbfs = 0;
+		int dbfs = frg->config.max_dbfs;
 		while (dbfs >= frg->config.min_dbfs) {
 			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
 				// major tick
@@ -215,7 +215,7 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
 			}
 			
-			dbfs -= frg->config.minor_db_interval;				
+			dbfs--;				
 		}
 	}
 	
@@ -387,12 +387,13 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	
 	
 	{
-		int dbfs = 0;
+		float dbfs_scale = (float)frg->plot_rect.h / (frg->config.max_dbfs - frg->config.min_dbfs);
+		
+		int dbfs = frg->config.max_dbfs;		
 		while (dbfs >= frg->config.min_dbfs) {
 			float x1, x2, y1, y2;
-			
-			float dbfs_scale = frg->plot_rect.h / (float)frg->config.min_dbfs;
-			float y = dbfs * dbfs_scale;
+
+			float y = (frg->config.max_dbfs - dbfs) * dbfs_scale;
 			
 			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
 				// major tick
@@ -414,7 +415,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 					free(label);
 					label = NULL;
 				}
-			} else {
+			} else if( dbfs % (int)frg->config.minor_db_interval == 0 ) {
 				// minor tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = frg->plot_rect.x;
@@ -423,7 +424,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 			}
 			
-			dbfs -= frg->config.minor_db_interval;				
+			dbfs--;				
 		}
 	}
 	
