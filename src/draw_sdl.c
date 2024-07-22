@@ -236,7 +236,7 @@ int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
 	return 0;
 }
 
-int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y) {
+int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y) {
 	CHECK_PARAMETER(renderer != NULL, return -1);
 	CHECK_PARAMETER(font != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);

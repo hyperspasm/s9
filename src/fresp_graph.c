@@ -249,7 +249,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				
 				char *label = create_hz_string(freq);
 				if(label) {
-					render_text_at_position(renderer,
+					draw_sdl_render_text_at_position(renderer,
 											font,
 											label,
 											POSITION_TOP_MIDDLE,
@@ -283,7 +283,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 			
 			char *label = create_hz_string(frg->config.max_freq);
 			if(label) {
-				render_text_at_position(renderer,
+				draw_sdl_render_text_at_position(renderer,
 										font,
 										label,
 										POSITION_TOP_MIDDLE,
@@ -325,7 +325,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				
 				char *label = create_db_string(dbfs);
 				if(label) {
-					render_text_at_position(renderer,
+					draw_sdl_render_text_at_position(renderer,
 											font,
 											label,
 											POSITION_MIDDLE_RIGHT,
