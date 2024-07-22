@@ -18,6 +18,9 @@ typedef struct fresp_graph {
 	
 } fresp_graph_t;
 
+// margin between edge of labels and plot_rect
+#define LABEL_MARGIN 8
+
 void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config) {
 	if(config) {
 		frg->config = *config;
@@ -115,8 +118,6 @@ static char* create_db_string(int dbfs) {
 	
 	return ret;
 }
-
-#define LABEL_MARGIN 8
 
 // measures unit labels and sets plot_rect member accordingly
 static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
@@ -229,9 +230,9 @@ typedef enum {
 	POSITION_BOTTOM_LEFT,
 	POSITION_BOTTOM_MIDDLE,
 	POSITION_BOTTOM_RIGHT
-} anchor_position_t;
+} rect_edge_position_t;
 
-int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, anchor_position_t position, SDL_Color color, int x, int y) {
+int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y) {
 	CHECK_PARAMETER(renderer != NULL, return -1);
 	CHECK_PARAMETER(font != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
@@ -245,7 +246,7 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 	int render_x = x;
 	int render_y = y;
 	
-	switch (position) {
+	switch (anchor) {
 		case POSITION_TOP_LEFT:
 			break;
 		case POSITION_TOP_MIDDLE:
