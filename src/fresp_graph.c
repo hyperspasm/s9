@@ -10,10 +10,12 @@ typedef struct fresp_graph {
 	TTF_Font* (*load_font)(int point_size);
 	float log10_min_freq;
 	float log10_max_freq;
-		
-	SDL_Texture *graticule_texture;
+	
 	float log10_freq_scale;
+	int font_size;
 	SDL_Rect plot_rect;
+	SDL_Texture *graticule_texture;
+	
 	
 	// TODO
 	
@@ -55,12 +57,260 @@ void fresp_graph_free(fresp_graph_t **frg) {
 	}
 }
 
+// asprintf implementation, for portability
+static int fresp_graph_asprintf(char **strp, const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	int size = vsnprintf(NULL, 0, fmt, args);
+	va_end(args);
+	
+	if (size < 0) return -1;
+	
+	*strp = (char *)malloc(size + 1);
+	if (!*strp) return -1;
+	
+	va_start(args, fmt);
+	int result = vsnprintf(*strp, size + 1, fmt, args);
+	va_end(args);
+	
+	if (result < 0) {
+		free(*strp);
+		*strp = NULL;
+	}
+	
+	return result;
+}
+
+// allocates and returns a Hz/KHz/MHz/GHz string
+static char* create_hz_string(long int freq) {
+	char *ret = NULL;
+	
+	if(freq >= 1000000000) {
+		if(fmodf(freq, 1000000000.f) != 0.f) {
+			fresp_graph_asprintf(&ret, "%0.3f GHz", freq/1000000000.f);
+		} else {
+			fresp_graph_asprintf(&ret, "%d GHz", freq/1000000000);
+		}
+	} else if(freq >= 1000000) {
+		if(fmodf(freq, 1000000.f) != 0.f) {
+			fresp_graph_asprintf(&ret, "%0.3f MHz", freq/1000000.f);
+		} else {
+			fresp_graph_asprintf(&ret, "%d MHz", freq/1000000);
+		}
+	} else if(freq >= 1000) {
+		if(fmodf(freq, 1000.f) != 0.f) {
+			fresp_graph_asprintf(&ret, "%0.3f KHz", freq/1000.f);
+		} else {
+			fresp_graph_asprintf(&ret, "%d KHz", freq/1000);
+		}		
+	} else {
+		if(fmodf(freq, 1.f) != 0.f) {
+			fresp_graph_asprintf(&ret, "%0.3f Hz", freq);
+		} else {
+			fresp_graph_asprintf(&ret, "%d Hz", freq);
+		}
+	}
+	
+	return ret;
+}
+
+static char* create_db_string(int dbfs) {
+	char *ret = NULL;
+	fresp_graph_asprintf(&ret, "%d db", dbfs);
+	
+	return ret;
+}
+
+#define LABEL_MARGIN 8
+
+// measures unit labels and sets plot_rect member accordingly
+static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
+	
+	const int additional_margin = 10;
+	int top_margin = 0;
+	int left_margin = 0;
+	int bottom_margin = 0;	
+	int right_margin = 0;
+	
+	// set margins to make room for frequency labels 
+	{
+		float freq = frg->config.min_freq;
+		while(freq < frg->config.max_freq) {
+			float log10_freq = log10f(freq);		
+			float step = powf(10.f, floorf(log10_freq));
+			
+			if( freq == step ) {
+				// major tick
+				int ret = -1;
+				char *str = create_hz_string(freq);
+				if(str) {
+					int width, height;
+					ret = TTF_SizeUTF8(font, str, &width, &height);					
+					if(ret == 0) {
+						if(bottom_margin < height) {
+							bottom_margin = height;
+						}
+					}					
+					free(str);
+					str = NULL;
+				}
+				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
+			}
+			
+			freq = step * (1.f + floorf(freq/step));
+		}
+		
+		// handle max_freq		
+		if( powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq ) {
+			// major tick
+			int ret = -1;
+			char *str = create_hz_string(frg->config.max_freq);
+			if(str) {
+				int width, height;
+				ret = TTF_SizeUTF8(font, str, &width, &height);					
+				if(ret == 0) {
+					if(bottom_margin < height) {
+						bottom_margin = height;
+					}
+					
+					if(right_margin < width / 2) {
+						right_margin = width / 2;
+					}
+				}					
+				free(str);
+				str = NULL;
+			}
+			CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
+		}
+		
+	}
+	
+	// set margins to make room for db labels
+	{
+		int dbfs = 0;
+		while (dbfs >= frg->config.min_dbfs) {
+			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
+				// major tick
+				int ret = -1;
+				char *str = create_db_string((int)dbfs);				
+				if(str) {
+					int width, height;
+					ret = TTF_SizeUTF8(font, str, &width, &height);					
+					if(ret == 0) {
+						if(left_margin < width) {
+							left_margin = width;
+						}
+						
+						if(top_margin < height / 2) {
+							top_margin = height / 2;
+						}
+						
+						if(bottom_margin < height / 2) {
+							bottom_margin = height / 2;
+						}
+					}			
+					free(str);
+					str = NULL;
+				}
+				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
+			}
+			
+			dbfs -= frg->config.minor_db_interval;				
+		}
+	}
+	
+	top_margin    += additional_margin;
+	left_margin   += additional_margin + LABEL_MARGIN;
+	bottom_margin += additional_margin + LABEL_MARGIN;
+	right_margin  += additional_margin;
+	
+	frg->plot_rect = (SDL_Rect) { .x = left_margin, .y = top_margin, .w = frg->viewport.w - (left_margin + right_margin), .h = frg->viewport.h - (top_margin + bottom_margin) };
+}
+
+typedef enum {
+	POSITION_TOP_LEFT,
+	POSITION_TOP_MIDDLE,
+	POSITION_TOP_RIGHT,
+	POSITION_MIDDLE_LEFT,
+	POSITION_MIDDLE_RIGHT,
+	POSITION_BOTTOM_LEFT,
+	POSITION_BOTTOM_MIDDLE,
+	POSITION_BOTTOM_RIGHT
+} anchor_position_t;
+
+int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, anchor_position_t position, SDL_Color color, int x, int y) {
+	CHECK_PARAMETER(renderer != NULL, return -1);
+	CHECK_PARAMETER(font != NULL, return -1);
+	CHECK_PARAMETER(text != NULL, return -1);
+	
+	// Measure the text
+	int text_width, text_height;
+	int result = TTF_SizeUTF8(font, text, &text_width, &text_height);
+	CHECK_ERROR(result == 0, return -1, "failed to measure text: %s", TTF_GetError());
+	
+	// Calculate the position based on the anchor position
+	int render_x = x;
+	int render_y = y;
+	
+	switch (position) {
+		case POSITION_TOP_LEFT:
+			break;
+		case POSITION_TOP_MIDDLE:
+			render_x -= text_width / 2;
+			break;
+		case POSITION_TOP_RIGHT:
+			render_x -= text_width;
+			break;
+		case POSITION_MIDDLE_LEFT:
+			render_y -= text_height / 2;
+			break;
+		case POSITION_MIDDLE_RIGHT:
+			render_x -= text_width;
+			render_y -= text_height / 2;
+			break;
+		case POSITION_BOTTOM_LEFT:
+			render_y -= text_height;
+			break;
+		case POSITION_BOTTOM_MIDDLE:
+			render_x -= text_width / 2;
+			render_y -= text_height;
+			break;
+		case POSITION_BOTTOM_RIGHT:
+			render_x -= text_width;
+			render_y -= text_height;
+			break;
+	}
+	
+	// Create the text surface
+	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+	
+	// Create the texture from the surface
+	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+	SDL_FreeSurface(surface);
+	CHECK_ERROR(texture != NULL, return -1, "failed to create texture: %s", SDL_GetError());
+	
+	// Set up the destination rectangle
+	SDL_Rect dst_rect = { render_x, render_y, text_width, text_height };
+	
+	// Render the texture
+	result = SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
+	SDL_DestroyTexture(texture);
+	CHECK_ERROR(result == 0, return -1, "failed to render texture: %s", SDL_GetError());
+	
+	return 0;
+}
+
 static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0); // clear background
 	SDL_RenderClear(renderer);
 	
-	frg->plot_rect = draw_sdl_inset_rect((SDL_Rect){0, 0, frg->viewport.w, frg->viewport.h}, 10);	
+	TTF_Font *font = frg->load_font(16);
+	CHECK_ERROR(font != NULL, return, "unable to create font");
+	
+	compute_plot_rect(frg, font);
+	
 	frg->log10_freq_scale = frg->plot_rect.w / (frg->log10_max_freq - frg->log10_min_freq);
 	
 	{
@@ -77,6 +327,19 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				sdl_path_render(line_path, renderer);
 				sdl_path_free(&line_path);
 				
+				char *label = create_hz_string(freq);
+				if(label) {
+					render_text_at_position(renderer,
+											font,
+											label,
+											POSITION_TOP_MIDDLE,
+											frg->config.major_color,
+											frg->plot_rect.x + x,
+											frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
+					free(label);
+					label = NULL;
+				}
+				
 			} else {
 				float x1, x2, y1, y2;
 				// minor tick
@@ -91,42 +354,66 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 		}
 		
 		// draw max_freq
-		{
-			if( powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq ) {
-				// major tick
-				SDL_Rect line_rect = { frg->plot_rect.x + frg->plot_rect.w, frg->plot_rect.y, 0.5f, frg->plot_rect.h };
-				sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1,  line_rect);
-				sdl_path_render(line_path, renderer);
-				sdl_path_free(&line_path);
-				
-			} else {
-				float x1, x2, y1, y2;
-				// minor tick
-				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
-				x1 = x2  = frg->plot_rect.x + frg->plot_rect.w;
-				y1 = frg->plot_rect.y;
-				y2 = frg->plot_rect.y + frg->plot_rect.h;			
-				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
+		if( powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq ) {
+			// major tick
+			SDL_Rect line_rect = { frg->plot_rect.x + frg->plot_rect.w, frg->plot_rect.y, 0.5f, frg->plot_rect.h };
+			sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1,  line_rect);
+			sdl_path_render(line_path, renderer);
+			sdl_path_free(&line_path);
+			
+			char *label = create_hz_string(frg->config.max_freq);
+			if(label) {
+				render_text_at_position(renderer,
+										font,
+										label,
+										POSITION_TOP_MIDDLE,
+										frg->config.major_color,
+										frg->plot_rect.x + frg->plot_rect.w,
+										frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
+				free(label);
+				label = NULL;
 			}
+			
+		} else {
+			float x1, x2, y1, y2;
+			// minor tick
+			SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
+			x1 = x2  = frg->plot_rect.x + frg->plot_rect.w;
+			y1 = frg->plot_rect.y;
+			y2 = frg->plot_rect.y + frg->plot_rect.h;			
+			SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
 		}
 	}
 	
 	
 	{
-		float dbfs = 0.f;
-		while (dbfs > frg->config.min_dbfs) {
+		int dbfs = 0;
+		while (dbfs >= frg->config.min_dbfs) {
 			float x1, x2, y1, y2;
 			
-			float dbfs_scale = frg->plot_rect.h / frg->config.min_dbfs;
+			float dbfs_scale = frg->plot_rect.h / (float)frg->config.min_dbfs;
 			float y = dbfs * dbfs_scale;
 			
-			if( fmodf(dbfs,  frg->config.major_db_interval) == 0.f ) {
+			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
 				// major tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
 				x1 = frg->plot_rect.x;
 				x2 = frg->plot_rect.x + frg->plot_rect.w;		
 				y1 = y2 = frg->plot_rect.y + y;			
 				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
+				
+				char *label = create_db_string(dbfs);
+				if(label) {
+					render_text_at_position(renderer,
+											font,
+											label,
+											POSITION_MIDDLE_RIGHT,
+											frg->config.major_color,
+											frg->plot_rect.x - LABEL_MARGIN,
+											frg->plot_rect.y + y);
+					free(label);
+					label = NULL;
+				}
 			} else {
 				// minor tick
 				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
@@ -145,6 +432,9 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	sdl_path_t *frame_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1,  frg->plot_rect);
 	sdl_path_render(frame_path, renderer);
 	sdl_path_free(&frame_path);
+	
+	TTF_CloseFont(font);
+	font = NULL;
 }
 
 static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *renderer) {
@@ -159,8 +449,7 @@ static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *re
 		if(frg->graticule_texture) {
 			SDL_DestroyTexture(frg->graticule_texture);			
 			frg->graticule_texture = NULL;
-		}
-		
+		}		
 		
 		frg->graticule_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, frg->viewport.w, frg->viewport.h);
 		CHECK_ALLOC(frg->graticule_texture, return);
