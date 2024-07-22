@@ -309,13 +309,13 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	
 	// draw db graticule
 	{
-		float dbfs_scale = (float)frg->plot_rect.h / (frg->config.max_db - frg->config.min_db);
+		float db_scale = (float)frg->plot_rect.h / (frg->config.max_db - frg->config.min_db);
 		
 		int db = frg->config.max_db;
 		while (db >= frg->config.min_db) {
 			float x1, x2, y1, y2;
 			
-			float y = (frg->config.max_db - db) * dbfs_scale;
+			float y = (frg->config.max_db - db) * db_scale;
 			
 			if(db % (int)frg->config.major_db_interval == 0) {
 				// major tick
