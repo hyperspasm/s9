@@ -41,6 +41,25 @@ void scratchpad_free(scratchpad_t **sp) {
 	}
 }
 
+static inline float *compute_wave(uint32_t n_points, float amplitude, float offset) {
+	float *points = malloc(sizeof(float) * n_points);
+	
+	float frequency = 1.f/n_points;
+	
+	for(int i = 0; i < n_points; i++) {
+		float base_wave = sinf(frequency * (float)i * 2.0f * M_PI);
+		float second_harmonic = 0.1f * sinf(2.0f * frequency * (float)i * 2.0f * M_PI);
+		float fourth_harmonic = 0.2f * sinf(4.0f * frequency * (float)i * 2.0f * M_PI);
+		float fifth_harmonic = 0.1f * sinf(5.0f * frequency * (float)i * 2.0f * M_PI);
+		float wave =  (base_wave + second_harmonic + fourth_harmonic + fifth_harmonic) / 1.4f; // normalizing by 1.4 to maintain the amplitude within bounds				
+		wave = wave * 0.5f + 0.5f; // scale 0.0 - 1.0 
+		
+		points[i] = offset + amplitude * wave;
+	}
+	
+	return points;
+}
+
 static inline void prepare_wave(scratchpad_t *sp) {
 	
 	if(sp->wave_path) {
@@ -50,29 +69,23 @@ static inline void prepare_wave(scratchpad_t *sp) {
 	int inset = 10;
 	float width = sp->viewport.w - 2 * inset;
 	float height = sp->viewport.h - 2 * inset;
-	float frequency = 1.0f / width;
-	float amplitude = height / 2.0f;
-	float offset_y = inset + amplitude;
 	
 	CHECK_ERROR(width > 10, return, "scratchpad viewport too narrow");
 	
 	SDL_FPoint *wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * (size_t)width);
 	CHECK_ALLOC(wave_points, return);
-	int n_wave_points = (int)width;
 	
-	for(int i = 0; i < n_wave_points; i++) {
-		float x = inset + (float)i;
-		float base_wave = sinf(frequency * (float)i * 2.0f * M_PI);
-		float second_harmonic = 0.1f * sinf(2.0f * frequency * (float)i * 2.0f * M_PI);
-		float fourth_harmonic = 0.2f * sinf(4.0f * frequency * (float)i * 2.0f * M_PI);
-		float fifth_harmonic = 0.1f * sinf(5.0f * frequency * (float)i * 2.0f * M_PI);
-		float y = offset_y + amplitude * (base_wave + second_harmonic + fourth_harmonic + fifth_harmonic) / 1.4f; // Normalizing by 1.4 to maintain the amplitude within bounds
-		wave_points[i].x = x;
-		wave_points[i].y = y;
+	float *wave = compute_wave(width, height, inset);
+	CHECK_ERROR(wave != NULL, return, "failed to compute wave");
+	for(int i = 0; i < width; i++) {
+		wave_points[i].x = inset + i;
+		wave_points[i].y = wave[i];
 	}
+	free(wave);
 	
 	SDL_Color color = { .r = 255, .g = 255, .b = 0, .a = 255 };
-	sp->wave_path = sdl_path_new(&color, 10, 1, wave_points, n_wave_points);
+	sp->wave_path = sdl_path_new(&color, 10, 1, wave_points, width);
+	CHECK_ERROR(wave != NULL, return, "failed to create wave path");
 	
 	free(wave_points);
 }
