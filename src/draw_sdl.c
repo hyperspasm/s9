@@ -241,10 +241,13 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 	CHECK_PARAMETER(font != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
 	
-	// measure the text
-	int text_width, text_height;
-	int result = TTF_SizeUTF8(font, text, &text_width, &text_height);
-	CHECK_ERROR(result == 0, return -1, "failed to measure text: %s", TTF_GetError());
+	// create the text surface
+	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+	
+	// get the text width and height from the surface
+	int text_width = surface->w;
+	int text_height = surface->h;
 	
 	// calculate the position based on the anchor position
 	int render_x = x;
@@ -279,10 +282,6 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 			break;
 	}
 	
-	// create the text surface
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
-	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
-	
 	// create the texture from the surface
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
 	SDL_FreeSurface(surface);
@@ -292,7 +291,7 @@ int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *
 	SDL_Rect dst_rect = { render_x, render_y, text_width, text_height };
 	
 	// render the texture
-	result = SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
+	int result = SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 	SDL_DestroyTexture(texture);
 	CHECK_ERROR(result == 0, return -1, "failed to render texture: %s", SDL_GetError());
 	

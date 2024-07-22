@@ -37,6 +37,7 @@ typedef enum {
 	POSITION_BOTTOM_RIGHT
 } rect_edge_position_t;
 
+// renders text at specified position with and alignment
 int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y);
 
 // renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
