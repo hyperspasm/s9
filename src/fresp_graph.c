@@ -21,6 +21,9 @@ typedef struct fresp_graph {
 // margin between edge of labels and plot_rect
 #define LABEL_MARGIN 8
 
+// margin between entire graph content and viewport
+#define GRAPH_MARGIN 10
+
 void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config) {
 	if(config) {
 		frg->config = *config;
@@ -121,7 +124,6 @@ static char* create_db_string(int dbfs) {
 
 // measures unit labels and sets plot_rect member accordingly
 static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
-	const int additional_margin = 10;
 	int top_margin = 0;
 	int left_margin = 0;
 	int bottom_margin = 0;
@@ -213,10 +215,10 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 		}
 	}
 	
-	top_margin    += additional_margin;
-	left_margin   += additional_margin + LABEL_MARGIN;
-	bottom_margin += additional_margin + LABEL_MARGIN;
-	right_margin  += additional_margin;
+	top_margin    += GRAPH_MARGIN;
+	left_margin   += GRAPH_MARGIN + LABEL_MARGIN;
+	bottom_margin += GRAPH_MARGIN + LABEL_MARGIN;
+	right_margin  += GRAPH_MARGIN;
 	
 	frg->plot_rect = (SDL_Rect) { .x = left_margin, .y = top_margin, .w = frg->viewport.w - (left_margin + right_margin), .h = frg->viewport.h - (top_margin + bottom_margin) };
 }
