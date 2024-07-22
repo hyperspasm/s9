@@ -26,8 +26,20 @@ void sdl_path_free(sdl_path_t **path);
 // render the path
 int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer);
 
+typedef enum {
+	POSITION_TOP_LEFT,
+	POSITION_TOP_MIDDLE,
+	POSITION_TOP_RIGHT,
+	POSITION_MIDDLE_LEFT,
+	POSITION_MIDDLE_RIGHT,
+	POSITION_BOTTOM_LEFT,
+	POSITION_BOTTOM_MIDDLE,
+	POSITION_BOTTOM_RIGHT
+} rect_edge_position_t;
 
-// Renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
+int render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y);
+
+// renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
 int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font *font, SDL_Color *color, const char *text, int *out_width, int *out_height);
 
 // inset a rect
