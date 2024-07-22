@@ -392,7 +392,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 		int dbfs = frg->config.max_dbfs;		
 		while (dbfs >= frg->config.min_dbfs) {
 			float x1, x2, y1, y2;
-
+			
 			float y = (frg->config.max_dbfs - dbfs) * dbfs_scale;
 			
 			if( dbfs % (int)frg->config.major_db_interval == 0 ) {
