@@ -29,7 +29,7 @@ typedef struct vu {
 	
 	uint32_t rms_window_frames;
 	float *rms_window_function_buffer;
-	float *rms_window_buffer;
+	float *rms_window_buffer_storage;
 	float *rms_window_buffers[2];
 	int current_rms_window_buffer_ix;
 	
@@ -62,9 +62,9 @@ void vu_free(vu_t **vu) {
 			(*vu)->input_buffer = NULL;
 		}
 		
-		if((*vu)->rms_window_buffer) {
-			free((*vu)->rms_window_buffer);
-			(*vu)->rms_window_buffer = NULL;
+		if((*vu)->rms_window_buffer_storage) {
+			free((*vu)->rms_window_buffer_storage);
+			(*vu)->rms_window_buffer_storage = NULL;
 			(*vu)->rms_window_buffers[0] = NULL;
 			(*vu)->rms_window_buffers[1] = NULL;
 			(*vu)->current_rms_window_buffer_ix = 0;
@@ -331,9 +331,9 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 		vu->input_buffer = NULL;
 	}
 	
-	if(vu->rms_window_buffer) {
-		free(vu->rms_window_buffer);
-		vu->rms_window_buffer = NULL;
+	if(vu->rms_window_buffer_storage) {
+		free(vu->rms_window_buffer_storage);
+		vu->rms_window_buffer_storage = NULL;
 		vu->rms_window_buffers[0] = NULL;
 		vu->rms_window_buffers[1] = NULL;
 		vu->current_rms_window_buffer_ix = 0;
@@ -369,10 +369,10 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 	CHECK_ALLOC(vu->input_buffer, return);
 	
 	vu->rms_window_frames = ceil(stream_config->sample_rate * vu->config.rms_window_seconds);
-	vu->rms_window_buffer = malloc(2 * vu->rms_window_frames * stream_config->channels * stream_config->audio_format.bytes_per_sample); // allocate for both rms_window_buffers
-	CHECK_ALLOC(vu->rms_window_buffer, return);
-	vu->rms_window_buffers[0] = &vu->rms_window_buffer[0];
-	vu->rms_window_buffers[1] = &vu->rms_window_buffer[vu->rms_window_frames * stream_config->channels];
+	vu->rms_window_buffer_storage = malloc(2 * vu->rms_window_frames * stream_config->channels * stream_config->audio_format.bytes_per_sample); // allocate for both rms_window_buffers
+	CHECK_ALLOC(vu->rms_window_buffer_storage, return);
+	vu->rms_window_buffers[0] = &vu->rms_window_buffer_storage[0];
+	vu->rms_window_buffers[1] = &vu->rms_window_buffer_storage[vu->rms_window_frames * stream_config->channels];
 	vu->current_rms_window_buffer_ix = 0;
 	
 	vu->rms_window_function_buffer = malloc(vu->rms_window_frames * stream_config->audio_format.bytes_per_sample);

@@ -44,7 +44,7 @@ static const vu_config_t default_vu_config = {
 vu_t *vu_new(const vu_config_t *config);
 
 // destroy vu
-void vu_free(vu_t **tp);
+void vu_free(vu_t **vu);
 
 // render vu
 void vu_render(vu_t *vu, SDL_Renderer *renderer);
