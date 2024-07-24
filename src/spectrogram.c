@@ -339,6 +339,22 @@ static uint32_t next_power_of_2(uint32_t n) {
 	return n + 1;
 }
 
+static void normalize_window(float *window, uint32_t fft_len) {
+	// compute the sum of the window function values
+	float sum = 0.0f;
+	for (uint32_t i = 0; i < fft_len; i++) {
+		sum += window[i];
+	}
+	
+	// compute the normalization factor
+	float normalization_factor = (float)fft_len / sum;
+	
+	// apply the normalization factor to the window function
+	for (uint32_t i = 0; i < fft_len; i++) {
+		window[i] *= normalization_factor;
+	}
+}
+
 void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config) {
 	// only S9_AUDIO_FLOAT32 is supported
 	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
@@ -379,9 +395,7 @@ void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_conf
 	sg->fft_window_function_buffer = malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_window_function_buffer, return);
 	create_window_function(sg->config.window_function, sg->fft_len, sg->fft_window_function_buffer);
-	
-	// normalize window function buffer
-	// TODO..
+	normalize_window(sg->fft_window_function_buffer, sg->fft_len);
 	
 	sg->fft_windowed_input_buffer =  malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_windowed_input_buffer, return);
