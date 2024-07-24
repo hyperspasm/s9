@@ -70,6 +70,7 @@ static void render(SDL_Renderer *renderer) {
 	SDL_Rect default_viewport;		
 	SDL_RenderGetViewport(renderer, &default_viewport);
 	
+#if 0
 	// scratchpad
 	if(g_app->scratchpad) {
 		int margin_x = 60;
@@ -82,6 +83,7 @@ static void render(SDL_Renderer *renderer) {
 		SDL_RenderSetViewport(renderer, &viewport);
 		scratchpad_render(g_app->scratchpad, g_app->renderer);		
 	}
+#endif
 	
 	// fps
 	if(g_app->fps) {
