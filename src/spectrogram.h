@@ -27,8 +27,8 @@ static const spectrogram_config_t default_spectrogram_config = {
 		.major_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
 		.minor_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
 	},
-	.resolution_hz = 1.f,
-	.window_function = WINDOW_FUNCTION_HAMMING,
+		.resolution_hz = 1.f,
+		.window_function = WINDOW_FUNCTION_HAMMING,
 };
 
 // create spectrogram

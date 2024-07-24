@@ -93,7 +93,7 @@ static void free_dsp_allocations(spectrogram_t *sg) {
 		fftwf_free(sg->fft_windowed_input_buffer);
 		sg->fft_windowed_input_buffer = NULL;
 	}
-		
+	
 	if(sg->fft_output_buffers) {
 		for(uint32_t i = 0; i < sg->n_fft_channels; i++) {
 			if(sg->fft_output_buffers[i].complex) {
@@ -237,18 +237,18 @@ static void compute_plot_data(fftwf_complex *fft, uint32_t fft_len, uint32_t sam
 	float inv_fft_len_quarter = inv_fft_len_half * inv_fft_len_half; 
 	float log_range_inv_data_len = (log_max - log_min) / data_len;
 	uint32_t half_fft_len = fft_len / 2;
-
+	
 	for (uint32_t i = 0; i < data_len; i++) {
 		// calculate the logarithmic frequency range for the current index
 		float log_freq_start = log_min + (i * log_range_inv_data_len);
 		float log_freq_end = log_min + ((i + 1) * log_range_inv_data_len);
 		float freq_start = powf(10.0f, log_freq_start);
 		float freq_end = powf(10.0f, log_freq_end);
-
+		
 		// find the range of FFT bins for the current frequency range
 		uint32_t bin_start = (uint32_t)(freq_start * bin_size_inv);
 		uint32_t bin_end = (uint32_t)(freq_end * bin_size_inv);
-
+		
 		// limit the bin indices to valid range
 		if (bin_start >= half_fft_len) {
 			bin_start = half_fft_len - 1;
@@ -256,7 +256,7 @@ static void compute_plot_data(fftwf_complex *fft, uint32_t fft_len, uint32_t sam
 		if (bin_end >= half_fft_len) {
 			bin_end = half_fft_len - 1;
 		}
-
+		
 		// find the maximum magnitude within the relevant frequency range
 		float max_magnitude = 0.0f;
 		for (uint32_t bin = bin_start; bin <= bin_end; bin++) {
@@ -267,10 +267,10 @@ static void compute_plot_data(fftwf_complex *fft, uint32_t fft_len, uint32_t sam
 				max_magnitude = magnitude;
 			}
 		}
-
+		
 		// normalize by fft_len / 2 and convert magnitude squared to dB
 		float max_magnitude_db = 10.0f * log10f(max_magnitude * inv_fft_len_quarter); // 10*log10(magnitude^2) + normalization
-
+		
 		// store the dB value in the data buffer
 		data[i] = max_magnitude_db;
 	}
@@ -288,15 +288,15 @@ static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n
 	uint32_t channel = callback_context->channel;
 	
 	compute_plot_data(sg->fft_output_buffers[channel].complex, sg->fft_len, sg->stream_config.sample_rate, sg->config.graph_config.min_freq, sg->config.graph_config.max_freq, plot_data, n_points);
-		
-//	float scale = 2.f / callback_context->sg->fft_len;
-//	
-//	for(uint32_t i = 0; i < n_points; i++) {
-//		float point = callback_context->magnitude[i + 500] * scale;
-////		float point = callback_context->sg->fft_window_function_buffer[i + 500];
-//		
-//		plot_data[i] = 20.f * log10f(point);
-//	}
+	
+	//	float scale = 2.f / callback_context->sg->fft_len;
+	//	
+	//	for(uint32_t i = 0; i < n_points; i++) {
+	//		float point = callback_context->magnitude[i + 500] * scale;
+	////		float point = callback_context->sg->fft_window_function_buffer[i + 500];
+	//		
+	//		plot_data[i] = 20.f * log10f(point);
+	//	}
 	
 	return 0;
 }
