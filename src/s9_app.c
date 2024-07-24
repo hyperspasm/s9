@@ -2,6 +2,7 @@
 #include "Roboto-Regular.h"
 #include "fps.h"
 #include "vu.h"
+#include "spectrogram.h"
 #include "scratchpad.h"
 
 #include <stdlib.h>
@@ -22,6 +23,7 @@ typedef struct s9_app {
 	
 	fps_t *fps;
 	vu_t *vu;
+	spectrogram_t *sg;
 	scratchpad_t *scratchpad;
 	
 	SDL_AudioDeviceID audio_device_id;
@@ -110,12 +112,28 @@ static void render(SDL_Renderer *renderer) {
 		SDL_RenderSetViewport(renderer, &viewport);		
 		vu_render(g_app->vu, renderer);
 	}
+	
+	// spectrogram
+	if(g_app->sg) {
+		int margin_x = 60;
+		SDL_Rect viewport = {
+			.x = default_viewport.x + margin_x,
+			.y = default_viewport.y,
+			.w = default_viewport.w - margin_x,
+			.h = default_viewport.h,
+		};
+		SDL_RenderSetViewport(renderer, &viewport);
+		spectrogram_render(g_app->sg, g_app->renderer);		
+	}
 }
 
 // empty audio callback
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	if(g_app->vu) {
 		vu_enqueue_audio_data(g_app->vu, stream, len);
+	}
+	if(g_app->sg) {
+		spectrogram_enqueue_audio_data(g_app->sg, stream, len);
 	}
 }
 
@@ -254,6 +272,18 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"Failed to create vu instance");
 	
+	// create spectrogram instance
+	g_app->sg = spectrogram_new(NULL, load_font);
+	CHECK_ERROR(g_app->sg != NULL,
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to create spectrogram instance");
+	
 	// check for audio input device
 	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
 	CHECK_ERROR(num_audio_devices > 0,
@@ -319,6 +349,10 @@ int s9_app_create(const s9_app_config_t *config) {
 		vu_prepare_to_stream(g_app->vu, &g_app->stream_config);
 	}
 	
+	if(g_app->sg) {
+		spectrogram_prepare_to_stream(g_app->sg, &g_app->stream_config);
+	}
+	
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
 	
@@ -341,6 +375,10 @@ void s9_app_destroy(void) {
 	// destroy vu instance
 	if (g_app->vu) {
 		vu_free(&g_app->vu);
+	}
+	
+	if(g_app->sg) {
+		spectrogram_free(&g_app->sg);
 	}
 	
 	// close audio device
