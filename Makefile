@@ -1,7 +1,7 @@
 # Variables
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lSDL2 -lSDL2_ttf -lm -lfftw3 
+LDFLAGS = -lSDL2 -lSDL2_ttf -lm -lfftw3f 
 SRCDIR = src
 OBJDIR = obj
 BINDIR = .
@@ -19,7 +19,7 @@ TEST_TARGET = $(TEST_BINDIR)/s9_test
 TEST_SOURCES := $(wildcard $(TEST_SRCDIR)/*.c)
 TEST_OBJECTS := $(TEST_SOURCES:$(TEST_SRCDIR)/%.c=$(TEST_OBJDIR)/%.o)
 TEST_CFLAGS = $(CFLAGS) -DTESTING
-TEST_LDFLAGS = -lcunit -lSDL2 -lSDL2_ttf -lm -lfftw3
+TEST_LDFLAGS = -lcunit -lSDL2 -lSDL2_ttf -lm -lfftw3f
 TEST_OBJECTS_SRC = $(OBJDIR)/ring_buffer_test.o $(OBJDIR)/s9_log_test.o
 
 # Rules
