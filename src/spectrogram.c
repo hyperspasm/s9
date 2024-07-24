@@ -153,7 +153,7 @@ static S9_FORCE_INLINE void prepare_to_draw(spectrogram_t *sg, SDL_Renderer *ren
 			memset(sg->graphs, 0, sizeof(fresp_graph_t*) * sg->n_fft_channels);
 			
 			for(uint32_t i=0; i < sg->n_fft_channels; i++) {
-				sg->graphs[i] = fresp_graph_new(NULL, sg->load_font);
+				sg->graphs[i] = fresp_graph_new(&sg->config.graph_config, sg->load_font);
 			}
 			
 			sg->n_graphs = sg->n_fft_channels;
