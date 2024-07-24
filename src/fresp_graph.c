@@ -15,6 +15,7 @@ typedef struct fresp_graph {
 	int font_size;
 	SDL_Rect plot_rect;
 	SDL_Texture *graticule_texture;
+	float *plot_data_buffer;
 	
 } fresp_graph_t;
 
@@ -48,9 +49,15 @@ fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config, TTF_Font* (*load_fo
 
 void fresp_graph_free(fresp_graph_t **frg) {
 	if (frg && *frg) {
+		
 		if((*frg)->graticule_texture) {
 			SDL_DestroyTexture((*frg)->graticule_texture);
 			(*frg)->graticule_texture = NULL;
+		}
+		
+		if((*frg)->plot_data_buffer) {
+			free((*frg)->plot_data_buffer);
+			(*frg)->plot_data_buffer = NULL;
 		}
 		
 		free(*frg);
@@ -392,6 +399,20 @@ static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *re
 		
 		// reset render target
 		SDL_SetRenderTarget(renderer, NULL);
+		
+		// free old plot_data_buffer 
+		if(frg->plot_data_buffer) {
+			free(frg->plot_data_buffer);
+			frg->plot_data_buffer = NULL;
+		}
+		
+		// allocate plot_data_buffer
+		frg->plot_data_buffer = malloc(sizeof(float) * frg->plot_rect.w);
+		CHECK_ALLOC(frg->plot_data_buffer,
+					SDL_DestroyTexture(frg->graticule_texture);
+					frg->graticule_texture = NULL;
+					return;
+					);		
 	}
 }
 
@@ -408,12 +429,8 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 		{ .r = 0xff, .g = 0x00, .b = 0x55, .a = 0xff }  // fuchsia
 	};
 	
-	if(get_plot_data) {
-		
-		int free_data = 0;
-		float *plot_data = get_plot_data(get_data_callback_context, frg->plot_rect.w, &free_data);		
-		
-		if(plot_data) {
+	if(get_plot_data) {						
+		if( 0  == get_plot_data(get_data_callback_context, frg->plot_data_buffer, frg->plot_rect.w) ) {
 			// save current viewport
 			SDL_Rect save_viewport;
 			SDL_RenderGetViewport(renderer, &save_viewport);			
@@ -429,7 +446,7 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 			float db_scale = (float)frg->plot_rect.h / (frg->config.max_db - frg->config.min_db);
 			
 			for(int i=0; i < frg->plot_rect.w; i++) {
-				float y = (frg->config.max_db - plot_data[i]) * db_scale;
+				float y = (frg->config.max_db - frg->plot_data_buffer[i]) * db_scale;
 				
 				points[i].x = i;
 				points[i].y = y;
@@ -445,11 +462,6 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 			
 			// restore viewport
 			SDL_RenderSetViewport(renderer, &save_viewport);
-			
-			// free data if necessary
-			if(free_data) {
-				free(plot_data);
-			}
 		}
 	}
 	

@@ -41,8 +41,7 @@ void scratchpad_free(scratchpad_t **sp) {
 	}
 }
 
-static inline float *compute_wave(uint32_t n_points, float amplitude, float offset) {
-	float *points = malloc(sizeof(float) * n_points);
+static inline void compute_wave(float *points, uint32_t n_points, float amplitude, float offset) {
 	
 	float frequency = 1.f/n_points;
 	
@@ -56,8 +55,6 @@ static inline float *compute_wave(uint32_t n_points, float amplitude, float offs
 		
 		points[i] = offset + amplitude * wave;
 	}
-	
-	return points;
 }
 
 static inline void prepare_wave(scratchpad_t *sp) {
@@ -72,10 +69,13 @@ static inline void prepare_wave(scratchpad_t *sp) {
 	
 	CHECK_ERROR(width > 10, return, "scratchpad viewport too narrow");
 	
-	SDL_FPoint *wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * (size_t)width);
+	SDL_FPoint *wave_points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * width);
 	CHECK_ALLOC(wave_points, return);
 	
-	float *wave = compute_wave(width, height, inset);
+	float *wave = malloc(sizeof(float) * width);
+	CHECK_ALLOC(wave, return);	
+	compute_wave(wave, width, height, inset);
+	
 	CHECK_ERROR(wave != NULL, return, "failed to compute wave");
 	for(int i = 0; i < width; i++) {
 		wave_points[i].x = inset + i;
@@ -109,14 +109,9 @@ static inline void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {
 	}
 }
 
-static float *fresp_graph_data_callback(void *context, uint32_t n_points, int *out_free_data) {
-	// scratchpad_t *sp = (scratchpad_t*)context;
-	
-	float *wave_data = compute_wave(n_points, default_fresp_graph_config.max_db - default_fresp_graph_config.min_db, default_fresp_graph_config.min_db);
-	CHECK_ERROR(wave_data != NULL, return NULL, "failed to compute wave");
-	
-	*out_free_data = 1;
-	return wave_data;
+static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n_points) {
+	compute_wave(plot_data, n_points, default_fresp_graph_config.max_db - default_fresp_graph_config.min_db, default_fresp_graph_config.min_db);	
+	return 0;
 }
 
 void scratchpad_render(scratchpad_t *sp, SDL_Renderer *renderer) {
