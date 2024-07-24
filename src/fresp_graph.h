@@ -6,8 +6,6 @@
 
 typedef struct fresp_graph fresp_graph_t;
 
-
-
 typedef struct {
 	uint32_t min_freq;
 	uint32_t max_freq;
