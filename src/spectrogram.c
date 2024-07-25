@@ -78,7 +78,7 @@ static void free_dsp_allocations(spectrogram_t *sg) {
 	}
 	
 	if(sg->fft_input_buffers[1]) {
-		fftwf_free(sg->fft_input_buffers[0]);
+		fftwf_free(sg->fft_input_buffers[1]);
 		sg->fft_input_buffers[1] = NULL;
 	}
 	
@@ -134,6 +134,7 @@ void spectrogram_free(spectrogram_t **sg) {
 		free_dsp_allocations(*sg);
 		free_graphs(*sg);
 		free(*sg);
+		*sg = NULL;
 	}
 }
 
