@@ -15,6 +15,6 @@ typedef enum {
 } window_function_t;
 
 // create a window function
-void create_window_function(window_function_t function, uint32_t length, float *out_window);
+void create_window_function(window_function_t function, uint32_t length, int normalize, float *out_window);
 
 #endif /* window_function_h */

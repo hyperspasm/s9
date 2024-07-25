@@ -126,7 +126,23 @@ static void rectangular(uint32_t length, float* out_window) {
 	}
 }
 
-void create_window_function(window_function_t function, uint32_t length, float *out_window) {
+static void normalize_window(float *window, uint32_t length) {
+	// compute the sum of the window function values
+	float sum = 0.0f;
+	for (uint32_t i = 0; i < length; i++) {
+		sum += window[i];
+	}
+	
+	// compute the normalization factor
+	float normalization_factor = (float)length / sum;
+	
+	// apply the normalization factor to the window function
+	for (uint32_t i = 0; i < length; i++) {
+		window[i] *= normalization_factor;
+	}
+}
+
+void create_window_function(window_function_t function, uint32_t length, int normalize, float *out_window) {
 	switch (function) {
 		case WINDOW_FUNCTION_BARTLETT:
 			bartlett(length, out_window);
@@ -147,10 +163,12 @@ void create_window_function(window_function_t function, uint32_t length, float *
 			blackman(length, out_window);
 			break;
 		case WINDOW_FUNCTION_RECTANGULAR:
+		default:
 			rectangular(length, out_window);
 			break;
-		default:
-			// invalid window function
-			break;
+	}
+	
+	if(normalize) {
+		normalize_window(out_window, length);
 	}
 }

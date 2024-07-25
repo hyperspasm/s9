@@ -377,18 +377,8 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 	
 	vu->rms_window_function_buffer = malloc(vu->rms_window_frames * stream_config->audio_format.bytes_per_sample);
 	CHECK_ALLOC(vu->rms_window_function_buffer, return);
-	create_window_function(vu->config.rms_window_function, vu->rms_window_frames, vu->rms_window_function_buffer);
-	
-	// normalize window function buffer
-	float window_function_factor = 0;
-	for(uint32_t i = 0; i < vu->rms_window_frames; i++) {
-		window_function_factor += vu->rms_window_function_buffer[i];
-	}
-	window_function_factor = vu->rms_window_frames / window_function_factor;
-	for(uint32_t i = 0; i < vu->rms_window_frames; i++) {
-		vu->rms_window_function_buffer[i] *= window_function_factor;
-	}
-		
+	create_window_function(vu->config.rms_window_function, vu->rms_window_frames, 1, vu->rms_window_function_buffer);
+
 	vu->channel_vals = malloc(sizeof(channel_val_t) * stream_config->channels);
 	CHECK_ALLOC(vu->channel_vals, return);
 	
