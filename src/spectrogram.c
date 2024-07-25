@@ -289,15 +289,6 @@ static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n
 	
 	compute_plot_data(sg->fft_output_buffers[channel].complex, sg->fft_len, sg->stream_config.sample_rate, sg->config.graph_config.min_freq, sg->config.graph_config.max_freq, plot_data, n_points);
 	
-	//	float scale = 2.f / callback_context->sg->fft_len;
-	//	
-	//	for(uint32_t i = 0; i < n_points; i++) {
-	//		float point = callback_context->magnitude[i + 500] * scale;
-	////		float point = callback_context->sg->fft_window_function_buffer[i + 500];
-	//		
-	//		plot_data[i] = 20.f * log10f(point);
-	//	}
-	
 	return 0;
 }
 
