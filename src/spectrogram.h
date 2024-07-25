@@ -24,10 +24,11 @@ static const spectrogram_config_t default_spectrogram_config = {
 		.max_db = 0,
 		.major_db_interval = 10,
 		.minor_db_interval = 1,
-		.major_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
-		.minor_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
+		.major_color = S9_COCONUT,
+		.minor_color = S9_COCONUT,
+		.plot_color = S9_RASPBERRY,
 	},
-		.resolution_hz = 1.f,
+		.resolution_hz = 0.5f,
 		.window_function = WINDOW_FUNCTION_HAMMING,
 };
 

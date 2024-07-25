@@ -4,6 +4,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
+#include "s9_colors.h"
+
 typedef struct fresp_graph fresp_graph_t;
 
 typedef struct {
@@ -15,6 +17,7 @@ typedef struct {
 	uint32_t minor_db_interval;
 	SDL_Color major_color;
 	SDL_Color minor_color;
+	SDL_Color plot_color;
 } fresp_graph_config_t;
 
 static const fresp_graph_config_t default_fresp_graph_config = {
@@ -24,8 +27,9 @@ static const fresp_graph_config_t default_fresp_graph_config = {
 	.max_db = 0,
 	.major_db_interval = 10,
 	.minor_db_interval = 1,
-	.major_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
-	.minor_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
+	.major_color = S9_COCONUT,
+	.minor_color = S9_COCONUT,
+	.plot_color = S9_RASPBERRY,
 };
 
 // create fresp_graph

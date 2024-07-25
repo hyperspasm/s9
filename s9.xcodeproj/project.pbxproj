@@ -56,6 +56,7 @@
 /* Begin PBXFileReference section */
 		E2EB75D72C4F549D00F4725D /* spectrogram.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = spectrogram.h; path = src/spectrogram.h; sourceTree = "<group>"; };
 		E2EB75D82C4F549D00F4725D /* spectrogram.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = spectrogram.c; path = src/spectrogram.c; sourceTree = "<group>"; };
+		E2EB75DA2C52ECDD00F4725D /* s9_colors.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = s9_colors.h; path = src/s9_colors.h; sourceTree = "<group>"; };
 		E2FF4F802C429CD000308A0E /* s9 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = s9; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2FF4F8A2C429D1100308A0E /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = main.c; path = src/main.c; sourceTree = "<group>"; };
 		E2FF4F8C2C429E9900308A0E /* s9_app.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = s9_app.c; path = src/s9_app.c; sourceTree = "<group>"; };
@@ -120,6 +121,7 @@
 			children = (
 				E2FF4F8A2C429D1100308A0E /* main.c */,
 				E2FF4F8D2C429E9A00308A0E /* s9.h */,
+				E2EB75DA2C52ECDD00F4725D /* s9_colors.h */,
 				E2FF50092C49A25800308A0E /* s9_dsp.h */,
 				E2FF500A2C49ADC000308A0E /* s9_dsp.c */,
 				E2FF50022C48D69500308A0E /* serialization.h */,

@@ -420,15 +420,6 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 	prepare_to_draw(frg, renderer);
 	if(!frg->graticule_texture) return;
 	
-	SDL_Color colors[] = {
-		{ .r = 0xff, .g = 0xa5, .b = 0x00, .a = 0xff }, // orange
-		{ .r = 0x55, .g = 0xff, .b = 0x00, .a = 0xff }, // lime_green
-		{ .r = 0x00, .g = 0xff, .b = 0xa9, .a = 0xff }, // aqua
-		{ .r = 0x00, .g = 0x55, .b = 0xff, .a = 0xff }, // blue
-		{ .r = 0xa9, .g = 0x00, .b = 0xff, .a = 0xff }, // purple
-		{ .r = 0xff, .g = 0x00, .b = 0x55, .a = 0xff }  // fuchsia
-	};
-	
 	if(get_plot_data) {						
 		if( 0  == get_plot_data(get_data_callback_context, frg->plot_data_buffer, frg->plot_rect.w) ) {
 			// save current viewport
@@ -451,7 +442,7 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 				points[i].x = i;
 				points[i].y = y;
 			}						
-			sdl_path_t *path = sdl_path_new(&colors[4], 3, 1, points, frg->plot_rect.w);
+			sdl_path_t *path = sdl_path_new(&frg->config.plot_color, 2.f, 1, points, frg->plot_rect.w);
 			free(points);
 			
 			// render path
