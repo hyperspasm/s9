@@ -26,9 +26,9 @@ static const spectrogram_config_t default_spectrogram_config = {
 		.minor_db_interval = 1,
 		.major_color = S9_COCONUT,
 		.minor_color = S9_COCONUT,
-		.plot_color = S9_RASPBERRY,
+		.plot_color = S9_HONEYDEW,
 	},
-		.resolution_hz = 0.5f,
+		.resolution_hz = 2.f,
 		.window_function = WINDOW_FUNCTION_HAMMING,
 };
 

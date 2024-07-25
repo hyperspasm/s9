@@ -3,6 +3,7 @@
 
 #include "s9_dsp.h"
 #include "window_function.h"
+#include "s9_colors.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -34,10 +35,10 @@ static const vu_config_t default_vu_config = {
 	.margin = 8,
 	.peak_hold_ms = 1000,
 	.bar_background_color = { .r = 20, .g = 20, .b = 20, .a = 255 },
-	.rms_color = { .r = 0, .g = 255, .b = 0, .a = 255 },
-	.peak_color = { .r = 0, .g = 255, .b = 0, .a = 255 },
-	.peak_hold_color = { .r = 255, .g = 255, .b = 255, .a = 255 },
-	.peak_over_color = { .r = 255, .g = 0, .b = 0, .a = 255 }
+	.rms_color = S9_ORANGE,
+	.peak_color = S9_HONEYDEW,
+	.peak_hold_color = S9_COCONUT,
+	.peak_over_color = S9_RASPBERRY,
 };
 
 // create vu
