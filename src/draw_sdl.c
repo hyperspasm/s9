@@ -512,6 +512,13 @@ sdl_polygon_t* circle_new(float r, SDL_Color *color) {
 }
 
 sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color) {
+	
+	// center frame on defined border 
+	x -= edge_width * 0.5f;
+	y -= edge_width * 0.5f;
+	width += edge_width;
+	height += edge_width;
+	
 	// calculate the inner rectangle dimensions
 	float inner_x = x + edge_width;
 	float inner_y = y + edge_width;

@@ -87,6 +87,9 @@ sdl_polygon_t* circle_new(float r, SDL_Color *color);
 // creates a new sdl_polygon_t representing a frame
 sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color);
 
+// macro to create a new frame from an SDL_Rect
+#define frame_new_from_rect(rect, edge_width, color) \
+	frame_new((rect).x, (rect).y, (rect).w, (rect).h, edge_width, color)
 
 // -- geometry
 
