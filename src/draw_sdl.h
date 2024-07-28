@@ -81,6 +81,13 @@ void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y);
 // creates a texture from an sdl_polygon_t
 SDL_Texture* sdl_polygon_render_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly);
 
+// creates a new sdl_polygon_t representing a circle
+sdl_polygon_t* circle_new(float r, SDL_Color *color);
+
+// creates a new sdl_polygon_t representing a frame
+sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color);
+
+
 // -- geometry
 
 // inset a rect
@@ -91,17 +98,5 @@ void draw_sdl_offset_vertices(SDL_Vertex *vertices, uint32_t n, float offset_x, 
 
 // offsets the position of each point by the given x and y amounts
 void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, float offset_y);
-
-// creates points representing a circle
-SDL_FPoint* draw_sdl_create_circle_points(float r, uint32_t *out_n);
-
-// creates vertices representing a circle
-SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color color);
-
-// creates a new sdl_polygon_t representing a circle
-sdl_polygon_t* circle_new(float r, SDL_Color *color);
-
-// creates a new sdl_polygon_t representing a frame
-sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color);
 
 #endif /* draw_sdl_h */

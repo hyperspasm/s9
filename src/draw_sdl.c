@@ -446,41 +446,69 @@ SDL_Texture* sdl_polygon_render_to_texture(SDL_Renderer *renderer, sdl_polygon_t
 	return texture;
 }
 
-
-// -- geometry
-
-SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset) {
+// creates polygon indices for rendering a convex polygon
+static int* draw_sdl_create_polygon_indices(SDL_Vertex *vertices, uint32_t n_vertices, uint32_t *out_n_indices) {
+	// ensure there are enough vertices to form a polygon
+	if (n_vertices < 3) {
+		*out_n_indices = 0;
+		return NULL;
+	}
 	
-	SDL_Rect new_rect = rect;
+	// number of triangles in a convex polygon is (n_vertices - 2)
+	uint32_t n_indices = (n_vertices - 2) * 3;
 	
-	new_rect.x += inset;
-	new_rect.y += inset;
-	new_rect.w -= 2 * inset;
-	new_rect.h -= 2 * inset;
+	int* indices = (int*)malloc(sizeof(int) * n_indices);
+	CHECK_ALLOC(indices, return NULL);
 	
-	return new_rect;
+	// create indices for a triangle fan
+	uint32_t index = 0;
+	for (uint32_t i = 1; i < n_vertices - 1; i++) {
+		indices[index++] = 0;        // center vertex of the fan
+		indices[index++] = i;        // current vertex
+		indices[index++] = i + 1;    // next vertex
+	}
+	
+	*out_n_indices = n_indices;
+	return indices;
 }
 
-void draw_sdl_offset_vertices(SDL_Vertex *vertices, uint32_t n, float offset_x, float offset_y) {
-	if (vertices == NULL || n == 0) {
-		return;
+static SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color color) {
+	// calculate the number of segments needed for a smooth circle
+	uint32_t n = (uint32_t)(2.0f * M_PI * r);
+	
+	// ensure we have at least 12 segments for very small circles
+	if (n < 12) {
+		n = 12;
 	}
 	
+	SDL_Vertex* vertices = (SDL_Vertex*)malloc(sizeof(SDL_Vertex) * n);
+	CHECK_ALLOC(vertices, return NULL);
+	
+	float angle_increment = 2.0f * M_PI / (float)n;
 	for (uint32_t i = 0; i < n; i++) {
-		vertices[i].position.x += offset_x;
-		vertices[i].position.y += offset_y;
+		float angle = angle_increment * (float)i;
+		vertices[i].position.x = r * cosf(angle);
+		vertices[i].position.y = r * sinf(angle);
+		vertices[i].color = color;
+		vertices[i].tex_coord.x = 0.0f;
+		vertices[i].tex_coord.y = 0.0f;
 	}
+	
+	*out_n = n;
+	return vertices;
 }
 
-void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, float offset_y) {
-	if (points == NULL || n == 0) {
-		return;
-	}
+sdl_polygon_t* circle_new(float r, SDL_Color *color) {
+	sdl_polygon_t* polygon = (sdl_polygon_t*)malloc(sizeof(sdl_polygon_t));
+	CHECK_ALLOC(polygon, return NULL);
 	
-	for (uint32_t i = 0; i < n; i++) {
-		points[i].x += offset_x;
-		points[i].y += offset_y;
-	}
+	polygon->vertices = draw_sdl_create_circle_vertices(r, &polygon->num_vertices, *color);
+	CHECK_ALLOC(polygon->vertices, free(polygon); return NULL);
+	
+	polygon->indices = draw_sdl_create_polygon_indices(polygon->vertices, polygon->num_vertices, &polygon->num_indices);
+	CHECK_ALLOC(polygon->indices, free(polygon->vertices); free(polygon); return NULL);
+	
+	return polygon;
 }
 
 sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color) {
@@ -537,91 +565,39 @@ sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge
 	return poly;
 }
 
-SDL_FPoint* draw_sdl_create_circle_points(float r, uint32_t *out_n) {
-	// calculate the number of segments needed for a smooth circle
-	uint32_t n = (uint32_t)(2.0f * M_PI * r);
+
+// -- geometry
+
+SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset) {
 	
-	// ensure we have at least 12 segments for very small circles
-	if (n < 12) {
-		n = 12;
+	SDL_Rect new_rect = rect;
+	
+	new_rect.x += inset;
+	new_rect.y += inset;
+	new_rect.w -= 2 * inset;
+	new_rect.h -= 2 * inset;
+	
+	return new_rect;
+}
+
+void draw_sdl_offset_vertices(SDL_Vertex *vertices, uint32_t n, float offset_x, float offset_y) {
+	if (vertices == NULL || n == 0) {
+		return;
 	}
 	
-	SDL_FPoint* points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * n);
-	CHECK_ALLOC(points, return NULL);
-	
-	float angle_increment = 2.0f * M_PI / (float)n;
 	for (uint32_t i = 0; i < n; i++) {
-		float angle = angle_increment * (float)i;
-		points[i].x = r * cosf(angle);
-		points[i].y = r * sinf(angle);
+		vertices[i].position.x += offset_x;
+		vertices[i].position.y += offset_y;
 	}
-	
-	*out_n = n;
-	return points;
 }
 
-SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color color) {
-	// calculate the number of segments needed for a smooth circle
-	uint32_t n = (uint32_t)(2.0f * M_PI * r);
-	
-	// ensure we have at least 12 segments for very small circles
-	if (n < 12) {
-		n = 12;
+void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, float offset_y) {
+	if (points == NULL || n == 0) {
+		return;
 	}
 	
-	SDL_Vertex* vertices = (SDL_Vertex*)malloc(sizeof(SDL_Vertex) * n);
-	CHECK_ALLOC(vertices, return NULL);
-	
-	float angle_increment = 2.0f * M_PI / (float)n;
 	for (uint32_t i = 0; i < n; i++) {
-		float angle = angle_increment * (float)i;
-		vertices[i].position.x = r * cosf(angle);
-		vertices[i].position.y = r * sinf(angle);
-		vertices[i].color = color;
-		vertices[i].tex_coord.x = 0.0f;
-		vertices[i].tex_coord.y = 0.0f;
+		points[i].x += offset_x;
+		points[i].y += offset_y;
 	}
-	
-	*out_n = n;
-	return vertices;
-}
-
-// creates polygon indices for rendering a convex polygon
-int* draw_sdl_create_polygon_indices(SDL_Vertex *vertices, uint32_t n_vertices, uint32_t *out_n_indices) {
-	// ensure there are enough vertices to form a polygon
-	if (n_vertices < 3) {
-		*out_n_indices = 0;
-		return NULL;
-	}
-	
-	// number of triangles in a convex polygon is (n_vertices - 2)
-	uint32_t n_indices = (n_vertices - 2) * 3;
-	
-	int* indices = (int*)malloc(sizeof(int) * n_indices);
-	CHECK_ALLOC(indices, return NULL);
-	
-	// create indices for a triangle fan
-	uint32_t index = 0;
-	for (uint32_t i = 1; i < n_vertices - 1; i++) {
-		indices[index++] = 0;        // center vertex of the fan
-		indices[index++] = i;        // current vertex
-		indices[index++] = i + 1;    // next vertex
-	}
-	
-	*out_n_indices = n_indices;
-	return indices;
-}
-
-// creates a new sdl_polygon_t representing a circle
-sdl_polygon_t* circle_new(float r, SDL_Color *color) {
-	sdl_polygon_t* polygon = (sdl_polygon_t*)malloc(sizeof(sdl_polygon_t));
-	CHECK_ALLOC(polygon, return NULL);
-	
-	polygon->vertices = draw_sdl_create_circle_vertices(r, &polygon->num_vertices, *color);
-	CHECK_ALLOC(polygon->vertices, free(polygon); return NULL);
-	
-	polygon->indices = draw_sdl_create_polygon_indices(polygon->vertices, polygon->num_vertices, &polygon->num_indices);
-	CHECK_ALLOC(polygon->indices, free(polygon->vertices); free(polygon); return NULL);
-	
-	return polygon;
 }
