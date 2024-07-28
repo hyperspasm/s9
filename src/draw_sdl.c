@@ -483,6 +483,60 @@ void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, floa
 	}
 }
 
+sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color) {
+	// calculate the inner rectangle dimensions
+	float inner_x = x + edge_width;
+	float inner_y = y + edge_width;
+	float inner_width = width - 2 * edge_width;
+	float inner_height = height - 2 * edge_width;
+
+	// ensure the inner rectangle is valid
+	if (inner_width <= 0 || inner_height <= 0) {
+		return NULL;
+	}
+
+	// allocate memory for the vertices
+	SDL_Vertex* vertices = (SDL_Vertex*)malloc(sizeof(SDL_Vertex) * 8);
+	CHECK_ALLOC(vertices, return NULL);
+
+	// set up the vertices for the outer and inner rectangles
+	vertices[0] = (SDL_Vertex){{x, y}, color, {0.0f, 0.0f}};                       // top-left outer
+	vertices[1] = (SDL_Vertex){{x + width, y}, color, {0.0f, 0.0f}};               // top-right outer
+	vertices[2] = (SDL_Vertex){{x + width, y + height}, color, {0.0f, 0.0f}};      // bottom-right outer
+	vertices[3] = (SDL_Vertex){{x, y + height}, color, {0.0f, 0.0f}};              // bottom-left outer
+	vertices[4] = (SDL_Vertex){{inner_x, inner_y}, color, {0.0f, 0.0f}};           // top-left inner
+	vertices[5] = (SDL_Vertex){{inner_x + inner_width, inner_y}, color, {0.0f, 0.0f}};  // top-right inner
+	vertices[6] = (SDL_Vertex){{inner_x + inner_width, inner_y + inner_height}, color, {0.0f, 0.0f}};  // bottom-right inner
+	vertices[7] = (SDL_Vertex){{inner_x, inner_y + inner_height}, color, {0.0f, 0.0f}};  // bottom-left inner
+
+	// allocate memory for the indices
+	int* indices = (int*)malloc(sizeof(int) * 24);
+	CHECK_ALLOC(indices, free(vertices); return NULL);
+
+	// define the triangles for the frame (8 triangles)
+	int idx[] = {
+		0, 1, 4,  1, 5, 4,  // top-left
+		1, 2, 5,  2, 6, 5,  // top-right
+		2, 3, 6,  3, 7, 6,  // bottom-right
+		3, 0, 7,  0, 4, 7   // bottom-left
+	};
+
+	for (int i = 0; i < 24; ++i) {
+		indices[i] = idx[i];
+	}
+
+	// create the sdl_polygon_t
+	sdl_polygon_t* poly = (sdl_polygon_t*)malloc(sizeof(sdl_polygon_t));
+	CHECK_ALLOC(poly, free(vertices); free(indices); return NULL);
+
+	poly->vertices = vertices;
+	poly->num_vertices = 8;
+	poly->indices = indices;
+	poly->num_indices = 24;
+
+	return poly;
+}
+
 SDL_FPoint* draw_sdl_create_circle_points(float r, uint32_t *out_n) {
 	// calculate the number of segments needed for a smooth circle
 	uint32_t n = (uint32_t)(2.0f * M_PI * r);

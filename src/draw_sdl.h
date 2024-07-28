@@ -101,4 +101,7 @@ SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color 
 // creates a new sdl_polygon_t representing a circle
 sdl_polygon_t* circle_new(float r, SDL_Color *color);
 
+// creates a new sdl_polygon_t representing a frame
+sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge_width, SDL_Color color);
+
 #endif /* draw_sdl_h */
