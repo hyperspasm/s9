@@ -251,10 +251,16 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 			
 			if(freq == step) {
 				// major tick
-				SDL_Rect line_rect = { frg->plot_rect.x + x, frg->plot_rect.y, 0.5f, frg->plot_rect.h };
-				sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1, line_rect);
-				sdl_path_render(line_path, renderer);
-				sdl_path_free(&line_path);
+				float line_width = 2.0;
+				sdl_polygon_t *line = rect_new(frg->plot_rect.x + x - line_width * 0.5f,
+											   frg->plot_rect.y - line_width * 0.5f,
+											   line_width,
+											   frg->plot_rect.h + line_width,
+											   frg->config.major_color);
+				if(line) {
+					SDL_RENDER_GEOMETRY_POLYGON(renderer, line);
+					sdl_polygon_free(&line);
+				}
 				
 				char *label = create_hz_string(freq);
 				if(label) {
@@ -285,11 +291,17 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 		// draw max_freq
 		if(powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq) {
 			// major tick
-			SDL_Rect line_rect = { frg->plot_rect.x + frg->plot_rect.w, frg->plot_rect.y, 0.5f, frg->plot_rect.h };
-			sdl_path_t *line_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1, line_rect);
-			sdl_path_render(line_path, renderer);
-			sdl_path_free(&line_path);
-			
+			float line_width = 2.0;
+			sdl_polygon_t *line = rect_new(frg->plot_rect.x + frg->plot_rect.w - line_width * 0.5f,
+										   frg->plot_rect.y - line_width * 0.5f,
+										   line_width,
+										   frg->plot_rect.h + line_width,
+										   frg->config.major_color);
+			if(line) {
+				SDL_RENDER_GEOMETRY_POLYGON(renderer, line);
+				sdl_polygon_free(&line);
+			}
+
 			char *label = create_hz_string(frg->config.max_freq);
 			if(label) {
 				draw_sdl_render_text_at_position(renderer,

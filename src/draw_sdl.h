@@ -36,13 +36,6 @@ typedef struct sdl_path sdl_path_t;
 // create a new path
 sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FPoint *path_points, int count);
 
-// create a new path from an SDL_FRect
-sdl_path_t *sdl_path_new_from_frect(SDL_Color *color, float width, int filled, SDL_FRect rect);
-
-// create a new path from an SDL_Rect
-sdl_path_t *sdl_path_new_from_rect(SDL_Color *color, float width, int filled, SDL_Rect rect);
-
-// free a path
 void sdl_path_free(sdl_path_t **path);
 
 // render the path
@@ -90,6 +83,14 @@ sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge
 // macro to create a new frame from an SDL_Rect
 #define frame_new_from_rect(rect, edge_width, color) \
 	frame_new((rect).x, (rect).y, (rect).w, (rect).h, edge_width, color)
+
+// function to create an sdl_polygon_t representing a rectangle
+sdl_polygon_t* rect_new(float x, float y, float width, float height, SDL_Color color);
+
+// macro to create a new rectangle from an SDL_Rect
+#define rect_new_from_rect(rect, color) \
+	rect_new((rect).x, (rect).y, (rect).w, (rect).h, color)
+
 
 // -- geometry
 
