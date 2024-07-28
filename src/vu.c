@@ -131,6 +131,26 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		x += bar_width + vu->config.margin;
 	}
 	
+	// draw peak
+	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
+		float top = vu->channel_vals[j].db_peak;
+		top = (top - vu->config.min_dbfs) / (-vu->config.min_dbfs);			
+		top = top < 0.f ? 0.f : top > 1.f ? 1.f : top; // clamp 0 - 1
+		top *= vu->viewport.h;
+		
+		SDL_Rect bar_rect = (SDL_Rect) {
+			.x = x,
+			.y = vu->viewport.h - top,
+			.w = bar_width,
+			.h = 2,
+		};
+		
+		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_color);
+		SDL_RenderFillRect(renderer, &bar_rect);
+		
+		x += bar_width + vu->config.margin;
+	}
+	
 	// draw rms
 	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
 		float top = vu->channel_vals[j].db_rms;
@@ -151,7 +171,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		x += bar_width + vu->config.margin;
 	}
 	
-	// draw peak
+	// draw peak hold
 	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
 		float top = vu->peak_holds[j].db_peak;
 		top = (top - vu->config.min_dbfs) / (-vu->config.min_dbfs);			
@@ -174,26 +194,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		
 		x += bar_width + vu->config.margin;
 	}
-	
-	// draw peak hold
-	for(uint32_t j = 0, x = 0; j < n_channels; j++) {
-		float top = vu->channel_vals[j].db_peak;
-		top = (top - vu->config.min_dbfs) / (-vu->config.min_dbfs);			
-		top = top < 0.f ? 0.f : top > 1.f ? 1.f : top; // clamp 0 - 1
-		top *= vu->viewport.h;
 		
-		SDL_Rect bar_rect = (SDL_Rect) {
-			.x = x,
-			.y = vu->viewport.h - top,
-			.w = bar_width,
-			.h = 2,
-		};
-		
-		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_color);
-		SDL_RenderFillRect(renderer, &bar_rect);
-		
-		x += bar_width + vu->config.margin;
-	}
 	
 }
 
