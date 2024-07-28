@@ -7,6 +7,9 @@
 #define SDL_SET_RENDER_DRAW_COLOR(renderer, color) \
 	SDL_SetRenderDrawColor((renderer), (color)->r, (color)->g, (color)->b, (color)->a)
 
+// clear the current viewport with a given background color, or black in color is NULL
+void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
+
 // A path is a defined by a series of points.
 // When the first and last points of a path are equal it is considered closed.
 typedef struct sdl_path sdl_path_t;
@@ -41,14 +44,11 @@ typedef enum {
 // renders text at specified position with and alignment
 int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, anchor_position_t anchor, SDL_Color color, int x, int y);
 
-// renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
+// renders text to an SDL texture, updating the texture and optionally outputting the text dimensions
 int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font *font, SDL_Color *color, const char *text, int *out_width, int *out_height);
 
 // inset a rect
 SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset);
-
-// clear the current viewport with a given background color, or black in color is NULL
-void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
 
 // offsets the position of each vertex by the given x and y amounts
 void draw_sdl_offset_vertices(SDL_Vertex *vertices, uint32_t n, float offset_x, float offset_y);
