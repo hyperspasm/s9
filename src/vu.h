@@ -37,7 +37,7 @@ static const vu_config_t default_vu_config = {
 	.bar_background_color = { .r = 20, .g = 20, .b = 20, .a = 255 },
 	.rms_color = S9_ORANGE,
 	.peak_color = S9_HONEYDEW,
-	.peak_hold_color = S9_COCONUT,
+	.peak_hold_color = S9_WHITE,
 	.peak_over_color = S9_RASPBERRY,
 };
 

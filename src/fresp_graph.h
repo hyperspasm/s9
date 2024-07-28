@@ -27,8 +27,8 @@ static const fresp_graph_config_t default_fresp_graph_config = {
 	.max_db = 0,
 	.major_db_interval = 10,
 	.minor_db_interval = 1,
-	.major_color = S9_COCONUT,
-	.minor_color = S9_COCONUT,
+	.major_color = S9_WHITE,
+	.minor_color = S9_WHITE,
 	.plot_color = S9_RASPBERRY,
 };
 
