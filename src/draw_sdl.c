@@ -237,65 +237,73 @@ int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
 	return 0;
 }
 
-int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y) {
-	CHECK_PARAMETER(renderer != NULL, return -1);
-	CHECK_PARAMETER(font != NULL, return -1);
-	CHECK_PARAMETER(text != NULL, return -1);
-	
-	// create the text surface
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
-	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
-	
-	// get the text width and height from the surface
-	int text_width = surface->w;
-	int text_height = surface->h;
-	
-	// calculate the position based on the anchor position
-	int render_x = x;
-	int render_y = y;
-	
+void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, rect_edge_position_t anchor) {
+	CHECK_PARAMETER(renderer != NULL, return);
+	CHECK_PARAMETER(texture != NULL, return);
+
+	int texture_width, texture_height;
+	SDL_QueryTexture(texture, NULL, NULL, &texture_width, &texture_height);
+
+	int render_x = (int)x;
+	int render_y = (int)y;
+
 	switch (anchor) {
 		case POSITION_TOP_LEFT:
 			break;
 		case POSITION_TOP_MIDDLE:
-			render_x -= text_width / 2;
+			render_x -= texture_width / 2;
 			break;
 		case POSITION_TOP_RIGHT:
-			render_x -= text_width;
+			render_x -= texture_width;
 			break;
 		case POSITION_MIDDLE_LEFT:
-			render_y -= text_height / 2;
+			render_y -= texture_height / 2;
 			break;
 		case POSITION_MIDDLE_RIGHT:
-			render_x -= text_width;
-			render_y -= text_height / 2;
+			render_x -= texture_width;
+			render_y -= texture_height / 2;
 			break;
 		case POSITION_BOTTOM_LEFT:
-			render_y -= text_height;
+			render_y -= texture_height;
 			break;
 		case POSITION_BOTTOM_MIDDLE:
-			render_x -= text_width / 2;
-			render_y -= text_height;
+			render_x -= texture_width / 2;
+			render_y -= texture_height;
 			break;
 		case POSITION_BOTTOM_RIGHT:
-			render_x -= text_width;
-			render_y -= text_height;
+			render_x -= texture_width;
+			render_y -= texture_height;
+			break;
+		case POSITION_MIDDLE:
+			render_x -= texture_width / 2;
+			render_y -= texture_height / 2;
 			break;
 	}
-	
+
+	SDL_Rect dst_rect = { render_x, render_y, texture_width, texture_height };
+	SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
+}
+
+int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y) {
+	CHECK_PARAMETER(renderer != NULL, return -1);
+	CHECK_PARAMETER(font != NULL, return -1);
+	CHECK_PARAMETER(text != NULL, return -1);
+
+	// create the text surface
+	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+
 	// create the texture from the surface
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
 	SDL_FreeSurface(surface);
 	CHECK_ERROR(texture != NULL, return -1, "failed to create texture: %s", SDL_GetError());
-	
-	// set up the destination rectangle
-	SDL_Rect dst_rect = { render_x, render_y, text_width, text_height };
-	
-	// render the texture
-	int result = SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
+
+	// blit the texture to the renderer at the specified position with the given anchor
+	draw_sdl_blit_texture(renderer, texture, (float)x, (float)y, anchor);
+
+	// destroy the texture
 	SDL_DestroyTexture(texture);
-	CHECK_ERROR(result == 0, return -1, "failed to render texture: %s", SDL_GetError());
-	
+
 	return 0;
 }
 

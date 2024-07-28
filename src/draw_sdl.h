@@ -34,7 +34,8 @@ typedef enum {
 	POSITION_MIDDLE_RIGHT,
 	POSITION_BOTTOM_LEFT,
 	POSITION_BOTTOM_MIDDLE,
-	POSITION_BOTTOM_RIGHT
+	POSITION_BOTTOM_RIGHT,
+	POSITION_MIDDLE,
 } rect_edge_position_t;
 
 // renders text at specified position with and alignment
