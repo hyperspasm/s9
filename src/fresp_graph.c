@@ -358,9 +358,11 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	}
 	
 	// draw frame
-	sdl_path_t *frame_path = sdl_path_new_from_rect(&frg->config.major_color, 2.0, 1, frg->plot_rect);
-	sdl_path_render(frame_path, renderer);
-	sdl_path_free(&frame_path);
+	sdl_polygon_t *frame = frame_new_from_rect(frg->plot_rect, 2.0, frg->config.major_color);
+	if(frame) {
+		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
+		sdl_polygon_free(&frame);
+	}
 	
 	TTF_CloseFont(font);
 }
