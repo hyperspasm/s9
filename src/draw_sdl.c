@@ -17,6 +17,53 @@ void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
 	SDL_RenderFillRect(renderer, &fillRect);
 }
 
+void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, anchor_position_t anchor) {
+	CHECK_PARAMETER(renderer != NULL, return);
+	CHECK_PARAMETER(texture != NULL, return);
+	
+	int texture_width, texture_height;
+	SDL_QueryTexture(texture, NULL, NULL, &texture_width, &texture_height);
+	
+	int render_x = (int)x;
+	int render_y = (int)y;
+	
+	switch (anchor) {
+		case ANCHOR_TOP_LEFT:
+			break;
+		case ANCHOR_TOP_MIDDLE:
+			render_x -= texture_width / 2;
+			break;
+		case ANCHOR_TOP_RIGHT:
+			render_x -= texture_width;
+			break;
+		case ANCHOR_MIDDLE_LEFT:
+			render_y -= texture_height / 2;
+			break;
+		case ANCHOR_MIDDLE_RIGHT:
+			render_x -= texture_width;
+			render_y -= texture_height / 2;
+			break;
+		case ANCHOR_BOTTOM_LEFT:
+			render_y -= texture_height;
+			break;
+		case ANCHOR_BOTTOM_MIDDLE:
+			render_x -= texture_width / 2;
+			render_y -= texture_height;
+			break;
+		case ANCHOR_BOTTOM_RIGHT:
+			render_x -= texture_width;
+			render_y -= texture_height;
+			break;
+		case ANCHOR_MIDDLE:
+			render_x -= texture_width / 2;
+			render_y -= texture_height / 2;
+			break;
+	}
+	
+	SDL_Rect dst_rect = { render_x, render_y, texture_width, texture_height };
+	SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
+}
+
 // computes a vector of specified length perpendicular to the vector from p1 to p0
 static inline void compute_perpendicular_vector(const SDL_FPoint *p0, const SDL_FPoint *p1, float length, float *out_dx, float *out_dy) {
 	float dx = p0->y - p1->y;
@@ -251,54 +298,6 @@ int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
 	
 	return 0;
 }
-
-void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, anchor_position_t anchor) {
-	CHECK_PARAMETER(renderer != NULL, return);
-	CHECK_PARAMETER(texture != NULL, return);
-	
-	int texture_width, texture_height;
-	SDL_QueryTexture(texture, NULL, NULL, &texture_width, &texture_height);
-	
-	int render_x = (int)x;
-	int render_y = (int)y;
-	
-	switch (anchor) {
-		case ANCHOR_TOP_LEFT:
-			break;
-		case ANCHOR_TOP_MIDDLE:
-			render_x -= texture_width / 2;
-			break;
-		case ANCHOR_TOP_RIGHT:
-			render_x -= texture_width;
-			break;
-		case ANCHOR_MIDDLE_LEFT:
-			render_y -= texture_height / 2;
-			break;
-		case ANCHOR_MIDDLE_RIGHT:
-			render_x -= texture_width;
-			render_y -= texture_height / 2;
-			break;
-		case ANCHOR_BOTTOM_LEFT:
-			render_y -= texture_height;
-			break;
-		case ANCHOR_BOTTOM_MIDDLE:
-			render_x -= texture_width / 2;
-			render_y -= texture_height;
-			break;
-		case ANCHOR_BOTTOM_RIGHT:
-			render_x -= texture_width;
-			render_y -= texture_height;
-			break;
-		case ANCHOR_MIDDLE:
-			render_x -= texture_width / 2;
-			render_y -= texture_height / 2;
-			break;
-	}
-	
-	SDL_Rect dst_rect = { render_x, render_y, texture_width, texture_height };
-	SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
-}
-
 
 // -- text
 

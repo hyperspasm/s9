@@ -24,6 +24,8 @@ typedef enum {
 // clear the current viewport with a given background color, or black in color is NULL
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
 
+// blits a texture to the renderer at the specified position with the given anchor
+void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, anchor_position_t anchor);
 
 // -- paths 
 
@@ -98,8 +100,5 @@ SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color 
 
 // creates a new sdl_polygon_t representing a circle
 sdl_polygon_t* circle_new(float r, SDL_Color *color);
-
-// blits a texture to the renderer at the specified position with the given anchor
-void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, anchor_position_t anchor);
 
 #endif /* draw_sdl_h */
