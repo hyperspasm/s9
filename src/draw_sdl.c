@@ -299,6 +299,9 @@ void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x
 	SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 }
 
+
+// -- text
+
 int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, anchor_position_t anchor, SDL_Color color, int x, int y) {
 	CHECK_PARAMETER(renderer != NULL, return -1);
 	CHECK_PARAMETER(font != NULL, return -1);
@@ -343,6 +346,109 @@ int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font
 	
 	return 0;
 }
+
+// -- polygons
+
+// frees the memory allocated for an sdl_polygon_t
+void sdl_polygon_free(sdl_polygon_t **poly) {
+	if (poly == NULL || *poly == NULL) {
+		return;
+	}
+	
+	sdl_polygon_t *polygon = *poly;
+	
+	// free the vertices array
+	if (polygon->vertices) {
+		free(polygon->vertices);
+	}
+	
+	// free the indices array
+	if (polygon->indices) {
+		free(polygon->indices);
+	}
+	
+	// free the polygon struct itself
+	free(polygon);
+	
+	// set the pointer to NULL to avoid dangling pointers
+	*poly = NULL;
+}
+
+void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y) {
+	if (poly == NULL || poly->vertices == NULL) {
+		return;
+	}
+	
+	for (uint32_t i = 0; i < poly->num_vertices; i++) {
+		poly->vertices[i].position.x += x;
+		poly->vertices[i].position.y += y;
+	}
+}
+
+// creates a texture from an sdl_polygon_t
+SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly) {
+	if (poly == NULL || renderer == NULL) {
+		return NULL;
+	}
+	
+	// determine the bounding box of the polygon
+	float min_x = poly->vertices[0].position.x;
+	float min_y = poly->vertices[0].position.y;
+	float max_x = poly->vertices[0].position.x;
+	float max_y = poly->vertices[0].position.y;
+	
+	for (uint32_t i = 1; i < poly->num_vertices; i++) {
+		if (poly->vertices[i].position.x < min_x) {
+			min_x = poly->vertices[i].position.x;
+		}
+		if (poly->vertices[i].position.x > max_x) {
+			max_x = poly->vertices[i].position.x;
+		}
+		if (poly->vertices[i].position.y < min_y) {
+			min_y = poly->vertices[i].position.y;
+		}
+		if (poly->vertices[i].position.y > max_y) {
+			max_y = poly->vertices[i].position.y;
+		}
+	}
+	
+	// calculate width and height of the texture
+	int width = (int)(max_x - min_x) + 1;
+	int height = (int)(max_y - min_y) + 1;
+	
+	// create a transparent texture
+	SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+	if (texture == NULL) {
+		return NULL;
+	}
+	
+	// set the blend mode for the texture to enable transparency
+	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+	
+	// set the rendering target to the texture
+	SDL_SetRenderTarget(renderer, texture);
+	
+	// clear the texture with a transparent color
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+	SDL_RenderClear(renderer);
+	
+	// offset vertices to fit within the texture
+	draw_sdl_offset_vertices(poly->vertices, poly->num_vertices, -min_x, -min_y);
+	
+	// render the polygon to the texture
+	SDL_RenderGeometry(renderer, NULL, poly->vertices, poly->num_vertices, poly->indices, poly->num_indices);
+	
+	// reset the rendering target
+	SDL_SetRenderTarget(renderer, NULL);
+	
+	// restore the original vertex positions
+	draw_sdl_offset_vertices(poly->vertices, poly->num_vertices, min_x, min_y);
+	
+	return texture;
+}
+
+
+// -- geometry
 
 SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset) {
 	
@@ -465,102 +571,4 @@ sdl_polygon_t* circle_new(float r, SDL_Color *color) {
 	CHECK_ALLOC(polygon->indices, free(polygon->vertices); free(polygon); return NULL);
 	
 	return polygon;
-}
-
-// frees the memory allocated for an sdl_polygon_t
-void sdl_polygon_free(sdl_polygon_t **poly) {
-	if (poly == NULL || *poly == NULL) {
-		return;
-	}
-	
-	sdl_polygon_t *polygon = *poly;
-	
-	// free the vertices array
-	if (polygon->vertices) {
-		free(polygon->vertices);
-	}
-	
-	// free the indices array
-	if (polygon->indices) {
-		free(polygon->indices);
-	}
-	
-	// free the polygon struct itself
-	free(polygon);
-	
-	// set the pointer to NULL to avoid dangling pointers
-	*poly = NULL;
-}
-
-// creates a texture from an sdl_polygon_t
-SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly) {
-	if (poly == NULL || renderer == NULL) {
-		return NULL;
-	}
-	
-	// determine the bounding box of the polygon
-	float min_x = poly->vertices[0].position.x;
-	float min_y = poly->vertices[0].position.y;
-	float max_x = poly->vertices[0].position.x;
-	float max_y = poly->vertices[0].position.y;
-	
-	for (uint32_t i = 1; i < poly->num_vertices; i++) {
-		if (poly->vertices[i].position.x < min_x) {
-			min_x = poly->vertices[i].position.x;
-		}
-		if (poly->vertices[i].position.x > max_x) {
-			max_x = poly->vertices[i].position.x;
-		}
-		if (poly->vertices[i].position.y < min_y) {
-			min_y = poly->vertices[i].position.y;
-		}
-		if (poly->vertices[i].position.y > max_y) {
-			max_y = poly->vertices[i].position.y;
-		}
-	}
-	
-	// calculate width and height of the texture
-	int width = (int)(max_x - min_x) + 1;
-	int height = (int)(max_y - min_y) + 1;
-	
-	// create a transparent texture
-	SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
-	if (texture == NULL) {
-		return NULL;
-	}
-	
-	// set the blend mode for the texture to enable transparency
-	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-	
-	// set the rendering target to the texture
-	SDL_SetRenderTarget(renderer, texture);
-	
-	// clear the texture with a transparent color
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-	SDL_RenderClear(renderer);
-	
-	// offset vertices to fit within the texture
-	draw_sdl_offset_vertices(poly->vertices, poly->num_vertices, -min_x, -min_y);
-	
-	// render the polygon to the texture
-	SDL_RenderGeometry(renderer, NULL, poly->vertices, poly->num_vertices, poly->indices, poly->num_indices);
-	
-	// reset the rendering target
-	SDL_SetRenderTarget(renderer, NULL);
-	
-	// restore the original vertex positions
-	draw_sdl_offset_vertices(poly->vertices, poly->num_vertices, min_x, min_y);
-	
-	return texture;
-}
-
-void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y) {
-	if (poly == NULL || poly->vertices == NULL) {
-		return;
-	}
-	
-	for (uint32_t i = 0; i < poly->num_vertices; i++) {
-		poly->vertices[i].position.x += x;
-		poly->vertices[i].position.y += y;
-	}
 }
