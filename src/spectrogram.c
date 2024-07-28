@@ -5,11 +5,6 @@
 
 #include <fftw3.h>
 
-typedef struct {
-	fftwf_complex *complex;
-	float *magnitude;
-} output_buffer_t;
-
 typedef struct spectrogram {
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
@@ -28,7 +23,7 @@ typedef struct spectrogram {
 	
 	uint32_t n_fft_channels;
 	float *fft_windowed_input_buffer;			// fft_len, 1 channel windowed input to fft
-	output_buffer_t *fft_output_buffers;
+	fftwf_complex **fft_outputs;
 	fftwf_plan plan;
 	
 	uint32_t n_graphs;
@@ -94,20 +89,15 @@ static void free_dsp_allocations(spectrogram_t *sg) {
 		sg->fft_windowed_input_buffer = NULL;
 	}
 	
-	if(sg->fft_output_buffers) {
+	if(sg->fft_outputs) {
 		for(uint32_t i = 0; i < sg->n_fft_channels; i++) {
-			if(sg->fft_output_buffers[i].complex) {
-				fftwf_free(sg->fft_output_buffers[i].complex);
-				sg->fft_output_buffers[i].complex = NULL;
-			}
-			
-			if(sg->fft_output_buffers[i].magnitude) {
-				fftwf_free(sg->fft_output_buffers[i].magnitude);
-				sg->fft_output_buffers[i].magnitude = NULL;
+			if(sg->fft_outputs[i]) {
+				fftwf_free(sg->fft_outputs[i]);
+				sg->fft_outputs[i] = NULL;
 			}
 		}		
-		free(sg->fft_output_buffers);
-		sg->fft_output_buffers = NULL;
+		free(sg->fft_outputs);
+		sg->fft_outputs = NULL;
 		sg->n_fft_channels = 0;
 	}
 	
@@ -162,12 +152,6 @@ static S9_FORCE_INLINE void prepare_to_draw(spectrogram_t *sg, SDL_Renderer *ren
 	}
 }
 
-static S9_FORCE_INLINE void compute_magnitude(uint32_t fft_len, output_buffer_t *output_buffer) {
-	for (uint32_t i = 0; i < fft_len / 2 + 1; i++) {
-		output_buffer->magnitude[i] = sqrtf(output_buffer->complex[i][0] * output_buffer->complex[i][0] +
-											output_buffer->complex[i][1] * output_buffer->complex[i][1]);
-	}
-}
 static void compute_ffts(spectrogram_t *sg) {
 	
 	uint32_t n_channels = sg->stream_config.channels;
@@ -222,8 +206,7 @@ static void compute_ffts(spectrogram_t *sg) {
 			src += sg->n_fft_channels;
 		}
 		
-		fftwf_execute_dft_r2c(sg->plan, sg->fft_windowed_input_buffer, sg->fft_output_buffers[j].complex);
-		compute_magnitude(sg->fft_len, &sg->fft_output_buffers[j]);
+		fftwf_execute_dft_r2c(sg->plan, sg->fft_windowed_input_buffer, sg->fft_outputs[j]);
 	}	
 }
 
@@ -288,7 +271,7 @@ static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n
 	spectrogram_t *sg = callback_context->sg;
 	uint32_t channel = callback_context->channel;
 	
-	compute_plot_data(sg->fft_output_buffers[channel].complex, sg->fft_len, sg->stream_config.sample_rate, sg->config.graph_config.min_freq, sg->config.graph_config.max_freq, plot_data, n_points);
+	compute_plot_data(sg->fft_outputs[channel], sg->fft_len, sg->stream_config.sample_rate, sg->config.graph_config.min_freq, sg->config.graph_config.max_freq, plot_data, n_points);
 	
 	return 0;
 }
@@ -375,18 +358,16 @@ void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_conf
 	sg->fft_windowed_input_buffer =  malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_windowed_input_buffer, return);
 	
-	sg->fft_output_buffers = malloc(sizeof(output_buffer_t) * stream_config->channels);
-	CHECK_ALLOC(sg->fft_output_buffers, return);
-	memset(sg->fft_output_buffers, 0, sizeof(output_buffer_t) * stream_config->channels);
+	sg->fft_outputs = malloc(sizeof(*sg->fft_outputs) * stream_config->channels);
+	CHECK_ALLOC(sg->fft_outputs, return);
+	memset(sg->fft_outputs, 0, sizeof(*sg->fft_outputs) * stream_config->channels);
 	sg->n_fft_channels = stream_config->channels;	
 	for(uint32_t i = 0; i < sg->n_fft_channels; i++) {
-		sg->fft_output_buffers[i].complex = fftwf_malloc(sizeof(fftwf_complex) * sg->fft_len);
-		CHECK_ALLOC(sg->fft_output_buffers[i].complex, return);		
-		sg->fft_output_buffers[i].magnitude = malloc(sizeof(float) * (sg->fft_len / 2 + 1));
-		CHECK_ALLOC(sg->fft_output_buffers[i].magnitude, return);
+		sg->fft_outputs[i] = fftwf_malloc(sizeof(fftwf_complex) * sg->fft_len);
+		CHECK_ALLOC(sg->fft_outputs[i], return);
 	}
 	
-	sg->plan = fftwf_plan_dft_r2c_1d(sg->fft_len, sg->fft_input_buffers[0], sg->fft_output_buffers[0].complex, FFTW_ESTIMATE);
+	sg->plan = fftwf_plan_dft_r2c_1d(sg->fft_len, sg->fft_input_buffers[0], sg->fft_outputs[0], FFTW_ESTIMATE);
 	CHECK_ERROR(sg->plan != NULL, return, "fftwf_plan_dft_r2c_1d() failed");
 	
 	// set flag and stream config
