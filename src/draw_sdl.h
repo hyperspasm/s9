@@ -46,4 +46,7 @@ int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font
 // inset a rect
 SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset);
 
+// clear the current viewport with a given background color, or black in color is NULL
+void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
+
 #endif /* draw_sdl_h */

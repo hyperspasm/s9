@@ -1,5 +1,6 @@
 #include "draw_sdl.h"
 #include "s9.h"
+#include "s9_colors.h"
 
 // computes a vector of specified length perpendicular to the vector from p1 to p0
 static inline void compute_perpendicular_vector(const SDL_FPoint *p0, const SDL_FPoint *p1, float length, float *out_dx, float *out_dy) {
@@ -330,4 +331,18 @@ SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset) {
 	new_rect.h -= 2 * inset;
 	
 	return new_rect;
+}
+
+void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
+	SDL_Rect viewport;	
+	SDL_RenderGetViewport(renderer, &viewport);	
+	SDL_Rect fillRect = { .x = 0, .y = 0, .w = viewport.w, .h = viewport.h };
+	
+	SDL_Color clearColor = S9_BLACK;		
+	if(color) {
+		clearColor = *color;
+	}
+
+	SDL_SetRenderDrawColor(renderer, clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+	SDL_RenderFillRect(renderer, &fillRect);
 }
