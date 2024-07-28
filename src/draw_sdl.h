@@ -27,19 +27,19 @@ void sdl_path_free(sdl_path_t **path);
 int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer);
 
 typedef enum {
-	POSITION_TOP_LEFT,
-	POSITION_TOP_MIDDLE,
-	POSITION_TOP_RIGHT,
-	POSITION_MIDDLE_LEFT,
-	POSITION_MIDDLE_RIGHT,
-	POSITION_BOTTOM_LEFT,
-	POSITION_BOTTOM_MIDDLE,
-	POSITION_BOTTOM_RIGHT,
-	POSITION_MIDDLE,
-} rect_edge_position_t;
+	ANCHOR_TOP_LEFT,
+	ANCHOR_TOP_MIDDLE,
+	ANCHOR_TOP_RIGHT,
+	ANCHOR_MIDDLE_LEFT,
+	ANCHOR_MIDDLE_RIGHT,
+	ANCHOR_BOTTOM_LEFT,
+	ANCHOR_BOTTOM_MIDDLE,
+	ANCHOR_BOTTOM_RIGHT,
+	ANCHOR_MIDDLE,
+} anchor_position_t;
 
 // renders text at specified position with and alignment
-int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y);
+int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, anchor_position_t anchor, SDL_Color color, int x, int y);
 
 // renders text to an SDL texture, updating the texture and optionally outputting the text dimensions.
 int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font *font, SDL_Color *color, const char *text, int *out_width, int *out_height);
@@ -84,7 +84,7 @@ sdl_polygon_t* circle_new(float r, SDL_Color *color);
 SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly);
 
 // blits a texture to the renderer at the specified position with the given anchor
-void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, rect_edge_position_t anchor);
+void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, anchor_position_t anchor);
 
 // offsets the position of all vertices in an sdl_polygon_t by the given x and y amounts
 void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y);

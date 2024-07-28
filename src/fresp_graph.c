@@ -261,7 +261,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 					draw_sdl_render_text_at_position(renderer,
 											font,
 											label,
-											POSITION_TOP_MIDDLE,
+											ANCHOR_TOP_MIDDLE,
 											frg->config.major_color,
 											frg->plot_rect.x + x,
 											frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
@@ -295,7 +295,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				draw_sdl_render_text_at_position(renderer,
 										font,
 										label,
-										POSITION_TOP_MIDDLE,
+										ANCHOR_TOP_MIDDLE,
 										frg->config.major_color,
 										frg->plot_rect.x + frg->plot_rect.w,
 										frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
@@ -337,7 +337,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 					draw_sdl_render_text_at_position(renderer,
 											font,
 											label,
-											POSITION_MIDDLE_RIGHT,
+											ANCHOR_MIDDLE_RIGHT,
 											frg->config.major_color,
 											frg->plot_rect.x - LABEL_MARGIN,
 											frg->plot_rect.y + y);

@@ -184,27 +184,27 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 }
 
 sdl_path_t *sdl_path_new_from_frect(SDL_Color *color, float width, int filled, SDL_FRect rect) {
-		SDL_FPoint path_points[5] = {
-			{ rect.x, rect.y },
-			{ rect.x + rect.w, rect.y },
-			{ rect.x + rect.w, rect.y + rect.h },
-			{ rect.x, rect.y + rect.h },
-			{ rect.x, rect.y }, // closed path
-		};
-
-		return sdl_path_new(color, width, filled, path_points, 5);
+	SDL_FPoint path_points[5] = {
+		{ rect.x, rect.y },
+		{ rect.x + rect.w, rect.y },
+		{ rect.x + rect.w, rect.y + rect.h },
+		{ rect.x, rect.y + rect.h },
+		{ rect.x, rect.y }, // closed path
+	};
+	
+	return sdl_path_new(color, width, filled, path_points, 5);
 }
 
 sdl_path_t *sdl_path_new_from_rect(SDL_Color *color, float width, int filled, SDL_Rect rect) {
-		SDL_FPoint path_points[5] = {
-			{ rect.x, rect.y },
-			{ rect.x + rect.w, rect.y },
-			{ rect.x + rect.w, rect.y + rect.h },
-			{ rect.x, rect.y + rect.h },
-			{ rect.x, rect.y }, // closed path
-		};
-
-		return sdl_path_new(color, width, filled, path_points, 5);
+	SDL_FPoint path_points[5] = {
+		{ rect.x, rect.y },
+		{ rect.x + rect.w, rect.y },
+		{ rect.x + rect.w, rect.y + rect.h },
+		{ rect.x, rect.y + rect.h },
+		{ rect.x, rect.y }, // closed path
+	};
+	
+	return sdl_path_new(color, width, filled, path_points, 5);
 }
 
 int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
@@ -237,73 +237,73 @@ int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
 	return 0;
 }
 
-void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, rect_edge_position_t anchor) {
+void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, anchor_position_t anchor) {
 	CHECK_PARAMETER(renderer != NULL, return);
 	CHECK_PARAMETER(texture != NULL, return);
-
+	
 	int texture_width, texture_height;
 	SDL_QueryTexture(texture, NULL, NULL, &texture_width, &texture_height);
-
+	
 	int render_x = (int)x;
 	int render_y = (int)y;
-
+	
 	switch (anchor) {
-		case POSITION_TOP_LEFT:
+		case ANCHOR_TOP_LEFT:
 			break;
-		case POSITION_TOP_MIDDLE:
+		case ANCHOR_TOP_MIDDLE:
 			render_x -= texture_width / 2;
 			break;
-		case POSITION_TOP_RIGHT:
+		case ANCHOR_TOP_RIGHT:
 			render_x -= texture_width;
 			break;
-		case POSITION_MIDDLE_LEFT:
+		case ANCHOR_MIDDLE_LEFT:
 			render_y -= texture_height / 2;
 			break;
-		case POSITION_MIDDLE_RIGHT:
+		case ANCHOR_MIDDLE_RIGHT:
 			render_x -= texture_width;
 			render_y -= texture_height / 2;
 			break;
-		case POSITION_BOTTOM_LEFT:
+		case ANCHOR_BOTTOM_LEFT:
 			render_y -= texture_height;
 			break;
-		case POSITION_BOTTOM_MIDDLE:
+		case ANCHOR_BOTTOM_MIDDLE:
 			render_x -= texture_width / 2;
 			render_y -= texture_height;
 			break;
-		case POSITION_BOTTOM_RIGHT:
+		case ANCHOR_BOTTOM_RIGHT:
 			render_x -= texture_width;
 			render_y -= texture_height;
 			break;
-		case POSITION_MIDDLE:
+		case ANCHOR_MIDDLE:
 			render_x -= texture_width / 2;
 			render_y -= texture_height / 2;
 			break;
 	}
-
+	
 	SDL_Rect dst_rect = { render_x, render_y, texture_width, texture_height };
 	SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
 }
 
-int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, rect_edge_position_t anchor, SDL_Color color, int x, int y) {
+int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, const char *text, anchor_position_t anchor, SDL_Color color, int x, int y) {
 	CHECK_PARAMETER(renderer != NULL, return -1);
 	CHECK_PARAMETER(font != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
-
+	
 	// create the text surface
 	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
 	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
-
+	
 	// create the texture from the surface
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
 	SDL_FreeSurface(surface);
 	CHECK_ERROR(texture != NULL, return -1, "failed to create texture: %s", SDL_GetError());
-
+	
 	// blit the texture to the renderer at the specified position with the given anchor
 	draw_sdl_blit_texture(renderer, texture, (float)x, (float)y, anchor);
-
+	
 	// destroy the texture
 	SDL_DestroyTexture(texture);
-
+	
 	return 0;
 }
 
@@ -350,7 +350,7 @@ void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
 	if(color) {
 		clearColor = *color;
 	}
-
+	
 	SDL_SetRenderDrawColor(renderer, clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 	SDL_RenderFillRect(renderer, &fillRect);
 }
@@ -359,7 +359,7 @@ void draw_sdl_offset_vertices(SDL_Vertex *vertices, uint32_t n, float offset_x, 
 	if (vertices == NULL || n == 0) {
 		return;
 	}
-
+	
 	for (uint32_t i = 0; i < n; i++) {
 		vertices[i].position.x += offset_x;
 		vertices[i].position.y += offset_y;
@@ -370,7 +370,7 @@ void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, floa
 	if (points == NULL || n == 0) {
 		return;
 	}
-
+	
 	for (uint32_t i = 0; i < n; i++) {
 		points[i].x += offset_x;
 		points[i].y += offset_y;
@@ -380,15 +380,15 @@ void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, floa
 SDL_FPoint* draw_sdl_create_circle_points(float r, uint32_t *out_n) {
 	// calculate the number of segments needed for a smooth circle
 	uint32_t n = (uint32_t)(2.0f * M_PI * r);
-
+	
 	// ensure we have at least 12 segments for very small circles
 	if (n < 12) {
 		n = 12;
 	}
-
+	
 	SDL_FPoint* points = (SDL_FPoint*)malloc(sizeof(SDL_FPoint) * n);
 	CHECK_ALLOC(points, return NULL);
-
+	
 	float angle_increment = 2.0f * M_PI / (float)n;
 	for (uint32_t i = 0; i < n; i++) {
 		float angle = angle_increment * (float)i;
@@ -403,15 +403,15 @@ SDL_FPoint* draw_sdl_create_circle_points(float r, uint32_t *out_n) {
 SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color color) {
 	// calculate the number of segments needed for a smooth circle
 	uint32_t n = (uint32_t)(2.0f * M_PI * r);
-
+	
 	// ensure we have at least 12 segments for very small circles
 	if (n < 12) {
 		n = 12;
 	}
-
+	
 	SDL_Vertex* vertices = (SDL_Vertex*)malloc(sizeof(SDL_Vertex) * n);
 	CHECK_ALLOC(vertices, return NULL);
-
+	
 	float angle_increment = 2.0f * M_PI / (float)n;
 	for (uint32_t i = 0; i < n; i++) {
 		float angle = angle_increment * (float)i;
@@ -421,7 +421,7 @@ SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color 
 		vertices[i].tex_coord.x = 0.0f;
 		vertices[i].tex_coord.y = 0.0f;
 	}
-
+	
 	*out_n = n;
 	return vertices;
 }
@@ -433,13 +433,13 @@ int* draw_sdl_create_polygon_indices(SDL_Vertex *vertices, uint32_t n_vertices, 
 		*out_n_indices = 0;
 		return NULL;
 	}
-
+	
 	// number of triangles in a convex polygon is (n_vertices - 2)
 	uint32_t n_indices = (n_vertices - 2) * 3;
-
+	
 	int* indices = (int*)malloc(sizeof(int) * n_indices);
 	CHECK_ALLOC(indices, return NULL);
-
+	
 	// create indices for a triangle fan
 	uint32_t index = 0;
 	for (uint32_t i = 1; i < n_vertices - 1; i++) {
@@ -447,7 +447,7 @@ int* draw_sdl_create_polygon_indices(SDL_Vertex *vertices, uint32_t n_vertices, 
 		indices[index++] = i;        // current vertex
 		indices[index++] = i + 1;    // next vertex
 	}
-
+	
 	*out_n_indices = n_indices;
 	return indices;
 }
@@ -456,13 +456,13 @@ int* draw_sdl_create_polygon_indices(SDL_Vertex *vertices, uint32_t n_vertices, 
 sdl_polygon_t* circle_new(float r, SDL_Color *color) {
 	sdl_polygon_t* polygon = (sdl_polygon_t*)malloc(sizeof(sdl_polygon_t));
 	CHECK_ALLOC(polygon, return NULL);
-
+	
 	polygon->vertices = draw_sdl_create_circle_vertices(r, &polygon->num_vertices, *color);
 	CHECK_ALLOC(polygon->vertices, free(polygon); return NULL);
-
+	
 	polygon->indices = draw_sdl_create_polygon_indices(polygon->vertices, polygon->num_vertices, &polygon->num_indices);
 	CHECK_ALLOC(polygon->indices, free(polygon->vertices); free(polygon); return NULL);
-
+	
 	return polygon;
 }
 
@@ -471,19 +471,19 @@ void sdl_polygon_free(sdl_polygon_t **poly) {
 	if (poly == NULL || *poly == NULL) {
 		return;
 	}
-
+	
 	sdl_polygon_t *polygon = *poly;
 	
 	// free the vertices array
 	if (polygon->vertices) {
 		free(polygon->vertices);
 	}
-
+	
 	// free the indices array
 	if (polygon->indices) {
 		free(polygon->indices);
 	}
-
+	
 	// free the polygon struct itself
 	free(polygon);
 	
@@ -496,13 +496,13 @@ SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t
 	if (poly == NULL || renderer == NULL) {
 		return NULL;
 	}
-
+	
 	// determine the bounding box of the polygon
 	float min_x = poly->vertices[0].position.x;
 	float min_y = poly->vertices[0].position.y;
 	float max_x = poly->vertices[0].position.x;
 	float max_y = poly->vertices[0].position.y;
-
+	
 	for (uint32_t i = 1; i < poly->num_vertices; i++) {
 		if (poly->vertices[i].position.x < min_x) {
 			min_x = poly->vertices[i].position.x;
@@ -517,39 +517,39 @@ SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t
 			max_y = poly->vertices[i].position.y;
 		}
 	}
-
+	
 	// calculate width and height of the texture
 	int width = (int)(max_x - min_x) + 1;
 	int height = (int)(max_y - min_y) + 1;
-
+	
 	// create a transparent texture
 	SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
 	if (texture == NULL) {
 		return NULL;
 	}
-
+	
 	// set the blend mode for the texture to enable transparency
 	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-
+	
 	// set the rendering target to the texture
 	SDL_SetRenderTarget(renderer, texture);
-
+	
 	// clear the texture with a transparent color
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	SDL_RenderClear(renderer);
-
+	
 	// offset vertices to fit within the texture
 	draw_sdl_offset_vertices(poly->vertices, poly->num_vertices, -min_x, -min_y);
-
+	
 	// render the polygon to the texture
 	SDL_RenderGeometry(renderer, NULL, poly->vertices, poly->num_vertices, poly->indices, poly->num_indices);
-
+	
 	// reset the rendering target
 	SDL_SetRenderTarget(renderer, NULL);
-
+	
 	// restore the original vertex positions
 	draw_sdl_offset_vertices(poly->vertices, poly->num_vertices, min_x, min_y);
-
+	
 	return texture;
 }
 
@@ -557,7 +557,7 @@ void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y) {
 	if (poly == NULL || poly->vertices == NULL) {
 		return;
 	}
-
+	
 	for (uint32_t i = 0; i < poly->num_vertices; i++) {
 		poly->vertices[i].position.x += x;
 		poly->vertices[i].position.y += y;
