@@ -50,4 +50,44 @@ SDL_Rect draw_sdl_inset_rect(SDL_Rect rect, float inset);
 // clear the current viewport with a given background color, or black in color is NULL
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
 
+// offsets the position of each vertex by the given x and y amounts
+void draw_sdl_offset_vertices(SDL_Vertex *vertices, uint32_t n, float offset_x, float offset_y);
+
+// offsets the position of each point by the given x and y amounts
+void draw_sdl_offset_points(SDL_FPoint *points, uint32_t n, float offset_x, float offset_y);
+
+// creates points representing a circle
+SDL_FPoint* draw_sdl_create_circle_points(float r, uint32_t *out_n);
+
+// creates vertices representing a circle
+SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL_Color color);
+
+// struct to represent a polygon with vertices and indices
+typedef struct {
+	SDL_Vertex *vertices;   // array of vertices
+	uint32_t num_vertices;  // number of vertices
+	int *indices;           // array of indices
+	uint32_t num_indices;   // number of indices
+} sdl_polygon_t;
+
+// frees the memory allocated for an sdl_polygon_t
+void sdl_polygon_free(sdl_polygon_t **poly);
+
+// creates a new sdl_polygon_t representing a circle
+sdl_polygon_t* circle_new(float r, SDL_Color *color);
+
+// macro to render an sdl_polygon_t using SDL_RenderGeometry
+#define SDL_RENDER_GEOMETRY_POLYGON(renderer, poly) \
+	SDL_RenderGeometry(renderer, NULL, (poly)->vertices, (poly)->num_vertices, (poly)->indices, (poly)->num_indices)
+
+// creates a texture from an sdl_polygon_t
+SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly);
+
+// blits a texture to the renderer at the specified position with the given anchor
+void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x, float y, rect_edge_position_t anchor);
+
+// offsets the position of all vertices in an sdl_polygon_t by the given x and y amounts
+void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y);
+
+
 #endif /* draw_sdl_h */
