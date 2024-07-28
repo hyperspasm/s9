@@ -253,7 +253,7 @@ static void compute_plot_data(fftwf_complex *fft, uint32_t fft_len, uint32_t sam
 		}
 		
 		// normalize by fft_len / 2 and convert magnitude squared to dB
-		float max_magnitude_db = 10.0f * log10f(max_magnitude * inv_fft_len_quarter); // 10*log10(magnitude^2) + normalization
+		float max_magnitude_db = 10.0f * log10f(max_magnitude * inv_fft_len_quarter); // since 10*log10(magnitude^2) == 20*log10(magnitude) we can avoid sqrt()
 		
 		// store the dB value in the data buffer
 		data[i] = max_magnitude_db;
