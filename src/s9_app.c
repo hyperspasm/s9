@@ -72,20 +72,6 @@ static void render(SDL_Renderer *renderer) {
 	SDL_Rect default_viewport;		
 	SDL_RenderGetViewport(renderer, &default_viewport);
 	
-#if 0
-	// scratchpad
-	if(g_app->scratchpad) {
-		int margin_x = 60;
-		SDL_Rect viewport = {
-			.x = default_viewport.x + margin_x,
-			.y = default_viewport.y,
-			.w = default_viewport.w - margin_x,
-			.h = default_viewport.h,
-		};
-		SDL_RenderSetViewport(renderer, &viewport);
-		scratchpad_render(g_app->scratchpad, g_app->renderer);		
-	}
-#endif
 	
 	// fps
 	if(g_app->fps) {
@@ -125,6 +111,22 @@ static void render(SDL_Renderer *renderer) {
 		SDL_RenderSetViewport(renderer, &viewport);
 		spectrogram_render(g_app->sg, g_app->renderer);		
 	}
+	
+#if 0
+	// scratchpad
+	if(g_app->scratchpad) {
+		int margin_x = 60;
+		SDL_Rect viewport = {
+			.x = default_viewport.x + margin_x,
+			.y = default_viewport.y,
+			.w = default_viewport.w - margin_x,
+			.h = default_viewport.h,
+		};
+		SDL_RenderSetViewport(renderer, &viewport);
+		scratchpad_render(g_app->scratchpad, g_app->renderer);		
+	}
+#endif
+	
 }
 
 // empty audio callback

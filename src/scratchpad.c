@@ -117,6 +117,7 @@ static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n
 void scratchpad_render(scratchpad_t *sp, SDL_Renderer *renderer) {
 	prepare_to_draw(sp, renderer);
 	draw_wave(sp, renderer);
+	draw_sdl_clear_viewport(renderer, NULL);
 	
 	if(sp->frg) {
 		fresp_graph_render(sp->frg, renderer, fresp_graph_data_callback, sp);
