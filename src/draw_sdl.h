@@ -77,7 +77,7 @@ void sdl_polygon_free(sdl_polygon_t **poly);
 void sdl_polygon_offset(sdl_polygon_t *poly, float x, float y);
 
 // creates a texture from an sdl_polygon_t
-SDL_Texture* sdl_render_polygon_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly);
+SDL_Texture* sdl_polygon_render_to_texture(SDL_Renderer *renderer, sdl_polygon_t *poly);
 
 // -- geometry
 
