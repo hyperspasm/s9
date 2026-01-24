@@ -28,8 +28,8 @@ typedef struct {
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
-	.time_per_display = .001f,
-	.amp_per_display = 2.0f,
+	.time_per_display = .025f,
+	.amp_per_display = 1.0f,
 
 	.trigger_mode = trig_mode_normal,
 	.trig_slope = 1,
