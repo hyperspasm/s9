@@ -13,11 +13,13 @@ typedef struct oscilloscope oscilloscope_t;
 typedef struct {
 	SDL_Color trace_color;
 	float trace_width;
+	uint8_t persistence;  // 0-255, higher = longer trace persistence
 } oscilloscope_config_t;
 
 static const oscilloscope_config_t default_oscilloscope_config = {
 	.trace_color = S9_GREEN,
 	.trace_width = 2.f,
+	.persistence = 200,
 };
 
 // create oscilloscope

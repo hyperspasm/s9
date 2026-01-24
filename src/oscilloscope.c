@@ -397,7 +397,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 
 	// blend in history blur_buffer for persistence effect
 	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
-	SDL_SetTextureAlphaMod(prv, 200);
+	SDL_SetTextureAlphaMod(prv, osc->config.persistence);
 	SDL_RenderCopy(renderer, prv, NULL, NULL);
 
 	// blit current blur_buffer to screen
