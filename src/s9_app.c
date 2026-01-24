@@ -3,6 +3,7 @@
 #include "fps.h"
 #include "vu.h"
 #include "spectrogram.h"
+#include "oscilloscope.h"
 #include "scratchpad.h"
 
 #include <stdlib.h>
@@ -24,6 +25,7 @@ typedef struct s9_app {
 	fps_t *fps;
 	vu_t *vu;
 	spectrogram_t *sg;
+	oscilloscope_t *osc;
 	scratchpad_t *scratchpad;
 	
 	SDL_AudioDeviceID audio_device_id;
@@ -99,6 +101,7 @@ static void render(SDL_Renderer *renderer) {
 		vu_render(g_app->vu, renderer);
 	}
 	
+#if 0
 	// spectrogram
 	if(g_app->sg) {
 		int margin_x = 60;
@@ -109,7 +112,21 @@ static void render(SDL_Renderer *renderer) {
 			.h = default_viewport.h,
 		};
 		SDL_RenderSetViewport(renderer, &viewport);
-		spectrogram_render(g_app->sg, g_app->renderer);		
+		spectrogram_render(g_app->sg, g_app->renderer);
+	}
+#endif
+	
+	// oscilloscope
+	if(g_app->osc) {
+		int margin_x = 60;
+		SDL_Rect viewport = {
+			.x = default_viewport.x + margin_x,
+			.y = default_viewport.y,
+			.w = default_viewport.w - margin_x,
+			.h = default_viewport.h,
+		};
+		SDL_RenderSetViewport(renderer, &viewport);
+		oscilloscope_render(g_app->osc, g_app->renderer);		
 	}
 	
 #if 0
@@ -127,15 +144,18 @@ static void render(SDL_Renderer *renderer) {
 	}
 #endif
 	
+	SDL_RenderSetViewport(renderer, &default_viewport);
 }
 
-// empty audio callback
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	if(g_app->vu) {
 		vu_enqueue_audio_data(g_app->vu, stream, len);
 	}
 	if(g_app->sg) {
 		spectrogram_enqueue_audio_data(g_app->sg, stream, len);
+	}
+	if(g_app->osc) {
+		oscilloscope_enqueue_audio_data(g_app->osc, stream, len);
 	}
 }
 
@@ -286,6 +306,18 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"Failed to create spectrogram instance");
 	
+	// create oscilloscope instance
+	g_app->osc = oscilloscope_new(NULL);
+	CHECK_ERROR(g_app->osc != NULL,
+				SDL_DestroyRenderer(g_app->renderer);
+				SDL_DestroyWindow(g_app->window);
+				free(g_app);
+				g_app = NULL;
+				TTF_Quit();
+				SDL_Quit();
+				return -1,
+				"Failed to create oscilloscope instance");
+	
 	// check for audio input device
 	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
 	CHECK_ERROR(num_audio_devices > 0,
@@ -355,6 +387,10 @@ int s9_app_create(const s9_app_config_t *config) {
 		spectrogram_prepare_to_stream(g_app->sg, &g_app->stream_config);
 	}
 	
+	if(g_app->osc) {
+		oscilloscope_prepare_to_stream(g_app->osc, &g_app->stream_config);
+	}
+	
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
 	
@@ -381,6 +417,10 @@ void s9_app_destroy(void) {
 	
 	if(g_app->sg) {
 		spectrogram_free(&g_app->sg);
+	}
+	
+	if(g_app->osc) {
+		oscilloscope_free(&g_app->osc);
 	}
 	
 	// close audio device

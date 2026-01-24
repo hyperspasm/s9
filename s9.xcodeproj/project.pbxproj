@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E2E430242CBE14D400200E01 /* resampler.c in Sources */ = {isa = PBXBuildFile; fileRef = E2E430232CBE14D400200E01 /* resampler.c */; };
 		E2EB75D92C4F549D00F4725D /* spectrogram.c in Sources */ = {isa = PBXBuildFile; fileRef = E2EB75D82C4F549D00F4725D /* spectrogram.c */; };
+		E2EB75DD2C57272E00F4725D /* oscilloscope.c in Sources */ = {isa = PBXBuildFile; fileRef = E2EB75DC2C57272E00F4725D /* oscilloscope.c */; };
 		E2FF4F8B2C429D1100308A0E /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F8A2C429D1100308A0E /* main.c */; };
 		E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */ = {isa = PBXBuildFile; fileRef = E2FF4F8C2C429E9900308A0E /* s9_app.c */; };
 		E2FF4F922C42A34D00308A0E /* libSDL2.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2FF4F912C42A34D00308A0E /* libSDL2.dylib */; };
@@ -54,9 +56,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E2E430222CBE14D400200E01 /* resampler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = resampler.h; path = src/resampler.h; sourceTree = "<group>"; };
+		E2E430232CBE14D400200E01 /* resampler.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = resampler.c; path = src/resampler.c; sourceTree = "<group>"; };
 		E2EB75D72C4F549D00F4725D /* spectrogram.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = spectrogram.h; path = src/spectrogram.h; sourceTree = "<group>"; };
 		E2EB75D82C4F549D00F4725D /* spectrogram.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = spectrogram.c; path = src/spectrogram.c; sourceTree = "<group>"; };
 		E2EB75DA2C52ECDD00F4725D /* s9_colors.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = s9_colors.h; path = src/s9_colors.h; sourceTree = "<group>"; };
+		E2EB75DB2C57272E00F4725D /* oscilloscope.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = oscilloscope.h; path = src/oscilloscope.h; sourceTree = "<group>"; };
+		E2EB75DC2C57272E00F4725D /* oscilloscope.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = oscilloscope.c; path = src/oscilloscope.c; sourceTree = "<group>"; };
 		E2FF4F802C429CD000308A0E /* s9 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = s9; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2FF4F8A2C429D1100308A0E /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = main.c; path = src/main.c; sourceTree = "<group>"; };
 		E2FF4F8C2C429E9900308A0E /* s9_app.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = s9_app.c; path = src/s9_app.c; sourceTree = "<group>"; };
@@ -147,6 +153,10 @@
 				E2FF500D2C4D315600308A0E /* fresp_graph.c */,
 				E2EB75D72C4F549D00F4725D /* spectrogram.h */,
 				E2EB75D82C4F549D00F4725D /* spectrogram.c */,
+				E2EB75DB2C57272E00F4725D /* oscilloscope.h */,
+				E2EB75DC2C57272E00F4725D /* oscilloscope.c */,
+				E2E430222CBE14D400200E01 /* resampler.h */,
+				E2E430232CBE14D400200E01 /* resampler.c */,
 				E2FF4FFD2C48C50100308A0E /* test */,
 				E2FF4F812C429CD000308A0E /* Products */,
 				E2FF4F902C42A34D00308A0E /* Frameworks */,
@@ -262,8 +272,10 @@
 				E2FF500E2C4D315600308A0E /* fresp_graph.c in Sources */,
 				E2FF4F8B2C429D1100308A0E /* main.c in Sources */,
 				E2FF500B2C49ADC000308A0E /* s9_dsp.c in Sources */,
+				E2E430242CBE14D400200E01 /* resampler.c in Sources */,
 				E2FF4F8F2C429E9A00308A0E /* s9_app.c in Sources */,
 				E2FF4FDF2C445B0D00308A0E /* scratchpad.c in Sources */,
+				E2EB75DD2C57272E00F4725D /* oscilloscope.c in Sources */,
 				E2FF50082C499D2E00308A0E /* vu.c in Sources */,
 				E2EB75D92C4F549D00F4725D /* spectrogram.c in Sources */,
 				E2FF4FE22C46209E00308A0E /* ring_buffer.c in Sources */,
