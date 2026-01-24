@@ -269,59 +269,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	if(!osc->streaming) return;
 	if(prepare_to_draw(osc, renderer)) return;
 
-	uint32_t n_channels = osc->stream_config.channels;
-	uint32_t bytes_per_frame = osc->stream_config.audio_format.bytes_per_sample * n_channels;
-	uint32_t bytes_avail = ring_buffer_read_avail(osc->rb);
-	uint32_t frames_avail = bytes_avail / bytes_per_frame;
-
-	if(frames_avail == 0) return;
-
-	// read all available frames from ring buffer
-	uint32_t bytes_to_read = frames_avail * bytes_per_frame;
-	uint32_t bytes_read = ring_buffer_read(osc->rb, (uint8_t*)osc->input_buffer, bytes_to_read);
-	uint32_t frames_read = bytes_read / bytes_per_frame;
-
-	// calculate resampling ratio
-	// pixel_rate = pixels / time_per_display
-	// sample_rate = samples / second
-	// ratio = pixel_rate / sample_rate = (pixels / time) / (samples / second)
-	//       = pixels * second / (time * samples)
-	float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
-	float ratio = pixel_rate / osc->stream_config.sample_rate;
-
-	// estimate max pixels we could produce from available frames
-	uint32_t max_pixels = (uint32_t)(frames_read * ratio) + 1;
-
-	// ensure pixel buffer is large enough
-	if(osc->pixel_buffer == NULL || osc->pixel_buffer_size < max_pixels) {
-		free(osc->pixel_buffer);
-		osc->pixel_buffer_size = max_pixels * 2;  // allocate 2x for headroom
-		osc->pixel_buffer = malloc(osc->pixel_buffer_size * sizeof(float));
-		if(!osc->pixel_buffer) return;
-	}
-
-	// set up source context for resampler
-	osc_source_ctx_t source_ctx = {
-		.osc = osc,
-		.src = osc->input_buffer,
-		.frames_remaining = frames_read,
-		.channel = 0,  // TODO: make configurable
-		.n_channels = n_channels,
-	};
-
-	// resample to pixel rate
-	uint32_t pixels_produced = resampler_read(
-		osc->resampler,
-		osc->pixel_buffer,
-		max_pixels,
-		ratio,
-		osc_resampler_source,
-		&source_ctx
-	);
-
-	if(pixels_produced == 0) return;
-
-	// select and toggle blur buffer
+	// select and toggle blur buffer (always, for smooth persistence)
 	SDL_Texture *prv = osc->blur_buffer[osc->blur_buffer_index];
 	osc->blur_buffer_index = osc->blur_buffer_index == 0;
 	SDL_Texture *cur = osc->blur_buffer[osc->blur_buffer_index];
@@ -330,72 +278,123 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	SDL_SetRenderTarget(renderer, cur);
 	draw_sdl_clear_viewport(renderer, NULL);
 
-	// convert holdoff from seconds to pixels
-	uint32_t holdoff_pixels = (uint32_t)(osc->settings.trig_holdoff * pixel_rate);
+	// process any available audio data
+	uint32_t n_channels = osc->stream_config.channels;
+	uint32_t bytes_per_frame = osc->stream_config.audio_format.bytes_per_sample * n_channels;
+	uint32_t bytes_avail = ring_buffer_read_avail(osc->rb);
+	uint32_t frames_avail = bytes_avail / bytes_per_frame;
 
-	// process pixel-rate samples
-	float *src = osc->pixel_buffer;
-	uint32_t pixels_remaining = pixels_produced;
+	if(frames_avail > 0) {
+		// read all available frames from ring buffer
+		uint32_t bytes_to_read = frames_avail * bytes_per_frame;
+		uint32_t bytes_read = ring_buffer_read(osc->rb, (uint8_t*)osc->input_buffer, bytes_to_read);
+		uint32_t frames_read = bytes_read / bytes_per_frame;
 
-	float vertical_factor = osc->frame_rect.h / osc->settings.amp_per_display * -1.f;
-	float vertical_offset = osc->frame_rect.y + osc->frame_rect.h * 0.5f;
+		// calculate resampling ratio
+		float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
+		float ratio = pixel_rate / osc->stream_config.sample_rate;
 
-	while(pixels_remaining > 0) {
-		if(oscilloscope_trigger(osc, &pixels_remaining, &src)) {
-			// we're in sweep mode - determine how many pixels to draw
-			uint32_t pixels_to_draw = osc->frame_rect.w - osc->state.x;
-			if(pixels_to_draw > pixels_remaining) {
-				pixels_to_draw = pixels_remaining;
-			}
+		// estimate max pixels we could produce from available frames
+		uint32_t max_pixels = (uint32_t)(frames_read * ratio) + 1;
 
-			if(pixels_to_draw < 2) {
-				// not enough for a path - consume what we have and advance state
-				src += pixels_to_draw;
-				pixels_remaining -= pixels_to_draw;
-				osc->state.x += pixels_to_draw;
+		// ensure pixel buffer is large enough
+		if(osc->pixel_buffer == NULL || osc->pixel_buffer_size < max_pixels) {
+			free(osc->pixel_buffer);
+			osc->pixel_buffer_size = max_pixels * 2;
+			osc->pixel_buffer = malloc(osc->pixel_buffer_size * sizeof(float));
+		}
 
-				// check if sweep complete
-				if(osc->state.x >= (uint32_t)osc->frame_rect.w) {
-					osc->state.trigger_state = trig_state_wait;
-					osc->state.holdoff_remain = holdoff_pixels;
-					osc->state.x = 0;
+		if(osc->pixel_buffer) {
+			// set up source context for resampler
+			osc_source_ctx_t source_ctx = {
+				.osc = osc,
+				.src = osc->input_buffer,
+				.frames_remaining = frames_read,
+				.channel = 0,
+				.n_channels = n_channels,
+			};
+
+			// resample to pixel rate
+			uint32_t pixels_produced = resampler_read(
+				osc->resampler,
+				osc->pixel_buffer,
+				max_pixels,
+				ratio,
+				osc_resampler_source,
+				&source_ctx
+			);
+
+			if(pixels_produced > 0) {
+				// convert holdoff from seconds to pixels
+				float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
+				uint32_t holdoff_pixels = (uint32_t)(osc->settings.trig_holdoff * pixel_rate);
+
+				// process pixel-rate samples
+				float *src = osc->pixel_buffer;
+				uint32_t pixels_remaining = pixels_produced;
+
+				float vertical_factor = osc->frame_rect.h / osc->settings.amp_per_display * -1.f;
+				float vertical_offset = osc->frame_rect.y + osc->frame_rect.h * 0.5f;
+
+				while(pixels_remaining > 0) {
+					if(oscilloscope_trigger(osc, &pixels_remaining, &src)) {
+						// we're in sweep mode - determine how many pixels to draw
+						uint32_t pixels_to_draw = osc->frame_rect.w - osc->state.x;
+						if(pixels_to_draw > pixels_remaining) {
+							pixels_to_draw = pixels_remaining;
+						}
+
+						if(pixels_to_draw < 2) {
+							// not enough for a path - consume what we have and advance state
+							src += pixels_to_draw;
+							pixels_remaining -= pixels_to_draw;
+							osc->state.x += pixels_to_draw;
+
+							// check if sweep complete
+							if(osc->state.x >= (uint32_t)osc->frame_rect.w) {
+								osc->state.trigger_state = trig_state_wait;
+								osc->state.holdoff_remain = holdoff_pixels;
+								osc->state.x = 0;
+							}
+							continue;
+						}
+
+						// create path points
+						SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * pixels_to_draw);
+						if(!points) break;
+
+						for(uint32_t i = 0; i < pixels_to_draw; i++) {
+							float sample = *src++;
+							pixels_remaining--;
+
+							points[i].x = osc->frame_rect.x + osc->state.x;
+							points[i].y = vertical_offset + sample * vertical_factor;
+
+							osc->state.x++;
+						}
+
+						// render path
+						sdl_path_t *path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width, 1, points, pixels_to_draw);
+						free(points);
+
+						if(path) {
+							sdl_path_render(path, renderer);
+							sdl_path_free(&path);
+						}
+
+						// check if sweep complete
+						if(osc->state.x >= (uint32_t)osc->frame_rect.w) {
+							osc->state.trigger_state = trig_state_wait;
+							osc->state.holdoff_remain = holdoff_pixels;
+							osc->state.x = 0;
+						}
+					}
 				}
-				continue;
-			}
-
-			// create path points
-			SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * pixels_to_draw);
-			if(!points) break;
-
-			for(uint32_t i = 0; i < pixels_to_draw; i++) {
-				float sample = *src++;
-				pixels_remaining--;
-
-				points[i].x = osc->frame_rect.x + osc->state.x;
-				points[i].y = vertical_offset + sample * vertical_factor;
-
-				osc->state.x++;
-			}
-
-			// render path
-			sdl_path_t *path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width, 1, points, pixels_to_draw);
-			free(points);
-
-			if(path) {
-				sdl_path_render(path, renderer);
-				sdl_path_free(&path);
-			}
-
-			// check if sweep complete
-			if(osc->state.x >= (uint32_t)osc->frame_rect.w) {
-				osc->state.trigger_state = trig_state_wait;
-				osc->state.holdoff_remain = holdoff_pixels;
-				osc->state.x = 0;
 			}
 		}
 	}
 
-	// blend in history blur_buffer for persistence effect
+	// blend in history blur_buffer for persistence effect (always, even if no new data)
 	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
 	SDL_SetTextureAlphaMod(prv, osc->config.persistence);
 	SDL_RenderCopy(renderer, prv, NULL, NULL);
