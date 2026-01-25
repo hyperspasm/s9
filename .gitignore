@@ -9,5 +9,4 @@
 obj/
 test_obj/
 
-s9
-s9_test
+build/
