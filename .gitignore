@@ -5,8 +5,4 @@
 **/xcuserdata/
 **/xcshareddata/
 
-# Linux
-obj/
-test_obj/
-
 build/
