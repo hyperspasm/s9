@@ -6,12 +6,12 @@
 
 **macOS:**
 ```bash
-brew install sdl2 sdl2_ttf fftw cunit
+brew install sdl2 sdl2_ttf fftw
 ```
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt install libsdl2-dev libsdl2-ttf-dev libfftw3-dev libcunit1-dev
+sudo apt install libsdl2-dev libsdl2-ttf-dev libfftw3-dev
 ```
 
 ### Compile
