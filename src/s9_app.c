@@ -15,6 +15,22 @@
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_audio.h>
 
+typedef struct s9_layout {
+	uint32_t margin_left, margin_top, margin_right, margin_bottom;
+	uint32_t fixed_width;   // >0 ignores margin_right; 0 fills remaining
+	uint32_t fixed_height;  // >0 ignores margin_bottom; 0 fills remaining
+} s9_layout_t;
+
+typedef struct s9_component {
+	void *instance;
+	s9_layout_t layout;
+
+	void (*destroy)(void **instance);
+	void (*render)(void *instance, SDL_Renderer *renderer);
+	void (*enqueue_audio)(void *instance, uint8_t *stream, int len);
+	void (*prepare_to_stream)(void *instance, const s9_audio_stream_config_t *config);
+} s9_component_t;
+
 typedef struct s9_app {
 	s9_app_config_t config;
 	SDL_Window *window;
