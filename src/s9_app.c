@@ -101,7 +101,7 @@ static void render(SDL_Renderer *renderer) {
 		vu_render(g_app->vu, renderer);
 	}
 	
-#if 0
+#if 1
 	// spectrogram
 	if(g_app->sg) {
 		int margin_x = 60;
@@ -114,7 +114,8 @@ static void render(SDL_Renderer *renderer) {
 		SDL_RenderSetViewport(renderer, &viewport);
 		spectrogram_render(g_app->sg, g_app->renderer);
 	}
-#endif
+
+#else
 	
 	// oscilloscope
 	if(g_app->osc) {
@@ -128,6 +129,7 @@ static void render(SDL_Renderer *renderer) {
 		SDL_RenderSetViewport(renderer, &viewport);
 		oscilloscope_render(g_app->osc, g_app->renderer);		
 	}
+#endif
 	
 #if 0
 	// scratchpad
