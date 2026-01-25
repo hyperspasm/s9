@@ -15,23 +15,46 @@
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_audio.h>
 
+typedef struct s9_layout {
+	uint32_t margin_left, margin_top, margin_right, margin_bottom;
+	uint32_t fixed_width;   // >0 ignores margin_right; 0 fills remaining
+	uint32_t fixed_height;  // >0 ignores margin_bottom; 0 fills remaining
+} s9_layout_t;
+
+typedef struct s9_component {
+	void *instance;
+	s9_layout_t layout;
+
+	void (*destroy)(void **instance);
+	void (*render)(void *instance, SDL_Renderer *renderer);
+	void (*enqueue_audio)(void *instance, uint8_t *stream, int len);
+	void (*prepare_to_stream)(void *instance, const s9_audio_stream_config_t *config);
+} s9_component_t;
+
+static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *parent) {
+	SDL_Rect vp;
+	vp.x = parent->x + layout->margin_left;
+	vp.y = parent->y + layout->margin_top;
+	vp.w = layout->fixed_width  ? layout->fixed_width  : parent->w - layout->margin_left - layout->margin_right;
+	vp.h = layout->fixed_height ? layout->fixed_height : parent->h - layout->margin_top - layout->margin_bottom;
+	return vp;
+}
+
+#define S9_MAX_COMPONENTS 256
+
 typedef struct s9_app {
 	s9_app_config_t config;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_RendererInfo renderer_info;
 	SDL_DisplayMode display_mode;
-	
-	fps_t *fps;
-	vu_t *vu;
-	spectrogram_t *sg;
-	oscilloscope_t *osc;
-	scratchpad_t *scratchpad;
-	
+
+	s9_component_t components[S9_MAX_COMPONENTS]; // NULL-terminated (instance == NULL)
+
 	SDL_AudioDeviceID audio_device_id;
 	SDL_AudioSpec audio_spec;
 	s9_audio_stream_config_t stream_config;
-	
+
 	int ret;
 } s9_app_t;
 
@@ -71,93 +94,25 @@ static TTF_Font* load_font(int point_size) {
 }
 
 static void render(SDL_Renderer *renderer) {
-	SDL_Rect default_viewport;		
+	SDL_Rect default_viewport;
 	SDL_RenderGetViewport(renderer, &default_viewport);
-	
-	
-	// fps
-	if(g_app->fps) {
-		int margin = 10;
-		SDL_Rect viewport = {
-			.x = default_viewport.x + margin,
-			.y = default_viewport.y + margin,
-			.w = default_viewport.w - margin,
-			.h = default_viewport.h - margin,
-		};
-		SDL_RenderSetViewport(renderer, &viewport);		
-		fps_render(g_app->fps, renderer);
-	}
-	
-	// vu
-	if(g_app->vu) {
-		int margin_x = 10;
-		SDL_Rect viewport = {
-			.x = default_viewport.x + margin_x,
-			.y = default_viewport.y + 40,
-			.w = 50,
-			.h = default_viewport.h - 50,
-		};		
-		SDL_RenderSetViewport(renderer, &viewport);		
-		vu_render(g_app->vu, renderer);
-	}
-	
-#if 1
-	// spectrogram
-	if(g_app->sg) {
-		int margin_x = 60;
-		SDL_Rect viewport = {
-			.x = default_viewport.x + margin_x,
-			.y = default_viewport.y,
-			.w = default_viewport.w - margin_x,
-			.h = default_viewport.h,
-		};
-		SDL_RenderSetViewport(renderer, &viewport);
-		spectrogram_render(g_app->sg, g_app->renderer);
+
+	for (s9_component_t *c = g_app->components; c->instance; c++) {
+		if (c->render) {
+			SDL_Rect viewport = compute_viewport(&c->layout, &default_viewport);
+			SDL_RenderSetViewport(renderer, &viewport);
+			c->render(c->instance, renderer);
+		}
 	}
 
-#else
-	
-	// oscilloscope
-	if(g_app->osc) {
-		int margin_x = 60;
-		SDL_Rect viewport = {
-			.x = default_viewport.x + margin_x,
-			.y = default_viewport.y,
-			.w = default_viewport.w - margin_x,
-			.h = default_viewport.h,
-		};
-		SDL_RenderSetViewport(renderer, &viewport);
-		oscilloscope_render(g_app->osc, g_app->renderer);		
-	}
-#endif
-	
-#if 0
-	// scratchpad
-	if(g_app->scratchpad) {
-		int margin_x = 60;
-		SDL_Rect viewport = {
-			.x = default_viewport.x + margin_x,
-			.y = default_viewport.y,
-			.w = default_viewport.w - margin_x,
-			.h = default_viewport.h,
-		};
-		SDL_RenderSetViewport(renderer, &viewport);
-		scratchpad_render(g_app->scratchpad, g_app->renderer);		
-	}
-#endif
-	
 	SDL_RenderSetViewport(renderer, &default_viewport);
 }
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
-	if(g_app->vu) {
-		vu_enqueue_audio_data(g_app->vu, stream, len);
-	}
-	if(g_app->sg) {
-		spectrogram_enqueue_audio_data(g_app->sg, stream, len);
-	}
-	if(g_app->osc) {
-		oscilloscope_enqueue_audio_data(g_app->osc, stream, len);
+	for (s9_component_t *c = g_app->components; c->instance; c++) {
+		if (c->enqueue_audio) {
+			c->enqueue_audio(c->instance, stream, len);
+		}
 	}
 }
 
@@ -260,21 +215,12 @@ int s9_app_create(const s9_app_config_t *config) {
 	// enable blending mode for anti-aliasing
 	SDL_SetRenderDrawBlendMode(g_app->renderer, SDL_BLENDMODE_BLEND);
 	
-	// create scratchpad instance
-	g_app->scratchpad = scratchpad_new(load_font);
-	CHECK_ERROR(g_app->scratchpad != NULL,
-				SDL_DestroyRenderer(g_app->renderer);
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
-				return -1,
-				"Failed to create scratchpad instance");
-	
-	// create fps instance
-	g_app->fps = fps_new(g_app->renderer, load_font, (SDL_Color){255, 255, 255, 255}, 1000);
-	CHECK_ERROR(g_app->fps != NULL,
+	// create components
+	s9_component_t *component = g_app->components;
+
+	// fps
+	fps_t *fps = fps_new(g_app->renderer, load_font, (SDL_Color){255, 255, 255, 255}, 1000);
+	CHECK_ERROR(fps != NULL,
 				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -283,43 +229,110 @@ int s9_app_create(const s9_app_config_t *config) {
 				SDL_Quit();
 				return -1,
 				"Failed to create fps instance");
-	
-	// create vu instance
-	g_app->vu = vu_new(NULL);
-	CHECK_ERROR(g_app->vu != NULL,
-				SDL_DestroyRenderer(g_app->renderer);
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
+	*component++ = (s9_component_t){
+		.instance = fps,
+		.layout = {
+			.margin_left = 10,
+			.margin_top = 10,
+			.margin_right = 0,
+			.margin_bottom = 0,
+			.fixed_width = 50,
+			.fixed_height = 40,
+		},
+		.destroy = (void (*)(void **))fps_free,
+		.render = (void (*)(void *, SDL_Renderer *))fps_render,
+	};
+
+	// vu
+	vu_t *vu = vu_new(NULL);
+	CHECK_ERROR(vu != NULL,
+				s9_app_destroy();
 				return -1,
 				"Failed to create vu instance");
-	
-	// create spectrogram instance
-	g_app->sg = spectrogram_new(NULL, load_font);
-	CHECK_ERROR(g_app->sg != NULL,
-				SDL_DestroyRenderer(g_app->renderer);
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
+	*component++ = (s9_component_t){
+		.instance = vu,
+		.layout = {
+			.margin_left = 10,
+			.margin_top = 40,
+			.margin_right = 0,
+			.margin_bottom = 10,
+			.fixed_width = 50,
+			.fixed_height = 0,
+		},
+		.destroy = (void (*)(void **))vu_free,
+		.render = (void (*)(void *, SDL_Renderer *))vu_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))vu_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))vu_prepare_to_stream,
+	};
+
+	// spectrogram
+	spectrogram_t *sg = spectrogram_new(NULL, load_font);
+	CHECK_ERROR(sg != NULL,
+				s9_app_destroy();
 				return -1,
 				"Failed to create spectrogram instance");
-	
-	// create oscilloscope instance
-	g_app->osc = oscilloscope_new(NULL);
-	CHECK_ERROR(g_app->osc != NULL,
-				SDL_DestroyRenderer(g_app->renderer);
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
+	*component++ = (s9_component_t){
+		.instance = sg,
+		.layout = {
+			.margin_left = 60,
+			.margin_top = 0,
+			.margin_right = 0,
+			.margin_bottom = 0,
+			.fixed_width = 0,
+			.fixed_height = 0,
+		},
+		.destroy = (void (*)(void **))spectrogram_free,
+		.render = (void (*)(void *, SDL_Renderer *))spectrogram_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrogram_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
+	};
+
+#if 0
+	// oscilloscope
+	oscilloscope_t *osc = oscilloscope_new(NULL);
+	CHECK_ERROR(osc != NULL,
+				s9_app_destroy();
 				return -1,
 				"Failed to create oscilloscope instance");
-	
+	*component++ = (s9_component_t){
+		.instance = osc,
+		.layout = {
+			.margin_left = 60,
+			.margin_top = 0,
+			.margin_right = 0,
+			.margin_bottom = 0,
+			.fixed_width = 0,
+			.fixed_height = 0,
+		},
+		.destroy = (void (*)(void **))oscilloscope_free,
+		.render = (void (*)(void *, SDL_Renderer *))oscilloscope_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))oscilloscope_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))oscilloscope_prepare_to_stream,
+	};
+#endif
+
+#if 0
+	// scratchpad
+	scratchpad_t *scratchpad = scratchpad_new(load_font);
+	CHECK_ERROR(scratchpad != NULL,
+				s9_app_destroy();
+				return -1,
+				"Failed to create scratchpad instance");
+	*component++ = (s9_component_t){
+		.instance = scratchpad,
+		.layout = {
+			.margin_left = 60,
+			.margin_top = 0,
+			.margin_right = 0,
+			.margin_bottom = 0,
+			.fixed_width = 0,
+			.fixed_height = 0,
+		},
+		.destroy = (void (*)(void **))scratchpad_free,
+		.render = (void (*)(void *, SDL_Renderer *))scratchpad_render,
+	};
+#endif
+
 	// check for audio input device
 	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
 	CHECK_ERROR(num_audio_devices > 0,
@@ -381,16 +394,10 @@ int s9_app_create(const s9_app_config_t *config) {
 	};
 	
 	// prepare to stream
-	if(g_app->vu) {
-		vu_prepare_to_stream(g_app->vu, &g_app->stream_config);
-	}
-	
-	if(g_app->sg) {
-		spectrogram_prepare_to_stream(g_app->sg, &g_app->stream_config);
-	}
-	
-	if(g_app->osc) {
-		oscilloscope_prepare_to_stream(g_app->osc, &g_app->stream_config);
+	for (s9_component_t *c = g_app->components; c->instance; c++) {
+		if (c->prepare_to_stream) {
+			c->prepare_to_stream(c->instance, &g_app->stream_config);
+		}
 	}
 	
 	// start streaming audio
@@ -401,30 +408,14 @@ int s9_app_create(const s9_app_config_t *config) {
 
 void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
-	
-	// destroy scratchpad instance
-	if (g_app->scratchpad) {
-		scratchpad_free(&g_app->scratchpad);
+
+	// destroy components
+	for (s9_component_t *c = g_app->components; c->instance; c++) {
+		if (c->destroy) {
+			c->destroy(&c->instance);
+		}
 	}
-	
-	// destroy fps instance
-	if (g_app->fps) {
-		fps_free(&g_app->fps);
-	}
-	
-	// destroy vu instance
-	if (g_app->vu) {
-		vu_free(&g_app->vu);
-	}
-	
-	if(g_app->sg) {
-		spectrogram_free(&g_app->sg);
-	}
-	
-	if(g_app->osc) {
-		oscilloscope_free(&g_app->osc);
-	}
-	
+
 	// close audio device
 	if (g_app->audio_device_id > 0) {
 		SDL_PauseAudioDevice(g_app->audio_device_id, SDL_TRUE);
