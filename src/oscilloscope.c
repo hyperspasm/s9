@@ -30,11 +30,11 @@ typedef struct {
 
 static const oscilloscope_settings_t default_settings = {
 	.time_per_display = .025f,
-	.amp_per_display = 1.0f,
+	.amp_per_display = 2.0f,
 
 	.trigger_mode = trig_mode_normal,
 	.trig_slope = 1,
-	.trig_thresh = 0.01f,
+	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001, // 10uS
 };
 
