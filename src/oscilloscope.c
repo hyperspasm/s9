@@ -11,6 +11,7 @@
 #include "ring_buffer.h"
 #include "draw_sdl.h"
 #include "resampler.h"
+#include "graticule.h"
 
 typedef enum {
 	trig_mode_normal,
@@ -56,6 +57,7 @@ typedef struct oscilloscope {
 	SDL_Rect viewport;
 	SDL_Rect frame_rect;
 	oscilloscope_config_t config;
+	graticule_t *graticule;
 
 	int streaming;
 	s9_audio_stream_config_t stream_config;
@@ -147,6 +149,10 @@ oscilloscope_t *oscilloscope_new(const oscilloscope_config_t *config) {
 	osc->resampler = resampler_new(NULL);
 	CHECK_ALLOC(osc->resampler, free(osc); return NULL);
 
+	// create graticule with default config
+	osc->graticule = graticule_new(NULL);
+	CHECK_ALLOC(osc->graticule, resampler_free(&osc->resampler); free(osc); return NULL);
+
 	return osc;
 }
 
@@ -155,6 +161,7 @@ void oscilloscope_free(oscilloscope_t **osc) {
 		free_render_allocations(*osc);
 		free_dsp_allocations(*osc);
 		resampler_free(&(*osc)->resampler);
+		graticule_free(&(*osc)->graticule);
 		free(*osc);
 		*osc = NULL;
 	}
@@ -274,8 +281,9 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	osc->blur_buffer_index = osc->blur_buffer_index == 0;
 	SDL_Texture *cur = osc->blur_buffer[osc->blur_buffer_index];
 
-	// draw to current blur_buffer
+	// draw to current blur_buffer with clipping to frame_rect
 	SDL_SetRenderTarget(renderer, cur);
+	SDL_RenderSetClipRect(renderer, &osc->frame_rect);
 	draw_sdl_clear_viewport(renderer, NULL);
 
 	// process any available audio data
@@ -394,6 +402,9 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		}
 	}
 
+	// clear clip rect before blending
+	SDL_RenderSetClipRect(renderer, NULL);
+
 	// blend in history blur_buffer for persistence effect (always, even if no new data)
 	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
 	SDL_SetTextureAlphaMod(prv, osc->config.persistence);
@@ -403,6 +414,9 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	SDL_SetRenderTarget(renderer, NULL);
 	SDL_SetTextureBlendMode(cur, SDL_BLENDMODE_NONE);
 	SDL_RenderCopy(renderer, cur, NULL, NULL);
+
+	// render graticule on top
+	graticule_render(osc->graticule, renderer, &osc->frame_rect);
 }
 
 
