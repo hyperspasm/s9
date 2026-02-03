@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug s9",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/s9",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build"
+        },
+        {
+            "name": "Debug Tests",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/test/test_ring_buffer",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build"
+        }
+    ]
+}
