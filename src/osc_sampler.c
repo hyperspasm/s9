@@ -105,18 +105,12 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	sampler->settings = default_settings;
 
 	sampler->input_buf = malloc(buffer_size * sizeof(float));
-	CHECK_ALLOC(sampler->input_buf,
-		free(sampler);
-		return NULL);
+	CHECK_ALLOC(sampler->input_buf, osc_sampler_free(&sampler); return NULL);
 	sampler->input_buf_size = buffer_size;
-	sampler->write_ix = 0;
-	sampler->read_ix = 0;
 
 	sampler->mutex = SDL_CreateMutex();
 	CHECK_ERROR(sampler->mutex != NULL,
-		free(sampler->input_buf);
-		free(sampler);
-		return NULL,
+		osc_sampler_free(&sampler); return NULL,
 		"failed to create mutex");
 
 	// resampler configuration (hardcoded for now)
@@ -127,16 +121,13 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 
 	// allocate resampler tables
 	sampler->sinc = malloc(sampler->n_sinc * sizeof(float));
+	CHECK_ALLOC(sampler->sinc, osc_sampler_free(&sampler); return NULL);
+
 	sampler->sinc_delta = malloc(sampler->n_sinc * sizeof(float));
+	CHECK_ALLOC(sampler->sinc_delta, osc_sampler_free(&sampler); return NULL);
+
 	sampler->window = malloc(sampler->N * sizeof(float));
-	CHECK_ALLOC(sampler->sinc && sampler->sinc_delta && sampler->window,
-		free(sampler->sinc);
-		free(sampler->sinc_delta);
-		free(sampler->window);
-		SDL_DestroyMutex(sampler->mutex);
-		free(sampler->input_buf);
-		free(sampler);
-		return NULL);
+	CHECK_ALLOC(sampler->window, osc_sampler_free(&sampler); return NULL);
 
 	init_sinc_table(sampler);
 
@@ -150,13 +141,11 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 
 void osc_sampler_free(osc_sampler_t **sampler) {
 	if (sampler && *sampler) {
-		free((*sampler)->sinc);
-		free((*sampler)->sinc_delta);
-		free((*sampler)->window);
-		if ((*sampler)->mutex) {
-			SDL_DestroyMutex((*sampler)->mutex);
-		}
-		free((*sampler)->input_buf);
+		if ((*sampler)->sinc) free((*sampler)->sinc);
+		if ((*sampler)->sinc_delta) free((*sampler)->sinc_delta);
+		if ((*sampler)->window) free((*sampler)->window);
+		if ((*sampler)->mutex) SDL_DestroyMutex((*sampler)->mutex);
+		if ((*sampler)->input_buf) free((*sampler)->input_buf);
 		free(*sampler);
 		*sampler = NULL;
 	}
