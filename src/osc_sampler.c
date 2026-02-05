@@ -1,10 +1,16 @@
 #include "osc_sampler.h"
 #include "s9.h"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <SDL2/SDL_mutex.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 static const osc_sampler_settings_t default_settings = {
 	.trigger_mode = osc_trig_mode_normal,
@@ -43,6 +49,52 @@ struct osc_sampler {
 	float ratio;        // cached ratio
 	float cutoff;       // anti-alias cutoff (0 < cutoff <= 1)
 };
+
+// Blackman window - excellent sidelobe suppression (~58 dB)
+static float blackman(uint32_t n, uint32_t N) {
+	return 0.42f
+	     - 0.5f  * cosf(2.0f * (float)M_PI * n / (N - 1))
+	     + 0.08f * cosf(4.0f * (float)M_PI * n / (N - 1));
+}
+
+static void init_sinc_table(osc_sampler_t *s) {
+	uint32_t n_sinc = s->n_sinc;
+
+	// build oversampled sinc table
+	for (uint32_t i = 0; i < n_sinc; i++) {
+		float t = (float)i / (float)s->k - (float)((s->N >> 1) + 1);
+
+		if (t == 0.0f) {
+			s->sinc[i] = 1.0f;
+		} else {
+			s->sinc[i] = sinf(t * (float)M_PI) / (t * (float)M_PI);
+		}
+	}
+
+	// pre-compute forward sinc deltas for linear interpolation
+	for (uint32_t i = 0; i < n_sinc - 1; i++) {
+		s->sinc_delta[i] = s->sinc[i + 1] - s->sinc[i];
+	}
+	s->sinc_delta[n_sinc - 1] = 0.0f;
+
+	// build per-tap window weights with Blackman window
+	for (uint32_t j = 0; j < s->N; j++) {
+		s->window[j] = blackman(j, s->N);
+	}
+
+	// normalize window weights for unity DC gain at fc=1.0, offset=0
+	float sum = 0.0f;
+	uint32_t idx = s->k;
+	for (uint32_t j = 0; j < s->N; j++, idx += s->k) {
+		sum += s->sinc[idx] * s->window[j];
+	}
+	if (sum != 0.0f) {
+		float scale = 1.0f / sum;
+		for (uint32_t j = 0; j < s->N; j++) {
+			s->window[j] *= scale;
+		}
+	}
+}
 
 osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	osc_sampler_t *sampler = malloc(sizeof(osc_sampler_t));
@@ -86,7 +138,7 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 		free(sampler);
 		return NULL);
 
-	// TODO: initialize sinc table and window
+	init_sinc_table(sampler);
 
 	// initialize resampler state
 	sampler->position = 0.0f;
