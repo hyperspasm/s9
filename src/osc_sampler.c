@@ -17,14 +17,14 @@ struct osc_sampler {
 	uint32_t sample_rate;
 	osc_sampler_settings_t settings;
 
-	// circular buffer
-	// head == tail means empty, (head+1) % size == tail means full
+	// input buffer (circular)
+	// write_ix == read_ix means empty, (write_ix+1) % size == read_ix means full
 	// one slot is always kept empty to distinguish full from empty
-	// usable capacity is buffer_size - 1
-	float *buffer;
-	uint32_t buffer_size;
-	uint32_t head;  // next write position (advanced by audio thread)
-	uint32_t tail;  // next read position (advanced by render thread)
+	// usable capacity is input_buf_size - 1
+	float *input_buf;
+	uint32_t input_buf_size;
+	uint32_t write_ix;  // next write position (advanced by audio thread)
+	uint32_t read_ix;   // next read position (advanced by render thread)
 	SDL_mutex *mutex;
 };
 
@@ -36,17 +36,17 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	sampler->sample_rate = sample_rate;
 	sampler->settings = default_settings;
 
-	sampler->buffer = malloc(buffer_size * sizeof(float));
-	CHECK_ALLOC(sampler->buffer,
+	sampler->input_buf = malloc(buffer_size * sizeof(float));
+	CHECK_ALLOC(sampler->input_buf,
 		free(sampler);
 		return NULL);
-	sampler->buffer_size = buffer_size;
-	sampler->head = 0;
-	sampler->tail = 0;
+	sampler->input_buf_size = buffer_size;
+	sampler->write_ix = 0;
+	sampler->read_ix = 0;
 
 	sampler->mutex = SDL_CreateMutex();
 	CHECK_ERROR(sampler->mutex != NULL,
-		free(sampler->buffer);
+		free(sampler->input_buf);
 		free(sampler);
 		return NULL,
 		"failed to create mutex");
@@ -59,7 +59,7 @@ void osc_sampler_free(osc_sampler_t **sampler) {
 		if ((*sampler)->mutex) {
 			SDL_DestroyMutex((*sampler)->mutex);
 		}
-		free((*sampler)->buffer);
+		free((*sampler)->input_buf);
 		free(*sampler);
 		*sampler = NULL;
 	}
@@ -76,14 +76,14 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 	SDL_LockMutex(sampler->mutex);
 
 	// calculate available write space
-	// usable capacity is buffer_size - 1 (one slot kept empty)
-	// used = (head - tail + buffer_size) % buffer_size
-	// avail = (buffer_size - 1) - used
+	// usable capacity is input_buf_size - 1 (one slot kept empty)
+	// used = (write_ix - read_ix + input_buf_size) % input_buf_size
+	// avail = (input_buf_size - 1) - used
 	uint32_t avail;
-	if (sampler->head >= sampler->tail) {
-		avail = sampler->buffer_size - 1 - (sampler->head - sampler->tail);
+	if (sampler->write_ix >= sampler->read_ix) {
+		avail = sampler->input_buf_size - 1 - (sampler->write_ix - sampler->read_ix);
 	} else {
-		avail = sampler->tail - sampler->head - 1;
+		avail = sampler->read_ix - sampler->write_ix - 1;
 	}
 
 	uint32_t to_write = frames;
@@ -92,10 +92,10 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 		to_write = avail;
 	}
 
-	// extract channel 0 from interleaved input and write to circular buffer
+	// extract channel 0 from interleaved input and write to input buffer
 	for (uint32_t i = 0; i < to_write; i++) {
-		sampler->buffer[sampler->head] = samples[i * n_channels];
-		sampler->head = (sampler->head + 1) % sampler->buffer_size;
+		sampler->input_buf[sampler->write_ix] = samples[i * n_channels];
+		sampler->write_ix = (sampler->write_ix + 1) % sampler->input_buf_size;
 	}
 
 	SDL_UnlockMutex(sampler->mutex);
