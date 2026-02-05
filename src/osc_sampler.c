@@ -96,6 +96,116 @@ static void init_sinc_table(osc_sampler_t *s) {
 	}
 }
 
+// lookup sinc value at fractional table index with linear interpolation
+static inline float sinc_lookup(const osc_sampler_t *s, float x) {
+	uint32_t n_sinc = s->n_sinc;
+
+	// clamp x to valid range
+	if (x < 0.0f) x = 0.0f;
+	if (x > (float)(n_sinc - 1)) x = (float)(n_sinc - 1);
+
+	// clamp integer index so i+1 is safe
+	uint32_t i = (uint32_t)x;
+	if (i >= n_sinc - 1) i = n_sinc - 2;
+
+	float frac = x - (float)i;
+
+	// linear interpolation using pre-computed deltas
+	return s->sinc[i] + frac * s->sinc_delta[i];
+}
+
+// compute interpolated output sample at fractional offset with anti-aliasing
+// base_ix is the starting index in input_buf for the N-sample convolution window
+static float sinc_interpolate(osc_sampler_t *s, uint32_t base_ix, float offset) {
+	float fc = s->cutoff;
+	float center_f = (float)s->center;
+
+	// scale offset by oversampling factor
+	float off_k = offset * (float)s->k;
+
+	// compute fractional part for phase interpolation
+	float kf = off_k - floorf(off_k);
+
+	// compute initial kernel integer index
+	uint32_t ki = s->k - (uint32_t)(off_k - kf);
+
+	// perform convolution over input buffer with anti-aliasing
+	float accum = 0.0f;
+	float coeff_sum = 0.0f;
+	uint32_t idx = ki;
+
+	for (uint32_t tap = 0; tap < s->N; tap++, idx += s->k) {
+		uint32_t buf_ix = (base_ix + tap) % s->input_buf_size;
+
+		float base = (float)idx - kf;
+		float scaled = center_f + (base - center_f) * fc;
+		float sinc_val = sinc_lookup(s, scaled);
+		float coeff = fc * sinc_val * s->window[tap];
+
+		accum += s->input_buf[buf_ix] * coeff;
+		coeff_sum += coeff;
+	}
+
+	// normalize for unity gain
+	if (coeff_sum != 0.0f) {
+		accum /= coeff_sum;
+	}
+
+	return accum;
+}
+
+// get number of samples available for reading (must hold mutex)
+static inline uint32_t samples_available(const osc_sampler_t *s) {
+	if (s->write_ix >= s->read_ix) {
+		return s->write_ix - s->read_ix;
+	} else {
+		return s->input_buf_size - s->read_ix + s->write_ix;
+	}
+}
+
+// resample from input buffer to output buffer
+// returns number of output samples written
+static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, float ratio) {
+	if (ratio <= 0.0f) return 0;
+
+	// update ratio and cutoff if changed
+	if (s->ratio != ratio) {
+		s->ratio = ratio;
+		// anti-alias cutoff: when downsampling (ratio < 1), reduce bandwidth
+		s->cutoff = (ratio < 1.0f) ? ratio : 1.0f;
+	}
+
+	// increment is how much we advance through input per output sample
+	float increment = 1.0f / ratio;
+
+	// minimum samples needed: N for convolution
+	uint32_t min_samples = s->N;
+
+	uint32_t written = 0;
+
+	while (written < count) {
+		// check if we have enough samples
+		uint32_t avail = samples_available(s);
+		if (avail < min_samples) {
+			break;  // not enough data
+		}
+
+		// compute interpolated output sample
+		out[written++] = sinc_interpolate(s, s->read_ix, s->position);
+
+		// advance position
+		s->position += increment;
+
+		// consume input samples as needed
+		while (s->position >= 1.0f) {
+			s->position -= 1.0f;
+			s->read_ix = (s->read_ix + 1) % s->input_buf_size;
+		}
+	}
+
+	return written;
+}
+
 osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	osc_sampler_t *sampler = malloc(sizeof(osc_sampler_t));
 	CHECK_ALLOC(sampler, return NULL);
