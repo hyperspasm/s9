@@ -41,18 +41,18 @@
  *
  * THREAD MODEL
  * ------------
- * - osc_sampler_enqueue(): Called from audio thread, writes to ring buffer
- * - osc_sampler_read_pixels(): Called from render thread, reads from ring buffer
+ * - osc_sampler_enqueue(): Called from audio thread, writes to input buffer
+ * - osc_sampler_read_pixels(): Called from render thread, reads from input buffer
  * - osc_sampler_sweep_complete(): Called from render thread
  * - osc_sampler_set_settings(): Called from render thread (or at init)
- * Ring buffer provides thread-safe handoff between audio and render threads.
+ * Input buffer provides thread-safe handoff between audio and render threads.
  *
  * DATA FLOW
  * ---------
  *   Audio callback
  *         |
  *         v
- *   osc_sampler_enqueue() --> [Ring Buffer] --> osc_sampler_read_pixels()
+ *   osc_sampler_enqueue() --> [Input Buffer] --> osc_sampler_read_pixels()
  *                                                      |
  *                                                      v
  *                                               [Resampler at 10x]
