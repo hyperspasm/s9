@@ -116,7 +116,7 @@ typedef struct {
 typedef struct osc_sampler osc_sampler_t;
 
 // Create/destroy
-osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels, uint32_t buffer_size);
+osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size);
 void osc_sampler_free(osc_sampler_t **sampler);
 
 // Configuration
@@ -124,7 +124,7 @@ void osc_sampler_set_settings(osc_sampler_t *sampler, const osc_sampler_settings
 
 // Audio thread: enqueue raw interleaved samples
 // Returns number of frames actually enqueued
-uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint32_t frames);
+uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint32_t frames, uint32_t n_channels);
 
 // Render thread: read resampled, triggered pixel data
 // Returns number of pixels written (may be less than max_pixels if data unavailable)

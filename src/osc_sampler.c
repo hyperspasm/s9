@@ -13,7 +13,6 @@ static const osc_sampler_settings_t default_settings = {
 
 struct osc_sampler {
 	uint32_t sample_rate;
-	uint32_t n_channels;
 	osc_sampler_settings_t settings;
 
 	// circular buffer (mono samples extracted from channel 0)
@@ -21,13 +20,12 @@ struct osc_sampler {
 	uint32_t buffer_size;
 };
 
-osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels, uint32_t buffer_size) {
+osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	osc_sampler_t *sampler = malloc(sizeof(osc_sampler_t));
 	CHECK_ALLOC(sampler, return NULL);
 	memset(sampler, 0, sizeof(*sampler));
 
 	sampler->sample_rate = sample_rate;
-	sampler->n_channels = n_channels;
 	sampler->settings = default_settings;
 
 	sampler->buffer = malloc(buffer_size * sizeof(float));
@@ -52,9 +50,10 @@ void osc_sampler_set_settings(osc_sampler_t *sampler, const osc_sampler_settings
 	sampler->settings = *settings;
 }
 
-uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint32_t frames) {
+uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint32_t frames, uint32_t n_channels) {
 	if (!sampler || !samples) return 0;
-	// TODO: implement circular buffer write
+	// TODO: implement circular buffer write, extracting channel 0 from interleaved input
+	(void)n_channels;  // suppress unused warning until implemented
 	return 0;
 }
 
