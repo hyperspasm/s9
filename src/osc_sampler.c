@@ -104,15 +104,6 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	sampler->sample_rate = sample_rate;
 	sampler->settings = default_settings;
 
-	sampler->input_buf = malloc(buffer_size * sizeof(float));
-	CHECK_ALLOC(sampler->input_buf, osc_sampler_free(&sampler); return NULL);
-	sampler->input_buf_size = buffer_size;
-
-	sampler->mutex = SDL_CreateMutex();
-	CHECK_ERROR(sampler->mutex != NULL,
-		osc_sampler_free(&sampler); return NULL,
-		"failed to create mutex");
-
 	// resampler configuration (hardcoded for now)
 	sampler->N = 17;
 	sampler->k = 64;
@@ -135,6 +126,21 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	sampler->position = 0.0f;
 	sampler->ratio = 0.0f;
 	sampler->cutoff = 1.0f;
+
+	// input buffer needs at least N samples for convolution + 1 for empty slot
+	uint32_t min_buffer_size = sampler->N + 1;
+	CHECK_ERROR(buffer_size >= min_buffer_size,
+		osc_sampler_free(&sampler); return NULL,
+		"buffer_size %u too small, need at least %u", buffer_size, min_buffer_size);
+
+	sampler->input_buf = malloc(buffer_size * sizeof(float));
+	CHECK_ALLOC(sampler->input_buf, osc_sampler_free(&sampler); return NULL);
+	sampler->input_buf_size = buffer_size;
+
+	sampler->mutex = SDL_CreateMutex();
+	CHECK_ERROR(sampler->mutex != NULL,
+		osc_sampler_free(&sampler); return NULL,
+		"failed to create mutex");
 
 	return sampler;
 }
