@@ -15,9 +15,13 @@ struct osc_sampler {
 	uint32_t sample_rate;
 	uint32_t n_channels;
 	osc_sampler_settings_t settings;
+
+	// circular buffer (mono samples extracted from channel 0)
+	float *buffer;
+	uint32_t buffer_size;
 };
 
-osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels) {
+osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels, uint32_t buffer_size) {
 	osc_sampler_t *sampler = malloc(sizeof(osc_sampler_t));
 	CHECK_ALLOC(sampler, return NULL);
 	memset(sampler, 0, sizeof(*sampler));
@@ -26,11 +30,18 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels) {
 	sampler->n_channels = n_channels;
 	sampler->settings = default_settings;
 
+	sampler->buffer = malloc(buffer_size * sizeof(float));
+	CHECK_ALLOC(sampler->buffer,
+		free(sampler);
+		return NULL);
+	sampler->buffer_size = buffer_size;
+
 	return sampler;
 }
 
 void osc_sampler_free(osc_sampler_t **sampler) {
 	if (sampler && *sampler) {
+		free((*sampler)->buffer);
 		free(*sampler);
 		*sampler = NULL;
 	}

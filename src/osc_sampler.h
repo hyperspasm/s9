@@ -116,7 +116,7 @@ typedef struct {
 typedef struct osc_sampler osc_sampler_t;
 
 // Create/destroy
-osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels);
+osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t n_channels, uint32_t buffer_size);
 void osc_sampler_free(osc_sampler_t **sampler);
 
 // Configuration
