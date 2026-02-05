@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL2/SDL_mutex.h>
+#include <SDL2/SDL_atomic.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -23,15 +23,14 @@ struct osc_sampler {
 	uint32_t sample_rate;
 	osc_sampler_settings_t settings;
 
-	// input buffer (circular)
+	// input buffer (circular, lock-free SPSC)
 	// write_ix == read_ix means empty, (write_ix+1) % size == read_ix means full
 	// one slot is always kept empty to distinguish full from empty
 	// usable capacity is input_buf_size - 1
 	float *input_buf;
 	uint32_t input_buf_size;
-	uint32_t write_ix;  // next write position (advanced by audio thread)
-	uint32_t read_ix;   // next read position (advanced by render thread)
-	SDL_mutex *mutex;
+	SDL_atomic_t write_ix;  // next write position (advanced by audio thread)
+	SDL_atomic_t read_ix;   // next read position (advanced by render thread)
 
 	// resampler configuration
 	uint32_t N;         // convolution length (filter taps)
@@ -154,12 +153,12 @@ static float sinc_interpolate(osc_sampler_t *s, uint32_t base_ix, float offset) 
 	return accum;
 }
 
-// get number of samples available for reading (must hold mutex)
-static inline uint32_t samples_available(const osc_sampler_t *s) {
-	if (s->write_ix >= s->read_ix) {
-		return s->write_ix - s->read_ix;
+// get number of samples available for reading given snapshotted indices
+static inline uint32_t samples_available(uint32_t buf_size, uint32_t write_ix, uint32_t read_ix) {
+	if (write_ix >= read_ix) {
+		return write_ix - read_ix;
 	} else {
-		return s->input_buf_size - s->read_ix + s->write_ix;
+		return buf_size - read_ix + write_ix;
 	}
 }
 
@@ -181,17 +180,23 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 	// minimum samples needed: N for convolution
 	uint32_t min_samples = s->N;
 
+	// snapshot write_ix once (written by audio thread)
+	uint32_t write_ix_snap = (uint32_t)SDL_AtomicGet(&s->write_ix);
+
+	// work with local read_ix (only render thread writes this)
+	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&s->read_ix);
+
 	uint32_t written = 0;
 
 	while (written < count) {
 		// check if we have enough samples
-		uint32_t avail = samples_available(s);
+		uint32_t avail = samples_available(s->input_buf_size, write_ix_snap, read_ix_local);
 		if (avail < min_samples) {
 			break;  // not enough data
 		}
 
 		// compute interpolated output sample
-		out[written++] = sinc_interpolate(s, s->read_ix, s->position);
+		out[written++] = sinc_interpolate(s, read_ix_local, s->position);
 
 		// advance position
 		s->position += increment;
@@ -199,9 +204,12 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 		// consume input samples as needed
 		while (s->position >= 1.0f) {
 			s->position -= 1.0f;
-			s->read_ix = (s->read_ix + 1) % s->input_buf_size;
+			read_ix_local = (read_ix_local + 1) % s->input_buf_size;
 		}
 	}
+
+	// publish final read_ix with release semantics
+	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
 
 	return written;
 }
@@ -247,10 +255,9 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	CHECK_ALLOC(sampler->input_buf, osc_sampler_free(&sampler); return NULL);
 	sampler->input_buf_size = buffer_size;
 
-	sampler->mutex = SDL_CreateMutex();
-	CHECK_ERROR(sampler->mutex != NULL,
-		osc_sampler_free(&sampler); return NULL,
-		"failed to create mutex");
+	// initialize atomic indices
+	SDL_AtomicSet(&sampler->write_ix, 0);
+	SDL_AtomicSet(&sampler->read_ix, 0);
 
 	return sampler;
 }
@@ -260,7 +267,6 @@ void osc_sampler_free(osc_sampler_t **sampler) {
 		if ((*sampler)->sinc) free((*sampler)->sinc);
 		if ((*sampler)->sinc_delta) free((*sampler)->sinc_delta);
 		if ((*sampler)->window) free((*sampler)->window);
-		if ((*sampler)->mutex) SDL_DestroyMutex((*sampler)->mutex);
 		if ((*sampler)->input_buf) free((*sampler)->input_buf);
 		free(*sampler);
 		*sampler = NULL;
@@ -275,17 +281,19 @@ void osc_sampler_set_settings(osc_sampler_t *sampler, const osc_sampler_settings
 uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint32_t frames, uint32_t n_channels) {
 	if (!sampler || !samples || frames == 0) return 0;
 
-	SDL_LockMutex(sampler->mutex);
+	// snapshot read_ix (written by render thread)
+	uint32_t read_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->read_ix);
+
+	// work with local write_ix (only audio thread writes this)
+	uint32_t write_ix_local = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
 
 	// calculate available write space
 	// usable capacity is input_buf_size - 1 (one slot kept empty)
-	// used = (write_ix - read_ix + input_buf_size) % input_buf_size
-	// avail = (input_buf_size - 1) - used
 	uint32_t avail;
-	if (sampler->write_ix >= sampler->read_ix) {
-		avail = sampler->input_buf_size - 1 - (sampler->write_ix - sampler->read_ix);
+	if (write_ix_local >= read_ix_snap) {
+		avail = sampler->input_buf_size - 1 - (write_ix_local - read_ix_snap);
 	} else {
-		avail = sampler->read_ix - sampler->write_ix - 1;
+		avail = read_ix_snap - write_ix_local - 1;
 	}
 
 	uint32_t to_write = frames;
@@ -296,11 +304,12 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 
 	// extract channel 0 from interleaved input and write to input buffer
 	for (uint32_t i = 0; i < to_write; i++) {
-		sampler->input_buf[sampler->write_ix] = samples[i * n_channels];
-		sampler->write_ix = (sampler->write_ix + 1) % sampler->input_buf_size;
+		sampler->input_buf[write_ix_local] = samples[i * n_channels];
+		write_ix_local = (write_ix_local + 1) % sampler->input_buf_size;
 	}
 
-	SDL_UnlockMutex(sampler->mutex);
+	// publish final write_ix with release semantics
+	SDL_AtomicSet(&sampler->write_ix, (int)write_ix_local);
 
 	return to_write;
 }
