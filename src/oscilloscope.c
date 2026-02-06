@@ -18,7 +18,7 @@ typedef struct {
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
-	.time_per_display = .025f,
+	.time_per_display = .009f,
 	.amp_per_display = 2.0f,
 };
 
@@ -40,7 +40,9 @@ typedef struct oscilloscope {
 	uint32_t blur_buffer_index;
 
 	oscilloscope_settings_t settings;
-	uint32_t x; // current x position in pixels (sweep progress)
+	uint32_t x;          // current pixel position in sweep (or pixel_buffer fill level in fast mode)
+	sdl_path_t *path;    // last drawn sweep path (persists across render calls)
+	int triggered;       // true while osc_sampler is in sweep state
 
 } oscilloscope_t;
 
@@ -67,6 +69,10 @@ static void free_render_allocations(oscilloscope_t *osc) {
 		free(osc->pixel_buffer);
 		osc->pixel_buffer = NULL;
 		osc->pixel_buffer_size = 0;
+	}
+
+	if(osc->path) {
+		sdl_path_free(&osc->path);
 	}
 }
 
@@ -139,6 +145,28 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 	return 0;
 }
 
+// build path from pixel samples, save on osc (freeing previous), and render
+// pixel_buf contains n_pixels sample values; x_start is the screen x offset for the first pixel
+static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
+                                  const float *pixel_buf, uint32_t n_pixels, uint32_t x_start,
+                                  float vertical_factor, float vertical_offset) {
+	SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * n_pixels);
+	if(!points) return;
+
+	for(uint32_t i = 0; i < n_pixels; i++) {
+		points[i].x = osc->frame_rect.x + x_start + i;
+		points[i].y = vertical_offset + pixel_buf[i] * vertical_factor;
+	}
+
+	sdl_path_free(&osc->path);
+	osc->path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width, 1, points, n_pixels);
+	free(points);
+
+	if(osc->path) {
+		sdl_path_render(osc->path, renderer);
+	}
+}
+
 void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	if(!osc->streaming) return;
 	if(prepare_to_draw(osc, renderer)) return;
@@ -157,49 +185,66 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
 	float gain = 1.0f / osc->settings.amp_per_display * 2.0f;
 	uint32_t sweep_width = (uint32_t)osc->frame_rect.w;
+	int fast_mode = osc->settings.time_per_display < 0.1f;
 
-	if(osc->pixel_buffer) {
+	int drew_this_frame = 0;
+
+	if(osc->pixel_buffer && osc->sampler) {
 		float vertical_factor = osc->frame_rect.h * 0.5f * -1.f;
 		float vertical_offset = osc->frame_rect.y + osc->frame_rect.h * 0.5f;
 
-		// read and draw pixel data (may span multiple sweeps)
-		while(1) {
-			uint32_t pixels_wanted = sweep_width - osc->x;
-			uint32_t pixels = osc_sampler_read_pixels(
-				osc->sampler, osc->pixel_buffer, pixels_wanted, pixel_rate, gain
-			);
+		if(fast_mode) {
+			// fast mode: only draw complete sweeps
+			while(1) {
+				uint32_t pixels = osc_sampler_read_pixels(
+					osc->sampler, osc->pixel_buffer + osc->x,
+					sweep_width - osc->x, pixel_rate, gain
+				);
 
-			if(pixels == 0) break;
+				if(pixels > 0) osc->triggered = 1;
+				if(pixels == 0) break;
 
-			if(pixels >= 2) {
-				// create path points
-				SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * pixels);
-				if(!points) break;
-
-				for(uint32_t i = 0; i < pixels; i++) {
-					points[i].x = osc->frame_rect.x + osc->x;
-					points[i].y = vertical_offset + osc->pixel_buffer[i] * vertical_factor;
-					osc->x++;
-				}
-
-				// render path
-				sdl_path_t *path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width, 1, points, pixels);
-				free(points);
-
-				if(path) {
-					sdl_path_render(path, renderer);
-					sdl_path_free(&path);
-				}
-			} else {
-				// not enough for a path - just advance
 				osc->x += pixels;
-			}
 
-			// check if sweep complete
-			if(osc->x >= sweep_width) {
-				osc_sampler_sweep_complete(osc->sampler);
-				osc->x = 0;
+				if(osc->x >= sweep_width) {
+					build_and_render_path(osc, renderer, osc->pixel_buffer,
+					                      sweep_width, 0, vertical_factor, vertical_offset);
+					drew_this_frame = 1;
+					osc_sampler_sweep_complete(osc->sampler);
+					osc->triggered = 0;
+					osc->x = 0;
+				}
 			}
+		} else {
+			// slow mode: draw incrementally as data arrives
+			while(1) {
+				uint32_t pixels = osc_sampler_read_pixels(
+					osc->sampler, osc->pixel_buffer,
+					sweep_width - osc->x, pixel_rate, gain
+				);
+
+				if(pixels > 0) osc->triggered = 1;
+				if(pixels == 0) break;
+
+				if(pixels >= 2) {
+					build_and_render_path(osc, renderer, osc->pixel_buffer,
+					                      pixels, osc->x, vertical_factor, vertical_offset);
+					drew_this_frame = 1;
+				}
+
+				osc->x += pixels;
+
+				if(osc->x >= sweep_width) {
+					osc_sampler_sweep_complete(osc->sampler);
+					osc->triggered = 0;
+					osc->x = 0;
+				}
+			}
+		}
+
+		// if triggered but nothing drawn, redraw saved path
+		if(osc->triggered && !drew_this_frame && osc->path) {
+			sdl_path_render(osc->path, renderer);
 		}
 	}
 
