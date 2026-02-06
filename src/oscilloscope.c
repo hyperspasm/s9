@@ -40,9 +40,18 @@ typedef struct oscilloscope {
 	uint32_t blur_buffer_index;
 
 	oscilloscope_settings_t settings;
-	uint32_t x;          // current pixel position in sweep (or pixel_buffer fill level in fast mode)
 	sdl_path_t *path;    // last drawn sweep path (persists across render calls)
-	uint32_t path_hold;  // frames remaining to redraw saved path when no new sweep is available
+
+	enum { osc_mode_none, osc_mode_fast, osc_mode_slow } render_mode;
+	union {
+		struct {
+			uint32_t fill;       // pixels accumulated in pixel_buffer
+			uint32_t path_hold;  // frames remaining to redraw saved path
+		} fast;
+		struct {
+			uint32_t sweep_pos;  // current screen x position in sweep
+		} slow;
+	};
 
 } oscilloscope_t;
 
@@ -139,7 +148,7 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 		osc->pixel_buffer_size = (uint32_t)osc->frame_rect.w;
 		osc->pixel_buffer = malloc(osc->pixel_buffer_size * sizeof(float));
 
-		osc->x = 0;
+		osc->render_mode = osc_mode_none;
 	}
 
 	return 0;
@@ -169,7 +178,7 @@ static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 
 // fast mode: accumulate pixels into pixel_buffer across render calls,
 // only draw when a complete sweep is available.
-// osc->x tracks the fill level of pixel_buffer.
+// osc->fast.fill tracks the pixel_buffer fill level.
 // when no new sweep is drawn, redraw the saved path for up to path_hold frames.
 static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
                         float pixel_rate, float gain, uint32_t sweep_width, uint32_t n_frames,
@@ -179,33 +188,33 @@ static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
 
 	while(1) {
 		uint32_t pixels = osc_sampler_read_pixels(
-			osc->sampler, osc->pixel_buffer + osc->x,
-			sweep_width - osc->x, pixel_rate, gain, &triggered
+			osc->sampler, osc->pixel_buffer + osc->fast.fill,
+			sweep_width - osc->fast.fill, pixel_rate, gain, &triggered
 		);
 
 		if(pixels == 0) break;
 
-		osc->x += pixels;
+		osc->fast.fill += pixels;
 
-		if(osc->x >= sweep_width) {
+		if(osc->fast.fill >= sweep_width) {
 			build_and_render_path(osc, renderer, osc->pixel_buffer,
 			                      sweep_width, 0, vertical_factor, vertical_offset);
 			drew = 1;
-			osc->path_hold = n_frames;
+			osc->fast.path_hold = n_frames;
 			osc_sampler_sweep_complete(osc->sampler);
-			osc->x = 0;
+			osc->fast.fill = 0;
 		}
 	}
 
 	// if triggered but no new sweep drawn, redraw saved path while hold remains
-	if(triggered && !drew && osc->path && osc->path_hold > 0) {
+	if(triggered && !drew && osc->path && osc->fast.path_hold > 0) {
 		sdl_path_render(osc->path, renderer);
-		osc->path_hold--;
+		osc->fast.path_hold--;
 	}
 }
 
 // slow mode: draw pixel data incrementally as it arrives.
-// osc->x tracks the current screen x position within the sweep.
+// osc->slow.sweep_pos tracks the current screen x position within the sweep.
 // pixel_buffer is used as scratch space (always written from index 0).
 static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
                         float pixel_rate, float gain, uint32_t sweep_width,
@@ -213,21 +222,21 @@ static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
 	while(1) {
 		uint32_t pixels = osc_sampler_read_pixels(
 			osc->sampler, osc->pixel_buffer,
-			sweep_width - osc->x, pixel_rate, gain, NULL
+			sweep_width - osc->slow.sweep_pos, pixel_rate, gain, NULL
 		);
 
 		if(pixels == 0) break;
 
 		if(pixels >= 2) {
 			build_and_render_path(osc, renderer, osc->pixel_buffer,
-			                      pixels, osc->x, vertical_factor, vertical_offset);
+			                      pixels, osc->slow.sweep_pos, vertical_factor, vertical_offset);
 		}
 
-		osc->x += pixels;
+		osc->slow.sweep_pos += pixels;
 
-		if(osc->x >= sweep_width) {
+		if(osc->slow.sweep_pos >= sweep_width) {
 			osc_sampler_sweep_complete(osc->sampler);
-			osc->x = 0;
+			osc->slow.sweep_pos = 0;
 		}
 	}
 }
@@ -260,7 +269,15 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		if(n_frames * frame_period < fast_mode_min_time) n_frames++;
 		float fast_mode_threshold = n_frames * frame_period;
 
-		if(osc->settings.time_per_display < fast_mode_threshold) {
+		typeof(osc->render_mode) mode = (osc->settings.time_per_display < fast_mode_threshold)
+			? osc_mode_fast : osc_mode_slow;
+
+		if(osc->render_mode != mode) {
+			osc->render_mode = mode;
+			memset(&osc->fast, 0, sizeof(osc->fast));  // zero the union
+		}
+
+		if(mode == osc_mode_fast) {
 			render_fast(osc, renderer, pixel_rate, gain, sweep_width, n_frames,
 			            vertical_factor, vertical_offset);
 		} else {
