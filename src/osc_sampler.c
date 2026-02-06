@@ -459,5 +459,6 @@ uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t ma
 
 void osc_sampler_sweep_complete(osc_sampler_t *sampler) {
 	if (!sampler) return;
-	// TODO: transition trigger state to wait
+	sampler->holdoff_remaining = (uint32_t)(sampler->settings.trig_holdoff * sampler->sample_rate);
+	sampler->trig_state = trig_state_wait;
 }
