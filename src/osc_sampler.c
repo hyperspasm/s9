@@ -3,7 +3,6 @@
 
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <SDL2/SDL_atomic.h>
@@ -28,9 +27,10 @@ struct osc_sampler {
 	// one slot is always kept empty to distinguish full from empty
 	// usable capacity is input_buf_size - 1
 	float *input_buf;
-	uint32_t input_buf_size;
-	SDL_atomic_t write_ix;  // next write position (advanced by audio thread)
-	SDL_atomic_t read_ix;   // next read position (advanced by render thread)
+	uint32_t input_buf_size;  // always a power of two
+	uint32_t buf_mask;        // input_buf_size - 1, for fast modular indexing
+	SDL_atomic_t write_ix;    // next write position (advanced by audio thread)
+	SDL_atomic_t read_ix;     // next read position (advanced by render thread)
 
 	// resampler configuration
 	uint32_t N;         // convolution length (filter taps)
@@ -115,7 +115,7 @@ static inline float sinc_lookup(const osc_sampler_t *s, float x) {
 
 // compute interpolated output sample at fractional offset with anti-aliasing
 // base_ix is the starting index in input_buf for the N-sample convolution window
-static float sinc_interpolate(osc_sampler_t *s, uint32_t base_ix, float offset) {
+static float sinc_interpolate(const osc_sampler_t *s, uint32_t base_ix, float offset) {
 	float fc = s->cutoff;
 	float center_f = (float)s->center;
 
@@ -134,7 +134,7 @@ static float sinc_interpolate(osc_sampler_t *s, uint32_t base_ix, float offset) 
 	uint32_t idx = ki;
 
 	for (uint32_t tap = 0; tap < s->N; tap++, idx += s->k) {
-		uint32_t buf_ix = (base_ix + tap) % s->input_buf_size;
+		uint32_t buf_ix = (base_ix + tap) & s->buf_mask;
 
 		float base = (float)idx - kf;
 		float scaled = center_f + (base - center_f) * fc;
@@ -154,12 +154,8 @@ static float sinc_interpolate(osc_sampler_t *s, uint32_t base_ix, float offset) 
 }
 
 // get number of samples available for reading given snapshotted indices
-static inline uint32_t samples_available(uint32_t buf_size, uint32_t write_ix, uint32_t read_ix) {
-	if (write_ix >= read_ix) {
-		return write_ix - read_ix;
-	} else {
-		return buf_size - read_ix + write_ix;
-	}
+static inline uint32_t samples_available(uint32_t buf_mask, uint32_t write_ix, uint32_t read_ix) {
+	return (write_ix - read_ix) & buf_mask;
 }
 
 // resample from input buffer to output buffer
@@ -190,7 +186,7 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 
 	while (written < count) {
 		// check if we have enough samples
-		uint32_t avail = samples_available(s->input_buf_size, write_ix_snap, read_ix_local);
+		uint32_t avail = samples_available(s->buf_mask, write_ix_snap, read_ix_local);
 		if (avail < min_samples) {
 			break;  // not enough data
 		}
@@ -204,7 +200,7 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 		// consume input samples as needed
 		while (s->position >= 1.0f) {
 			s->position -= 1.0f;
-			read_ix_local = (read_ix_local + 1) % s->input_buf_size;
+			read_ix_local = (read_ix_local + 1) & s->buf_mask;
 		}
 	}
 
@@ -251,9 +247,15 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 		osc_sampler_free(&sampler); return NULL,
 		"buffer_size %u too small, need at least %u", buffer_size, min_buffer_size);
 
-	sampler->input_buf = malloc(buffer_size * sizeof(float));
+	// round up to next power of two for fast modular indexing
+	uint32_t pow2 = 1;
+	while (pow2 < buffer_size) pow2 <<= 1;
+
+	sampler->input_buf = malloc(pow2 * sizeof(float));
 	CHECK_ALLOC(sampler->input_buf, osc_sampler_free(&sampler); return NULL);
-	sampler->input_buf_size = buffer_size;
+	memset(sampler->input_buf, 0, pow2 * sizeof(float));
+	sampler->input_buf_size = pow2;
+	sampler->buf_mask = pow2 - 1;
 
 	// initialize atomic indices
 	SDL_AtomicSet(&sampler->write_ix, 0);
@@ -288,13 +290,8 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 	uint32_t write_ix_local = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
 
 	// calculate available write space
-	// usable capacity is input_buf_size - 1 (one slot kept empty)
-	uint32_t avail;
-	if (write_ix_local >= read_ix_snap) {
-		avail = sampler->input_buf_size - 1 - (write_ix_local - read_ix_snap);
-	} else {
-		avail = read_ix_snap - write_ix_local - 1;
-	}
+	// usable capacity is buf_mask (input_buf_size - 1, one slot kept empty)
+	uint32_t avail = (read_ix_snap - write_ix_local - 1) & sampler->buf_mask;
 
 	uint32_t to_write = frames;
 	if (to_write > avail) {
@@ -305,7 +302,7 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 	// extract channel 0 from interleaved input and write to input buffer
 	for (uint32_t i = 0; i < to_write; i++) {
 		sampler->input_buf[write_ix_local] = samples[i * n_channels];
-		write_ix_local = (write_ix_local + 1) % sampler->input_buf_size;
+		write_ix_local = (write_ix_local + 1) & sampler->buf_mask;
 	}
 
 	// publish final write_ix with release semantics
