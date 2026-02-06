@@ -49,12 +49,6 @@ static void free_dsp_allocations(oscilloscope_t *osc) {
 	if(osc->sampler) {
 		osc_sampler_free(&osc->sampler);
 	}
-
-	if(osc->pixel_buffer) {
-		free(osc->pixel_buffer);
-		osc->pixel_buffer = NULL;
-		osc->pixel_buffer_size = 0;
-	}
 }
 
 static void free_render_allocations(oscilloscope_t *osc) {
@@ -67,6 +61,12 @@ static void free_render_allocations(oscilloscope_t *osc) {
 	if(osc->blur_buffer[1]) {
 		SDL_DestroyTexture(osc->blur_buffer[1]);
 		osc->blur_buffer[1] = NULL;
+	}
+
+	if(osc->pixel_buffer) {
+		free(osc->pixel_buffer);
+		osc->pixel_buffer = NULL;
+		osc->pixel_buffer_size = 0;
 	}
 }
 
@@ -129,6 +129,10 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 
 		osc->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
 
+		free(osc->pixel_buffer);
+		osc->pixel_buffer_size = (uint32_t)osc->frame_rect.w;
+		osc->pixel_buffer = malloc(osc->pixel_buffer_size * sizeof(float));
+
 		osc->x = 0;
 	}
 
@@ -153,13 +157,6 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
 	float gain = 1.0f / osc->settings.amp_per_display * 2.0f;
 	uint32_t sweep_width = (uint32_t)osc->frame_rect.w;
-
-	// ensure pixel buffer is large enough for a full sweep
-	if(osc->pixel_buffer == NULL || osc->pixel_buffer_size < sweep_width) {
-		free(osc->pixel_buffer);
-		osc->pixel_buffer_size = sweep_width * 2;
-		osc->pixel_buffer = malloc(osc->pixel_buffer_size * sizeof(float));
-	}
 
 	if(osc->pixel_buffer) {
 		float vertical_factor = osc->frame_rect.h * 0.5f * -1.f;
