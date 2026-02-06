@@ -42,6 +42,7 @@ typedef struct oscilloscope {
 	oscilloscope_settings_t settings;
 	uint32_t x;          // current pixel position in sweep (or pixel_buffer fill level in fast mode)
 	sdl_path_t *path;    // last drawn sweep path (persists across render calls)
+	uint32_t path_hold;  // frames remaining to redraw saved path when no new sweep is available
 
 } oscilloscope_t;
 
@@ -215,6 +216,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 					build_and_render_path(osc, renderer, osc->pixel_buffer,
 					                      sweep_width, 0, vertical_factor, vertical_offset);
 					drew_this_frame = 1;
+					osc->path_hold = n_frames;
 					osc_sampler_sweep_complete(osc->sampler);
 					osc->x = 0;
 				}
@@ -244,9 +246,10 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 			}
 		}
 
-		// if triggered but nothing drawn, redraw saved path
-		if(triggered && !drew_this_frame && osc->path) {
+		// if triggered but nothing drawn, redraw saved path while hold remains
+		if(triggered && !drew_this_frame && osc->path && osc->path_hold > 0) {
 			sdl_path_render(osc->path, renderer);
+			osc->path_hold--;
 		}
 	}
 
