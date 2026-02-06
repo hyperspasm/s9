@@ -184,12 +184,11 @@ static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
                         float pixel_rate, float gain, uint32_t sweep_width, uint32_t n_frames,
                         float vertical_factor, float vertical_offset) {
 	int drew = 0;
-	int triggered = 0;
 
 	while(1) {
 		uint32_t pixels = osc_sampler_read_pixels(
 			osc->sampler, osc->pixel_buffer + osc->fast.fill,
-			sweep_width - osc->fast.fill, pixel_rate, gain, &triggered
+			sweep_width - osc->fast.fill, pixel_rate, gain, NULL
 		);
 
 		if(pixels == 0) break;
@@ -206,8 +205,8 @@ static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
 		}
 	}
 
-	// if triggered but no new sweep drawn, redraw saved path while hold remains
-	if(triggered && !drew && osc->path && osc->fast.path_hold > 0) {
+	// if no new sweep drawn, redraw saved path while hold remains
+	if(!drew && osc->path && osc->fast.path_hold > 0) {
 		sdl_path_render(osc->path, renderer);
 		osc->fast.path_hold--;
 	}
