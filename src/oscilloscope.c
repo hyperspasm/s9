@@ -184,7 +184,13 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
 	float gain = 1.0f / osc->settings.amp_per_display * 2.0f;
 	uint32_t sweep_width = (uint32_t)osc->frame_rect.w;
-	int fast_mode = osc->settings.time_per_display < 0.1f;
+	// fast mode threshold: round up to integer multiple of display frame period
+	const float fast_mode_min_time = 0.1f;
+	float frame_period = (float)osc->stream_config.samples_per_display_frame / osc->stream_config.sample_rate;
+	uint32_t n_frames = (uint32_t)(fast_mode_min_time / frame_period);
+	if(n_frames * frame_period < fast_mode_min_time) n_frames++;
+	float fast_mode_threshold = n_frames * frame_period;
+	int fast_mode = osc->settings.time_per_display < fast_mode_threshold;
 
 	int drew_this_frame = 0;
 	int triggered = 0;
