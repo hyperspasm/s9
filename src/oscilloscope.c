@@ -167,6 +167,71 @@ static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 	}
 }
 
+// fast mode: accumulate pixels into pixel_buffer across render calls,
+// only draw when a complete sweep is available.
+// osc->x tracks the fill level of pixel_buffer.
+// when no new sweep is drawn, redraw the saved path for up to path_hold frames.
+static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
+                        float pixel_rate, float gain, uint32_t sweep_width, uint32_t n_frames,
+                        float vertical_factor, float vertical_offset) {
+	int drew = 0;
+	int triggered = 0;
+
+	while(1) {
+		uint32_t pixels = osc_sampler_read_pixels(
+			osc->sampler, osc->pixel_buffer + osc->x,
+			sweep_width - osc->x, pixel_rate, gain, &triggered
+		);
+
+		if(pixels == 0) break;
+
+		osc->x += pixels;
+
+		if(osc->x >= sweep_width) {
+			build_and_render_path(osc, renderer, osc->pixel_buffer,
+			                      sweep_width, 0, vertical_factor, vertical_offset);
+			drew = 1;
+			osc->path_hold = n_frames;
+			osc_sampler_sweep_complete(osc->sampler);
+			osc->x = 0;
+		}
+	}
+
+	// if triggered but no new sweep drawn, redraw saved path while hold remains
+	if(triggered && !drew && osc->path && osc->path_hold > 0) {
+		sdl_path_render(osc->path, renderer);
+		osc->path_hold--;
+	}
+}
+
+// slow mode: draw pixel data incrementally as it arrives.
+// osc->x tracks the current screen x position within the sweep.
+// pixel_buffer is used as scratch space (always written from index 0).
+static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
+                        float pixel_rate, float gain, uint32_t sweep_width,
+                        float vertical_factor, float vertical_offset) {
+	while(1) {
+		uint32_t pixels = osc_sampler_read_pixels(
+			osc->sampler, osc->pixel_buffer,
+			sweep_width - osc->x, pixel_rate, gain, NULL
+		);
+
+		if(pixels == 0) break;
+
+		if(pixels >= 2) {
+			build_and_render_path(osc, renderer, osc->pixel_buffer,
+			                      pixels, osc->x, vertical_factor, vertical_offset);
+		}
+
+		osc->x += pixels;
+
+		if(osc->x >= sweep_width) {
+			osc_sampler_sweep_complete(osc->sampler);
+			osc->x = 0;
+		}
+	}
+}
+
 void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	if(!osc->streaming) return;
 	if(prepare_to_draw(osc, renderer)) return;
@@ -181,75 +246,26 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	SDL_RenderSetClipRect(renderer, &osc->frame_rect);
 	draw_sdl_clear_viewport(renderer, NULL);
 
-	// compute display parameters
-	float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
-	float gain = 1.0f / osc->settings.amp_per_display * 2.0f;
-	uint32_t sweep_width = (uint32_t)osc->frame_rect.w;
-	// fast mode threshold: round up to integer multiple of display frame period
-	const float fast_mode_min_time = 0.1f;
-	float frame_period = (float)osc->stream_config.samples_per_display_frame / osc->stream_config.sample_rate;
-	uint32_t n_frames = (uint32_t)(fast_mode_min_time / frame_period);
-	if(n_frames * frame_period < fast_mode_min_time) n_frames++;
-	float fast_mode_threshold = n_frames * frame_period;
-	int fast_mode = osc->settings.time_per_display < fast_mode_threshold;
-
-	int drew_this_frame = 0;
-	int triggered = 0;
-
 	if(osc->pixel_buffer && osc->sampler) {
+		float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
+		float gain = 1.0f / osc->settings.amp_per_display * 2.0f;
+		uint32_t sweep_width = (uint32_t)osc->frame_rect.w;
 		float vertical_factor = osc->frame_rect.h * 0.5f * -1.f;
 		float vertical_offset = osc->frame_rect.y + osc->frame_rect.h * 0.5f;
 
-		if(fast_mode) {
-			// fast mode: only draw complete sweeps
-			while(1) {
-				uint32_t pixels = osc_sampler_read_pixels(
-					osc->sampler, osc->pixel_buffer + osc->x,
-					sweep_width - osc->x, pixel_rate, gain, &triggered
-				);
+		// fast mode threshold: round up to integer multiple of display frame period
+		const float fast_mode_min_time = 0.1f;
+		float frame_period = (float)osc->stream_config.samples_per_display_frame / osc->stream_config.sample_rate;
+		uint32_t n_frames = (uint32_t)(fast_mode_min_time / frame_period);
+		if(n_frames * frame_period < fast_mode_min_time) n_frames++;
+		float fast_mode_threshold = n_frames * frame_period;
 
-				if(pixels == 0) break;
-
-				osc->x += pixels;
-
-				if(osc->x >= sweep_width) {
-					build_and_render_path(osc, renderer, osc->pixel_buffer,
-					                      sweep_width, 0, vertical_factor, vertical_offset);
-					drew_this_frame = 1;
-					osc->path_hold = n_frames;
-					osc_sampler_sweep_complete(osc->sampler);
-					osc->x = 0;
-				}
-			}
+		if(osc->settings.time_per_display < fast_mode_threshold) {
+			render_fast(osc, renderer, pixel_rate, gain, sweep_width, n_frames,
+			            vertical_factor, vertical_offset);
 		} else {
-			// slow mode: draw incrementally as data arrives
-			while(1) {
-				uint32_t pixels = osc_sampler_read_pixels(
-					osc->sampler, osc->pixel_buffer,
-					sweep_width - osc->x, pixel_rate, gain, &triggered
-				);
-
-				if(pixels == 0) break;
-
-				if(pixels >= 2) {
-					build_and_render_path(osc, renderer, osc->pixel_buffer,
-					                      pixels, osc->x, vertical_factor, vertical_offset);
-					drew_this_frame = 1;
-				}
-
-				osc->x += pixels;
-
-				if(osc->x >= sweep_width) {
-					osc_sampler_sweep_complete(osc->sampler);
-					osc->x = 0;
-				}
-			}
-		}
-
-		// if triggered but nothing drawn, redraw saved path while hold remains
-		if(triggered && !drew_this_frame && osc->path && osc->path_hold > 0) {
-			sdl_path_render(osc->path, renderer);
-			osc->path_hold--;
+			render_slow(osc, renderer, pixel_rate, gain, sweep_width,
+			            vertical_factor, vertical_offset);
 		}
 	}
 
