@@ -292,9 +292,9 @@ done:
 	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
 }
 
-// resample from input buffer to output buffer
+// resample from input buffer to output buffer, applying gain
 // returns number of output samples written
-static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, float ratio) {
+static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, float ratio, float gain) {
 	if (ratio <= 0.0f) return 0;
 
 	// update ratio and cutoff if changed
@@ -326,7 +326,7 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 		}
 
 		// compute interpolated output sample
-		out[written++] = sinc_interpolate(s, read_ix_local, s->position);
+		out[written++] = sinc_interpolate(s, read_ix_local, s->position) * gain;
 
 		// advance position
 		s->position += increment;
@@ -462,16 +462,9 @@ uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t ma
 	// if not in sweep state, nothing to output
 	if (sampler->trig_state != trig_state_sweep) return 0;
 
-	// resample at pixel rate
+	// resample at pixel rate with gain
 	float ratio = pixel_rate / (float)sampler->sample_rate;
-	uint32_t written = resample_read(sampler, out, max_pixels, ratio);
-
-	// apply gain
-	for (uint32_t i = 0; i < written; i++) {
-		out[i] *= gain;
-	}
-
-	return written;
+	return resample_read(sampler, out, max_pixels, ratio, gain);
 }
 
 void osc_sampler_sweep_complete(osc_sampler_t *sampler) {
