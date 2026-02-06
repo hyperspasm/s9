@@ -316,8 +316,8 @@ void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_c
 	// free dsp allocations
 	free_dsp_allocations(osc);
 
-	// create sampler with capacity for 10 video frames of mono samples
-	uint32_t buffer_size = 10 * stream_config->samples_per_display_frame;
+	// create sampler with capacity for 1/2 second of data
+	uint32_t buffer_size = stream_config->sample_rate / 2;
 	osc->sampler = osc_sampler_new(stream_config->sample_rate, buffer_size);
 	CHECK_ALLOC(osc->sampler, return);
 
