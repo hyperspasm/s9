@@ -11,6 +11,16 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// number of sub-sample interpolation steps for fine trigger detection
+#define TRIG_FINE_N 32
+
+typedef enum {
+	trig_state_wait,        // holdoff countdown
+	trig_state_pre_trigger, // waiting for signal to arm (opposite side of threshold)
+	trig_state_trigger,     // waiting for threshold crossing
+	trig_state_sweep,       // outputting sweep data
+} trig_state_t;
+
 static const osc_sampler_settings_t default_settings = {
 	.trigger_mode = osc_trig_mode_normal,
 	.trig_slope = 1,
@@ -47,6 +57,11 @@ struct osc_sampler {
 	float position;     // fractional position (0.0 - 0.999...)
 	float ratio;        // cached ratio
 	float cutoff;       // anti-alias cutoff (0 < cutoff <= 1)
+
+	// trigger state
+	trig_state_t trig_state;
+	float prev_sample;          // last sample value seen at scan position
+	uint32_t holdoff_remaining; // holdoff countdown in samples
 };
 
 // Blackman window - excellent sidelobe suppression (~58 dB)
@@ -158,6 +173,125 @@ static inline uint32_t samples_available(uint32_t buf_mask, uint32_t write_ix, u
 	return (write_ix - read_ix) & buf_mask;
 }
 
+// scan input samples through the trigger state machine
+// consumes samples until we transition to trig_state_sweep or run out of data
+// on transition to sweep: read_ix and position are set for the resampler
+static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
+	if (s->trig_state == trig_state_sweep) return;
+
+	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&s->read_ix);
+	float threshold = s->settings.trig_thresh;
+	int slope = s->settings.trig_slope;
+	uint32_t half_N = s->N / 2;
+
+	while (1) {
+		uint32_t avail = samples_available(s->buf_mask, write_ix_snap, read_ix_local);
+
+		switch (s->trig_state) {
+
+		case trig_state_sweep:
+			goto done;
+
+		case trig_state_wait:
+			if (avail == 0) goto done;
+			{
+				// consume samples during holdoff, up to available
+				uint32_t consume = avail;
+				if (consume > s->holdoff_remaining)
+					consume = s->holdoff_remaining;
+				s->holdoff_remaining -= consume;
+				read_ix_local = (read_ix_local + consume) & s->buf_mask;
+				if (s->holdoff_remaining == 0)
+					s->trig_state = trig_state_pre_trigger;
+			}
+			break;
+
+		case trig_state_pre_trigger:
+			// need N+1 samples: N for potential resampler window + 1 for scan
+			if (avail < s->N + 1) goto done;
+			{
+				// scan at resampler center position
+				uint32_t scan_pos = (read_ix_local + half_N) & s->buf_mask;
+				float sample = s->input_buf[scan_pos];
+
+				// rising: arm when signal goes below threshold
+				// falling: arm when signal goes above threshold
+				if (slope > 0 ? (sample < threshold) : (sample > threshold)) {
+					s->prev_sample = sample;
+					s->trig_state = trig_state_trigger;
+				}
+				read_ix_local = (read_ix_local + 1) & s->buf_mask;
+			}
+			break;
+
+		case trig_state_trigger:
+			// need N+1 samples: N for resampler window + 1 for crossing check
+			if (avail < s->N + 1) goto done;
+			{
+				uint32_t scan_pos = (read_ix_local + half_N) & s->buf_mask;
+				float curr = s->input_buf[scan_pos];
+
+				// check for threshold crossing
+				int crossing = slope > 0
+					? (s->prev_sample < threshold && curr >= threshold)
+					: (s->prev_sample > threshold && curr <= threshold);
+
+				if (crossing) {
+					// coarse crossing found between prev scan_pos and scan_pos
+					// read_ix_local is already at scan_pos - N/2 (resampler base)
+					// but the crossing is between scan_pos-1 and scan_pos,
+					// so step read_ix back by 1 to center on the crossing
+					read_ix_local = (read_ix_local - 1) & s->buf_mask;
+
+					// fine trigger detection using sinc interpolation
+					// evaluate TRIG_FINE_N points between the two raw samples
+					s->cutoff = 1.0f;  // full bandwidth for trigger detection
+					float prev_val = s->prev_sample;
+					float trigger_pos = 0.0f;  // fallback: start of interval
+					int found = 0;
+
+					for (uint32_t j = 1; j <= TRIG_FINE_N; j++) {
+						float frac = (float)j / (float)TRIG_FINE_N;
+						float val = sinc_interpolate(s, read_ix_local, frac);
+
+						int fine_crossing = slope > 0
+							? (prev_val < threshold && val >= threshold)
+							: (prev_val > threshold && val <= threshold);
+
+						if (fine_crossing) {
+							// linear interpolate between these two fine points
+							float sub_frac = (threshold - prev_val) / (val - prev_val);
+							trigger_pos = ((float)(j - 1) + sub_frac) / (float)TRIG_FINE_N;
+							found = 1;
+							break;
+						}
+						prev_val = val;
+					}
+
+					if (!found) {
+						// sinc didn't confirm crossing - use linear on raw samples
+						float denom = curr - s->prev_sample;
+						if (denom != 0.0f)
+							trigger_pos = (threshold - s->prev_sample) / denom;
+					}
+
+					s->position = trigger_pos;
+					s->ratio = 0.0f;  // force resample_read to recalculate cutoff
+					s->trig_state = trig_state_sweep;
+					goto done;
+				}
+
+				s->prev_sample = curr;
+				read_ix_local = (read_ix_local + 1) & s->buf_mask;
+			}
+			break;
+		}
+	}
+
+done:
+	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
+}
+
 // resample from input buffer to output buffer
 // returns number of output samples written
 static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, float ratio) {
@@ -260,6 +394,11 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	// initialize atomic indices
 	SDL_AtomicSet(&sampler->write_ix, 0);
 	SDL_AtomicSet(&sampler->read_ix, 0);
+
+	// initialize trigger state
+	sampler->trig_state = trig_state_pre_trigger;
+	sampler->prev_sample = 0.0f;
+	sampler->holdoff_remaining = 0;
 
 	return sampler;
 }
