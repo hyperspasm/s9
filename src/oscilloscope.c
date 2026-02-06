@@ -42,7 +42,6 @@ typedef struct oscilloscope {
 	oscilloscope_settings_t settings;
 	uint32_t x;          // current pixel position in sweep (or pixel_buffer fill level in fast mode)
 	sdl_path_t *path;    // last drawn sweep path (persists across render calls)
-	int triggered;       // true while osc_sampler is in sweep state
 
 } oscilloscope_t;
 
@@ -188,6 +187,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	int fast_mode = osc->settings.time_per_display < 0.1f;
 
 	int drew_this_frame = 0;
+	int triggered = 0;
 
 	if(osc->pixel_buffer && osc->sampler) {
 		float vertical_factor = osc->frame_rect.h * 0.5f * -1.f;
@@ -198,10 +198,9 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 			while(1) {
 				uint32_t pixels = osc_sampler_read_pixels(
 					osc->sampler, osc->pixel_buffer + osc->x,
-					sweep_width - osc->x, pixel_rate, gain
+					sweep_width - osc->x, pixel_rate, gain, &triggered
 				);
 
-				if(pixels > 0) osc->triggered = 1;
 				if(pixels == 0) break;
 
 				osc->x += pixels;
@@ -211,7 +210,6 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 					                      sweep_width, 0, vertical_factor, vertical_offset);
 					drew_this_frame = 1;
 					osc_sampler_sweep_complete(osc->sampler);
-					osc->triggered = 0;
 					osc->x = 0;
 				}
 			}
@@ -220,10 +218,9 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 			while(1) {
 				uint32_t pixels = osc_sampler_read_pixels(
 					osc->sampler, osc->pixel_buffer,
-					sweep_width - osc->x, pixel_rate, gain
+					sweep_width - osc->x, pixel_rate, gain, &triggered
 				);
 
-				if(pixels > 0) osc->triggered = 1;
 				if(pixels == 0) break;
 
 				if(pixels >= 2) {
@@ -236,14 +233,13 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 
 				if(osc->x >= sweep_width) {
 					osc_sampler_sweep_complete(osc->sampler);
-					osc->triggered = 0;
 					osc->x = 0;
 				}
 			}
 		}
 
 		// if triggered but nothing drawn, redraw saved path
-		if(osc->triggered && !drew_this_frame && osc->path) {
+		if(triggered && !drew_this_frame && osc->path) {
 			sdl_path_render(osc->path, renderer);
 		}
 	}

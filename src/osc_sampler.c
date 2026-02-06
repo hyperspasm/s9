@@ -451,13 +451,16 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 }
 
 uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t max_pixels,
-                                  float pixel_rate, float gain) {
+                                  float pixel_rate, float gain, int *triggered) {
 	if (!sampler || !out || pixel_rate <= 0.0f) return 0;
 
 	uint32_t write_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
 
 	// advance trigger state machine
 	trigger_scan(sampler, write_ix_snap);
+
+	// report sweep state
+	if (triggered) *triggered = (sampler->trig_state == trig_state_sweep);
 
 	// if not in sweep state, nothing to output
 	if (sampler->trig_state != trig_state_sweep) return 0;

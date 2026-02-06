@@ -30,8 +30,9 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 
 // Render thread: read resampled, triggered pixel data
 // Returns number of pixels written (may be less than max_pixels if data unavailable)
+// If triggered is non-NULL, set to 1 if in sweep state on return, 0 otherwise
 uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t max_pixels,
-                                  float pixel_rate, float gain);
+                                  float pixel_rate, float gain, int *triggered);
 
 // Render thread: notify that a sweep has completed
 // Allows sampler to transition trigger state appropriately
