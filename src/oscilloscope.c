@@ -12,6 +12,8 @@
 #include "draw_sdl.h"
 #include "graticule.h"
 
+#include <math.h>
+
 typedef struct {
 	float time_per_display;	// seconds
 	float amp_per_display;  // <= 2.0
@@ -49,8 +51,9 @@ typedef struct oscilloscope {
 			uint32_t path_hold;  // frames remaining to redraw saved path
 		} fast;
 		struct {
-			uint32_t sweep_pos;  // current screen x position in sweep
-			float last_value;    // last pixel value drawn (for path continuity)
+			uint32_t sweep_pos;        // current screen x position in sweep
+			float last_value;          // last pixel value drawn (for path continuity)
+			uint32_t frames_since_draw; // frames elapsed since last segment was drawn
 		} slow;
 	};
 
@@ -213,12 +216,106 @@ static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
 	}
 }
 
+// render a path segment with exponential per-vertex fade to simulate continuous persistence.
+// the rightmost pixel gets full trace_color; the leftmost gets trace_color * p^K,
+// where K = frames_since_draw (actual persistence fades the previous boundary has been through).
+// within the segment, the exponent interpolates linearly from K (left) to 0 (right).
+static void render_gradient_path(oscilloscope_t *osc, SDL_Renderer *renderer,
+                                 const float *pixel_buf, uint32_t n_pixels, uint32_t x_start,
+                                 float vertical_factor, float vertical_offset,
+                                 SDL_Color trace_color, float p, uint32_t frames_since_draw) {
+	if(n_pixels < 2) return;
+
+	uint32_t n_verts = 2 * n_pixels;
+	uint32_t n_indices = (n_pixels - 1) * 6;
+	float half_width = 0.5f * osc->config.trace_width;
+
+	SDL_Vertex *vertices = malloc(n_verts * sizeof(SDL_Vertex));
+	if(!vertices) return;
+
+	int *indices = malloc(n_indices * sizeof(int));
+	if(!indices) { free(vertices); return; }
+
+	// left edge fades by p^K; right edge is full brightness.
+	// iterate from left to right, multiplying by a constant step each pixel.
+	float K = (float)frames_since_draw;
+	float factor = powf(p, K);
+	float step = (factor > 0.0f) ? powf(factor, -1.0f / (float)(n_pixels - 1)) : 1.0f;
+
+	for(uint32_t i = 0; i < n_pixels; i++) {
+		float cx = osc->frame_rect.x + x_start + i;
+		float cy = vertical_offset + pixel_buf[i] * vertical_factor;
+
+		SDL_Color c = {
+			(uint8_t)(trace_color.r * factor),
+			(uint8_t)(trace_color.g * factor),
+			(uint8_t)(trace_color.b * factor),
+			255
+		};
+
+		// perpendicular vector (same convention as sdl_path_new)
+		float dx, dy;
+		if(i == 0) {
+			dx = pixel_buf[1] - pixel_buf[0];
+			dy = 1.0f;
+		} else if(i == n_pixels - 1) {
+			dx = pixel_buf[n_pixels - 1] - pixel_buf[n_pixels - 2];
+			dy = 1.0f;
+		} else {
+			dx = pixel_buf[i + 1] - pixel_buf[i - 1];
+			dy = 2.0f;
+		}
+		dx *= vertical_factor;
+		float l_r = half_width / sqrtf(dx * dx + dy * dy);
+		dx *= l_r;
+		dy *= l_r;
+
+		// inner edge (index i)
+		vertices[i] = (SDL_Vertex){
+			.position = { cx + dx, cy - dy },
+			.color = c,
+			.tex_coord = { 0, 0 }
+		};
+
+		// outer edge (reversed, matching sdl_path_new layout)
+		vertices[n_verts - 1 - i] = (SDL_Vertex){
+			.position = { cx - dx, cy + dy },
+			.color = c,
+			.tex_coord = { 0, 0 }
+		};
+
+		factor *= step;
+	}
+
+	// triangle strip indices (same layout as sdl_path_new)
+	for(uint32_t i = 0; i < n_pixels - 1; i++) {
+		int *idx = indices + i * 6;
+		idx[0] = i;
+		idx[1] = n_verts - 1 - i;
+		idx[2] = i + 1;
+		idx[3] = n_verts - 1 - i;
+		idx[4] = i + 1;
+		idx[5] = n_verts - 1 - (i + 1);
+	}
+
+	SDL_RenderGeometry(renderer, NULL, vertices, n_verts, indices, n_indices);
+
+	free(vertices);
+	free(indices);
+}
+
 // slow mode: draw pixel data incrementally as it arrives.
 // osc->slow.sweep_pos tracks the current screen x position within the sweep.
 // pixel_buffer is used as scratch space (always written from index 0).
+// each segment is drawn with an exponential color gradient based on actual
+// frames elapsed since the last draw, so boundary brightness always matches
+// regardless of data arrival timing.
 static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
                         float pixel_rate, float gain, uint32_t sweep_width,
                         float vertical_factor, float vertical_offset) {
+	float p = osc->config.persistence / 255.0f;
+	int drew = 0;
+
 	while(1) {
 		// when continuing a sweep, reserve pixel_buffer[0] for the join point
 		int joining = (osc->slow.sweep_pos > 0);
@@ -237,16 +334,27 @@ static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
 
 		uint32_t path_len = pixels + joining;
 		if(path_len >= 2) {
-			build_and_render_path(osc, renderer, osc->pixel_buffer, path_len,
-			                      osc->slow.sweep_pos - joining, vertical_factor, vertical_offset);
+			// first segment this frame: use actual frames elapsed (+1 for this frame's blend).
+			// subsequent segments in the same frame: K=0 (no persistence fade between them).
+			uint32_t K = drew ? 0 : osc->slow.frames_since_draw + 1;
+			render_gradient_path(osc, renderer, osc->pixel_buffer, path_len,
+			                     osc->slow.sweep_pos - joining, vertical_factor, vertical_offset,
+			                     osc->config.trace_color, p, K);
 		}
 
+		drew = 1;
 		osc->slow.sweep_pos += pixels;
 
 		if(osc->slow.sweep_pos >= sweep_width) {
 			osc_sampler_sweep_complete(osc->sampler);
 			osc->slow.sweep_pos = 0;
 		}
+	}
+
+	if(drew) {
+		osc->slow.frames_since_draw = 0;
+	} else {
+		osc->slow.frames_since_draw++;
 	}
 }
 
