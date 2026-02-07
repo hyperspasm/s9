@@ -14,7 +14,7 @@
 
 #include <math.h>
 
-#define FAST_MODE_MIN_TIME 0.1f  // seconds; sweeps shorter than this use fast mode
+#define FAST_MODE_SWEEPS_PER_SEC 10.0f  // sweeps faster than this rate use fast mode
 
 typedef struct {
 	float time_per_display;	// seconds
@@ -382,9 +382,10 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		float vertical_offset = osc->frame_rect.y + osc->frame_rect.h * 0.5f;
 
 		// fast mode threshold: round up to integer multiple of display frame period
+		float fast_mode_min_time = 1.0f / FAST_MODE_SWEEPS_PER_SEC;
 		float frame_period = (float)osc->stream_config.samples_per_display_frame / osc->stream_config.sample_rate;
-		uint32_t n_frames = (uint32_t)(FAST_MODE_MIN_TIME / frame_period);
-		if(n_frames * frame_period < FAST_MODE_MIN_TIME) n_frames++;
+		uint32_t n_frames = (uint32_t)(fast_mode_min_time / frame_period);
+		if(n_frames * frame_period < fast_mode_min_time) n_frames++;
 		float fast_mode_threshold = n_frames * frame_period;
 
 		typeof(osc->render_mode) mode = (osc->settings.time_per_display < fast_mode_threshold)
