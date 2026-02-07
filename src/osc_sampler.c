@@ -319,9 +319,10 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 	uint32_t written = 0;
 
 	while (written < count) {
-		// check if we have enough samples
+		// check if we have enough samples for convolution + position advance
+		uint32_t advance = (uint32_t)(s->position + increment);
 		uint32_t avail = samples_available(s->buf_mask, write_ix_snap, read_ix_local);
-		if (avail < min_samples) {
+		if (avail < min_samples + advance) {
 			break;  // not enough data
 		}
 
