@@ -434,8 +434,8 @@ void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_c
 	// free dsp allocations
 	free_dsp_allocations(osc);
 
-	// create sampler with capacity for 1/2 second of data
-	uint32_t buffer_size = stream_config->sample_rate / 2;
+	// create sampler with capacity for 1 second of data
+	uint32_t buffer_size = stream_config->sample_rate;
 	osc->sampler = osc_sampler_new(stream_config->sample_rate, buffer_size);
 	CHECK_ALLOC(osc->sampler, return);
 
