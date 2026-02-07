@@ -22,7 +22,7 @@ typedef struct spectrogram {
 	float *fft_window_function_buffer; 	// fft_len	
 	
 	uint32_t n_fft_channels;
-	float *fft_windowed_input_buffer;			// fft_len, 1 channel windowed input to fft
+	float *fft_windowed_input_buffer;	// fft_len, 1 channel windowed input to fft
 	fftwf_complex **fft_outputs;
 	fftwf_plan plan;
 	
@@ -31,8 +31,6 @@ typedef struct spectrogram {
 	float *points;
 	
 } spectrogram_t;
-
-#define WINDOW_SKEW 1.0f
 
 void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *config) {
 	if (config == NULL) {
@@ -355,7 +353,7 @@ void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_conf
 	
 	sg->fft_window_function_buffer = malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_window_function_buffer, return);
-	create_window_function(sg->config.window_function, sg->fft_len, 1, WINDOW_SKEW, sg->fft_window_function_buffer);
+	create_window_function(sg->config.window_function, sg->fft_len, 1, sg->config.window_skew, sg->fft_window_function_buffer);
 	
 	sg->fft_windowed_input_buffer =  malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_windowed_input_buffer, return);

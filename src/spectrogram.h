@@ -14,6 +14,7 @@ typedef struct {
 	fresp_graph_config_t graph_config;
 	float resolution_hz;
 	window_function_t window_function;
+	float window_skew;
 } spectrogram_config_t;
 
 static const spectrogram_config_t default_spectrogram_config = {
@@ -30,6 +31,7 @@ static const spectrogram_config_t default_spectrogram_config = {
 	},
 		.resolution_hz = 2.f,
 		.window_function = WINDOW_FUNCTION_HAMMING,
+		.window_skew = 1.0f,
 };
 
 // create spectrogram
