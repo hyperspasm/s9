@@ -23,7 +23,7 @@ typedef struct {
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
-	.time_per_display = 0.005,
+	.time_per_display = 0.01,
 	.amp_per_display = 2.0f,
 };
 
