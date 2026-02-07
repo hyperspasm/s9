@@ -220,25 +220,27 @@ static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
                         float pixel_rate, float gain, uint32_t sweep_width,
                         float vertical_factor, float vertical_offset) {
 	while(1) {
+		// when continuing a sweep, reserve pixel_buffer[0] for the join point
+		int joining = (osc->slow.sweep_pos > 0);
+		float *dest = osc->pixel_buffer + joining;
+
 		uint32_t pixels = osc_sampler_read_pixels(
-			osc->sampler, osc->pixel_buffer,
+			osc->sampler, dest,
 			sweep_width - osc->slow.sweep_pos, pixel_rate, gain, NULL
 		);
 		if(pixels == 0) break;
 
-		// connect to previous segment's endpoint
-		if(osc->slow.sweep_pos > 0) {
-			float join[2] = { osc->slow.last_value, osc->pixel_buffer[0] };
-			build_and_render_path(osc, renderer, join, 2,
-			                      osc->slow.sweep_pos - 1, vertical_factor, vertical_offset);
+		// prepend previous endpoint to form a continuous path
+		if(joining) osc->pixel_buffer[0] = osc->slow.last_value;
+
+		osc->slow.last_value = dest[pixels - 1];
+
+		uint32_t path_len = pixels + joining;
+		if(path_len >= 2) {
+			build_and_render_path(osc, renderer, osc->pixel_buffer, path_len,
+			                      osc->slow.sweep_pos - joining, vertical_factor, vertical_offset);
 		}
 
-		if(pixels >= 2) {
-			build_and_render_path(osc, renderer, osc->pixel_buffer, pixels,
-			                      osc->slow.sweep_pos, vertical_factor, vertical_offset);
-		}
-
-		osc->slow.last_value = osc->pixel_buffer[pixels - 1];
 		osc->slow.sweep_pos += pixels;
 
 		if(osc->slow.sweep_pos >= sweep_width) {
