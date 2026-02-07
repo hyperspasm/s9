@@ -15,6 +15,10 @@ typedef enum {
 } window_function_t;
 
 // create a window function
-void create_window_function(window_function_t function, uint32_t length, int normalize, float *out_window);
+// skew: 0.0 = symmetric (no warping), positive values shift peak toward
+//       the end of the window for temporal recency bias.
+//       Practical range is 0.0 to ~3.0.
+void create_window_function(window_function_t function, uint32_t length,
+							int normalize, float skew, float *out_window);
 
 #endif /* window_function_h */

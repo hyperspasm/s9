@@ -1,5 +1,7 @@
 #include "window_function.h"
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stddef.h>
 
 #define _PI   ((double)3.14159265358979323846)
@@ -126,6 +128,35 @@ static void rectangular(uint32_t length, float* out_window) {
 	}
 }
 
+static void apply_skew(float *window, uint32_t length, float skew) {
+	if (skew == 0.0f || length < 2) return;
+
+	double gamma = exp(-(double)skew);
+
+	float *tmp = (float *)malloc(length * sizeof(float));
+	if (!tmp) return;
+	memcpy(tmp, window, length * sizeof(float));
+
+	double inv_len = 1.0 / (length - 1);
+
+	for (uint32_t i = 0; i < length; i++) {
+		double t = i * inv_len;
+		double t_warped = 1.0 - pow(1.0 - t, gamma);
+		double src = t_warped * (length - 1);
+
+		uint32_t idx = (uint32_t)src;
+		double frac = src - idx;
+
+		if (idx + 1 < length) {
+			window[i] = (float)((1.0 - frac) * tmp[idx] + frac * tmp[idx + 1]);
+		} else {
+			window[i] = tmp[length - 1];
+		}
+	}
+
+	free(tmp);
+}
+
 static void normalize_window(float *window, uint32_t length) {
 	// compute the sum of the window function values
 	float sum = 0.0f;
@@ -142,7 +173,8 @@ static void normalize_window(float *window, uint32_t length) {
 	}
 }
 
-void create_window_function(window_function_t function, uint32_t length, int normalize, float *out_window) {
+void create_window_function(window_function_t function, uint32_t length,
+							int normalize, float skew, float *out_window) {
 	switch (function) {
 		case WINDOW_FUNCTION_BARTLETT:
 			bartlett(length, out_window);
@@ -167,8 +199,12 @@ void create_window_function(window_function_t function, uint32_t length, int nor
 			rectangular(length, out_window);
 			break;
 	}
-	
-	if(normalize) {
+
+	if (skew != 0.0f) {
+		apply_skew(out_window, length, skew);
+	}
+
+	if (normalize) {
 		normalize_window(out_window, length);
 	}
 }

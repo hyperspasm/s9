@@ -32,6 +32,8 @@ typedef struct spectrogram {
 	
 } spectrogram_t;
 
+#define WINDOW_SKEW 1.0f
+
 void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *config) {
 	if (config == NULL) {
 		sg->config = default_spectrogram_config;
@@ -353,7 +355,7 @@ void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_conf
 	
 	sg->fft_window_function_buffer = malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_window_function_buffer, return);
-	create_window_function(sg->config.window_function, sg->fft_len, 1, sg->fft_window_function_buffer);
+	create_window_function(sg->config.window_function, sg->fft_len, 1, WINDOW_SKEW, sg->fft_window_function_buffer);
 	
 	sg->fft_windowed_input_buffer =  malloc(sizeof(float) * sg->fft_len);
 	CHECK_ALLOC(sg->fft_windowed_input_buffer, return);
