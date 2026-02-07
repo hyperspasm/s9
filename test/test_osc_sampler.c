@@ -692,6 +692,78 @@ static void test_triggered_output_optional(void) {
 	osc_sampler_free(&s);
 }
 
+// ---- regression: cross-call continuity ----
+
+static void test_read_continuity_across_calls(void) {
+	// When read_pixels drains the buffer and then resumes after more data
+	// is enqueued, the output waveform must be continuous (no discontinuity
+	// at the boundary between the two calls).
+	uint32_t sr = 44100;
+	float pixel_rate = 4800.0f;
+	float freq = 50.0f;
+	float amplitude = 0.5f;
+	uint32_t chunk = 4410;  // 100ms of audio
+
+	osc_sampler_t *s = osc_sampler_new(sr, sr);
+
+	// threshold=0 for reliable sine triggering
+	osc_sampler_settings_t settings = {
+		.trigger_mode = osc_trig_mode_normal,
+		.trig_slope = 1,
+		.trig_thresh = 0.0f,
+		.trig_holdoff = 0.00001f,
+	};
+	osc_sampler_set_settings(s, &settings);
+
+	float *sine = malloc(chunk * sizeof(float));
+	assert(sine != NULL);
+	uint32_t total_generated = 0;
+
+	// generate and enqueue first chunk of continuous sine
+	for (uint32_t i = 0; i < chunk; i++) {
+		sine[i] = amplitude * sinf(2.0f * (float)M_PI * freq * (float)(total_generated + i) / (float)sr);
+	}
+	osc_sampler_enqueue(s, sine, chunk, 1);
+	total_generated += chunk;
+
+	// read pixels until buffer is drained
+	float out[1024];
+	float last_value = 0.0f;
+	uint32_t total_pixels = 0;
+	int triggered = 0;
+
+	while (1) {
+		uint32_t px = osc_sampler_read_pixels(s, out, 1024, pixel_rate, 1.0f, &triggered);
+		if (px == 0) break;
+		last_value = out[px - 1];
+		total_pixels += px;
+	}
+	assert(total_pixels > 0);
+
+	// generate and enqueue second chunk (continuous with first)
+	for (uint32_t i = 0; i < chunk; i++) {
+		sine[i] = amplitude * sinf(2.0f * (float)M_PI * freq * (float)(total_generated + i) / (float)sr);
+	}
+	osc_sampler_enqueue(s, sine, chunk, 1);
+	total_generated += chunk;
+
+	// read more pixels
+	uint32_t px = osc_sampler_read_pixels(s, out, 1024, pixel_rate, 1.0f, &triggered);
+	assert(px > 0);
+
+	// the first pixel after resuming must be continuous with the last pixel before drain.
+	// for a 50 Hz sine at 4800 px/s, max per-pixel change is:
+	//   amplitude * 2*pi*freq / pixel_rate = 0.5 * 314.16 / 4800 ≈ 0.0327
+	float discontinuity = fabsf(out[0] - last_value);
+	float max_expected_change = 0.05f;  // generous tolerance
+
+	printf(" [gap=%.6f max=%.6f]", discontinuity, max_expected_change);
+	assert(discontinuity < max_expected_change);
+
+	free(sine);
+	osc_sampler_free(&s);
+}
+
 // ---- runner ----
 
 #define RUN_TEST(test) do { \
@@ -762,6 +834,9 @@ int main(void) {
 	// multi-sweep
 	RUN_TEST(test_multiple_sweep_cycles);
 	RUN_TEST(test_triggered_output_optional);
+
+	// cross-call continuity
+	RUN_TEST(test_read_continuity_across_calls);
 
 	printf("\nAll tests passed.\n");
 
