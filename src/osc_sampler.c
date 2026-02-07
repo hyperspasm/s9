@@ -14,6 +14,9 @@
 // number of sub-sample interpolation steps for fine trigger detection
 #define TRIG_FINE_N 32
 
+// auto trigger timeout in seconds - forces a sweep if no trigger is found within this time
+#define AUTO_TRIGGER_TIMEOUT 0.02f
+
 typedef enum {
 	trig_state_wait,        // holdoff countdown
 	trig_state_pre_trigger, // waiting for signal to arm (opposite side of threshold)
@@ -22,7 +25,7 @@ typedef enum {
 } trig_state_t;
 
 static const osc_sampler_settings_t default_settings = {
-	.trigger_mode = osc_trig_mode_normal,
+	.trigger_mode = osc_trig_mode_auto,
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,  // 10µs
@@ -60,8 +63,9 @@ struct osc_sampler {
 
 	// trigger state
 	trig_state_t trig_state;
-	float prev_sample;          // last sample value seen at scan position
-	uint32_t holdoff_remaining; // holdoff countdown in samples
+	float prev_sample;               // last sample value seen at scan position
+	uint32_t holdoff_remaining;      // holdoff countdown in samples
+	uint32_t auto_trigger_remaining; // auto trigger countdown in samples
 };
 
 // Blackman window - excellent sidelobe suppression (~58 dB)
@@ -173,6 +177,22 @@ static inline uint32_t samples_available(uint32_t buf_mask, uint32_t write_ix, u
 	return (write_ix - read_ix) & buf_mask;
 }
 
+// check and handle auto trigger timeout
+// called once per sample consumed in pre_trigger/trigger states
+// returns 1 if auto trigger fired (state set to sweep), 0 otherwise
+static inline int auto_trigger_expired(osc_sampler_t *s) {
+	if (s->settings.trigger_mode != osc_trig_mode_auto) return 0;
+	if (s->auto_trigger_remaining == 0) return 0;
+	s->auto_trigger_remaining--;
+	if (s->auto_trigger_remaining > 0) return 0;
+
+	// timeout expired: force sweep at current position
+	s->position = 0.0f;
+	s->ratio = 0.0f;
+	s->trig_state = trig_state_sweep;
+	return 1;
+}
+
 // scan input samples through the trigger state machine
 // consumes samples until we transition to trig_state_sweep or run out of data
 // on transition to sweep: read_ix and position are set for the resampler
@@ -201,8 +221,10 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 					consume = s->holdoff_remaining;
 				s->holdoff_remaining -= consume;
 				read_ix_local = (read_ix_local + consume) & s->buf_mask;
-				if (s->holdoff_remaining == 0)
+				if (s->holdoff_remaining == 0) {
 					s->trig_state = trig_state_pre_trigger;
+					s->auto_trigger_remaining = (uint32_t)(AUTO_TRIGGER_TIMEOUT * s->sample_rate);
+				}
 			}
 			break;
 
@@ -221,6 +243,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 					s->trig_state = trig_state_trigger;
 				}
 				read_ix_local = (read_ix_local + 1) & s->buf_mask;
+				if (auto_trigger_expired(s)) goto done;
 			}
 			break;
 
@@ -283,6 +306,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 
 				s->prev_sample = curr;
 				read_ix_local = (read_ix_local + 1) & s->buf_mask;
+				if (auto_trigger_expired(s)) goto done;
 			}
 			break;
 		}
@@ -400,6 +424,7 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	sampler->trig_state = trig_state_pre_trigger;
 	sampler->prev_sample = 0.0f;
 	sampler->holdoff_remaining = 0;
+	sampler->auto_trigger_remaining = (uint32_t)(AUTO_TRIGGER_TIMEOUT * sampler->sample_rate);
 
 	return sampler;
 }
