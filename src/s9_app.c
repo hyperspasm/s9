@@ -278,7 +278,7 @@ int s9_app_create(const s9_app_config_t *config) {
 			.margin_top = 0,
 			.margin_right = 0,
 			.margin_bottom = 0,
-			.fixed_width = 0,
+			.fixed_width = 1000,
 			.fixed_height = 0,
 		},
 		.destroy = (void (*)(void **))spectrogram_free,
@@ -287,7 +287,7 @@ int s9_app_create(const s9_app_config_t *config) {
 		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
 	};
 
-#if 0
+#if 1
 	// oscilloscope
 	oscilloscope_t *osc = oscilloscope_new(NULL);
 	CHECK_ERROR(osc != NULL,
@@ -297,7 +297,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	*component++ = (s9_component_t){
 		.instance = osc,
 		.layout = {
-			.margin_left = 60,
+			.margin_left = 1060,
 			.margin_top = 0,
 			.margin_right = 0,
 			.margin_bottom = 0,
