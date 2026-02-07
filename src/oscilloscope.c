@@ -14,7 +14,8 @@
 
 #include <math.h>
 
-#define FAST_MODE_SWEEPS_PER_SEC 10.0f  // sweeps faster than this rate use fast mode
+#define FAST_MODE_SWEEPS_PER_SEC	10.0f   // sweeps faster than this rate use fast mode
+#define FAST_MODE_HOLD_TIME			0.0667f // seconds to keep displaying last sweep while waiting for next
 
 typedef struct {
 	float time_per_display;	// seconds
@@ -384,9 +385,8 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		// fast mode threshold: round up to integer multiple of display frame period
 		float fast_mode_min_time = 1.0f / FAST_MODE_SWEEPS_PER_SEC;
 		float frame_period = (float)osc->stream_config.samples_per_display_frame / osc->stream_config.sample_rate;
-		uint32_t n_frames = (uint32_t)(fast_mode_min_time / frame_period);
-		if(n_frames * frame_period < fast_mode_min_time) n_frames++;
-		float fast_mode_threshold = n_frames * frame_period;
+		float fast_mode_threshold = ceilf(fast_mode_min_time / frame_period) * frame_period;
+		uint32_t path_hold_frames = (uint32_t)ceilf(FAST_MODE_HOLD_TIME / frame_period);
 
 		typeof(osc->render_mode) mode = (osc->settings.time_per_display < fast_mode_threshold)
 			? osc_mode_fast : osc_mode_slow;
@@ -397,7 +397,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		}
 
 		if(mode == osc_mode_fast) {
-			render_fast(osc, renderer, pixel_rate, gain, sweep_width, n_frames,
+			render_fast(osc, renderer, pixel_rate, gain, sweep_width, path_hold_frames,
 			            vertical_factor, vertical_offset);
 		} else {
 			render_slow(osc, renderer, pixel_rate, gain, sweep_width,
