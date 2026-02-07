@@ -2,11 +2,9 @@
 #define oscilloscope_h
 
 #include "s9_dsp.h"
-#include "window_function.h"
 #include "s9_colors.h"
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
 
 typedef struct oscilloscope oscilloscope_t;
 
