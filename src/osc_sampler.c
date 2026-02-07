@@ -177,10 +177,10 @@ static inline uint32_t samples_available(uint32_t buf_mask, uint32_t write_ix, u
 	return (write_ix - read_ix) & buf_mask;
 }
 
-// check and handle auto trigger timeout
+// advance auto trigger countdown by one sample
 // called once per sample consumed in pre_trigger/trigger states
 // returns 1 if auto trigger fired (state set to sweep), 0 otherwise
-static inline int auto_trigger_expired(osc_sampler_t *s) {
+static inline int auto_trigger_tick(osc_sampler_t *s) {
 	if (s->settings.trigger_mode != osc_trig_mode_auto) return 0;
 	if (s->auto_trigger_remaining == 0) return 0;
 	s->auto_trigger_remaining--;
@@ -243,7 +243,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 					s->trig_state = trig_state_trigger;
 				}
 				read_ix_local = (read_ix_local + 1) & s->buf_mask;
-				if (auto_trigger_expired(s)) goto done;
+				if (auto_trigger_tick(s)) goto done;
 			}
 			break;
 
@@ -306,7 +306,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 
 				s->prev_sample = curr;
 				read_ix_local = (read_ix_local + 1) & s->buf_mask;
-				if (auto_trigger_expired(s)) goto done;
+				if (auto_trigger_tick(s)) goto done;
 			}
 			break;
 		}
