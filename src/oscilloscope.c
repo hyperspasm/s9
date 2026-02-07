@@ -187,7 +187,7 @@ static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 // osc->fast.fill tracks the pixel_buffer fill level.
 // when no new sweep is drawn, redraw the saved path for up to path_hold frames.
 static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
-                        float pixel_rate, float gain, uint32_t sweep_width, uint32_t n_frames,
+                        float pixel_rate, float gain, uint32_t sweep_width, uint32_t path_hold_frames,
                         float vertical_factor, float vertical_offset) {
 	int drew = 0;
 
@@ -205,7 +205,7 @@ static void render_fast(oscilloscope_t *osc, SDL_Renderer *renderer,
 			build_and_render_path(osc, renderer, osc->pixel_buffer,
 			                      sweep_width, 0, vertical_factor, vertical_offset);
 			drew = 1;
-			osc->fast.path_hold = n_frames;
+			osc->fast.path_hold = path_hold_frames;
 			osc_sampler_sweep_complete(osc->sampler);
 			osc->fast.fill = 0;
 		}
