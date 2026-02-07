@@ -220,31 +220,25 @@ static void render_slow(oscilloscope_t *osc, SDL_Renderer *renderer,
                         float pixel_rate, float gain, uint32_t sweep_width,
                         float vertical_factor, float vertical_offset) {
 	while(1) {
-		// if continuing a sweep, leave room to prepend the previous endpoint
-		int has_prev = (osc->slow.sweep_pos > 0);
-		uint32_t offset = has_prev ? 1 : 0;
-
 		uint32_t pixels = osc_sampler_read_pixels(
-			osc->sampler, osc->pixel_buffer + offset,
+			osc->sampler, osc->pixel_buffer,
 			sweep_width - osc->slow.sweep_pos, pixel_rate, gain, NULL
 		);
-
 		if(pixels == 0) break;
 
-		// prepend last value so the path connects to the previous segment
-		if(has_prev) {
-			osc->pixel_buffer[0] = osc->slow.last_value;
+		// connect to previous segment's endpoint
+		if(osc->slow.sweep_pos > 0) {
+			float join[2] = { osc->slow.last_value, osc->pixel_buffer[0] };
+			build_and_render_path(osc, renderer, join, 2,
+			                      osc->slow.sweep_pos - 1, vertical_factor, vertical_offset);
 		}
 
-		uint32_t n_points = pixels + offset;
-		uint32_t x_start = osc->slow.sweep_pos - offset;
-
-		if(n_points >= 2) {
-			build_and_render_path(osc, renderer, osc->pixel_buffer,
-			                      n_points, x_start, vertical_factor, vertical_offset);
+		if(pixels >= 2) {
+			build_and_render_path(osc, renderer, osc->pixel_buffer, pixels,
+			                      osc->slow.sweep_pos, vertical_factor, vertical_offset);
 		}
 
-		osc->slow.last_value = osc->pixel_buffer[offset + pixels - 1];
+		osc->slow.last_value = osc->pixel_buffer[pixels - 1];
 		osc->slow.sweep_pos += pixels;
 
 		if(osc->slow.sweep_pos >= sweep_width) {
