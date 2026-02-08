@@ -65,7 +65,7 @@ void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x
 }
 
 // computes a vector of specified length perpendicular to the vector from p1 to p0
-static inline void compute_perpendicular_vector(const SDL_FPoint *p0, const SDL_FPoint *p1, float length, float *out_dx, float *out_dy) {
+static S9_FORCE_INLINE void compute_perpendicular_vector(const SDL_FPoint *p0, const SDL_FPoint *p1, float length, float *out_dx, float *out_dy) {
 	float dx = p0->y - p1->y;
 	float dy = p0->x - p1->x;
 	float l_r = length / sqrtf(dx * dx + dy * dy);

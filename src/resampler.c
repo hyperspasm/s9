@@ -93,7 +93,7 @@ static void init_sinc_table(resampler_t *s) {
 }
 
 // lookup sinc value at fractional table index with linear interpolation
-static inline float sinc_lookup(const resampler_t *s, float x) {
+static S9_FORCE_INLINE float sinc_lookup(const resampler_t *s, float x) {
 	uint32_t n_sinc = s->n_sinc;
 
 	// clamp x to valid range
@@ -157,7 +157,7 @@ static float sinc_interpolate_channel(const resampler_t *s, uint32_t base_frame_
 }
 
 // get number of frames available for reading
-static inline uint32_t frames_available(uint32_t buf_mask, uint32_t write_ix, uint32_t read_ix) {
+static S9_FORCE_INLINE uint32_t frames_available(uint32_t buf_mask, uint32_t write_ix, uint32_t read_ix) {
 	return (write_ix - read_ix) & buf_mask;
 }
 

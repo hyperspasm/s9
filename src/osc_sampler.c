@@ -115,7 +115,7 @@ static void init_sinc_table(osc_sampler_t *s) {
 }
 
 // lookup sinc value at fractional table index with linear interpolation
-static inline float sinc_lookup(const osc_sampler_t *s, float x) {
+static S9_FORCE_INLINE float sinc_lookup(const osc_sampler_t *s, float x) {
 	uint32_t n_sinc = s->n_sinc;
 
 	// clamp x to valid range
@@ -173,14 +173,14 @@ static float sinc_interpolate(const osc_sampler_t *s, uint32_t base_ix, float of
 }
 
 // get number of samples available for reading given snapshotted indices
-static inline uint32_t samples_available(uint32_t buf_mask, uint32_t write_ix, uint32_t read_ix) {
+static S9_FORCE_INLINE uint32_t samples_available(uint32_t buf_mask, uint32_t write_ix, uint32_t read_ix) {
 	return (write_ix - read_ix) & buf_mask;
 }
 
 // advance auto trigger countdown by one sample
 // called once per sample consumed in pre_trigger/trigger states
 // returns 1 if auto trigger fired (state set to sweep), 0 otherwise
-static inline int auto_trigger_tick(osc_sampler_t *s) {
+static S9_FORCE_INLINE int auto_trigger_tick(osc_sampler_t *s) {
 	if (s->settings.trigger_mode != osc_trig_mode_auto) return 0;
 	if (s->auto_trigger_remaining == 0) return 0;
 	s->auto_trigger_remaining--;
