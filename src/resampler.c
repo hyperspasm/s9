@@ -1,49 +1,47 @@
 #include "resampler.h"
+#include "s9.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <SDL2/SDL.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-#define MIN_N 9
-#define MIN_K 10
+// Resampler configuration (hardcoded for now)
+#define RESAMPLER_N 17   // convolution length (filter taps)
+#define RESAMPLER_K 64   // sinc table oversampling factor
 
 typedef struct resampler {
-	// configuration
-	uint32_t N;
-	uint32_t k;
-	uint32_t n_sinc;    // sinc table size (N * k + 1)
-	uint32_t center;    // center index of sinc table
+	// Configuration
+	uint32_t n_channels;        // number of channels
 
-	// pre-computed tables
-	float *sinc;        // oversampled sinc table
-	float *sinc_delta;  // for linear interpolation
-	float *window;      // window weights per tap
+	// Sinc interpolation parameters
+	uint32_t N;                 // convolution length (filter taps)
+	uint32_t k;                 // sinc table oversampling factor
+	uint32_t n_sinc;            // sinc table size (N * k + 1)
+	uint32_t center;            // center index of sinc table
 
-	// circular input buffer
-	float *input_buf;   // N samples
-	uint32_t input_ix;  // next write position
-	uint32_t input_count; // samples in buffer (for initial fill)
+	// Pre-computed tables (shared across all channels)
+	float *sinc;                // oversampled sinc table
+	float *sinc_delta;          // for linear interpolation
+	float *window;              // window weights per tap
 
-	// resampling state
-	float position;     // fractional position (0.0 - 0.999...)
-	float ratio;        // cached ratio
-	float cutoff;       // anti-alias cutoff (0 < cutoff <= 1)
+	// Circular buffer (lock-free SPSC)
+	float *input_buf;           // interleaved samples [L0,R0,L1,R1,...]
+	uint32_t input_buf_frames;  // capacity in frames (power of 2)
+	uint32_t buf_mask;          // input_buf_frames - 1, for fast indexing
+	SDL_atomic_t write_ix;      // next write frame (audio thread)
+	SDL_atomic_t read_ix;       // next read frame (render thread)
+
+	// Resampling state (shared across channels)
+	float position;             // fractional position (0.0 - 0.999...)
+	float ratio;                // cached ratio
+	float cutoff;               // anti-alias cutoff (0 < cutoff <= 1)
 } resampler_t;
-
-static void validate_params(uint32_t *N, uint32_t *k) {
-	if (*N < MIN_N) *N = MIN_N;
-	if ((*N & 1) == 0) (*N)++;  // force odd for symmetric kernel
-	if (*k < MIN_K) *k = MIN_K;
-}
-
-static uint32_t sinc_table_size(uint32_t N, uint32_t k) {
-	return (N * k) + 1;
-}
 
 // Blackman window - excellent sidelobe suppression (~58 dB)
 static float blackman(uint32_t n, uint32_t N) {
@@ -52,51 +50,51 @@ static float blackman(uint32_t n, uint32_t N) {
 	     + 0.08f * cosf(4.0f * (float)M_PI * n / (N - 1));
 }
 
-static void init_sinc_table(resampler_t *rs) {
-	uint32_t n_sinc = rs->n_sinc;
+static void init_sinc_table(resampler_t *s) {
+	uint32_t n_sinc = s->n_sinc;
 
 	// center index: (N/2 + 1) * k
-	rs->center = ((rs->N >> 1) + 1) * rs->k;
+	s->center = ((s->N >> 1) + 1) * s->k;
 
 	// build oversampled sinc table
 	for (uint32_t i = 0; i < n_sinc; i++) {
-		float t = (float)i / (float)rs->k - (float)((rs->N >> 1) + 1);
+		float t = (float)i / (float)s->k - (float)((s->N >> 1) + 1);
 
 		if (t == 0.0f) {
-			rs->sinc[i] = 1.0f;
+			s->sinc[i] = 1.0f;
 		} else {
-			rs->sinc[i] = sinf(t * (float)M_PI) / (t * (float)M_PI);
+			s->sinc[i] = sinf(t * (float)M_PI) / (t * (float)M_PI);
 		}
 	}
 
 	// pre-compute forward sinc deltas for linear interpolation
 	for (uint32_t i = 0; i < n_sinc - 1; i++) {
-		rs->sinc_delta[i] = rs->sinc[i + 1] - rs->sinc[i];
+		s->sinc_delta[i] = s->sinc[i + 1] - s->sinc[i];
 	}
-	rs->sinc_delta[n_sinc - 1] = 0.0f;
+	s->sinc_delta[n_sinc - 1] = 0.0f;
 
 	// build per-tap window weights with Blackman window
-	for (uint32_t j = 0; j < rs->N; j++) {
-		rs->window[j] = blackman(j, rs->N);
+	for (uint32_t j = 0; j < s->N; j++) {
+		s->window[j] = blackman(j, s->N);
 	}
 
 	// normalize window weights for unity DC gain at fc=1.0, offset=0
 	float sum = 0.0f;
-	uint32_t idx = rs->k;
-	for (uint32_t j = 0; j < rs->N; j++, idx += rs->k) {
-		sum += rs->sinc[idx] * rs->window[j];
+	uint32_t idx = s->k;
+	for (uint32_t j = 0; j < s->N; j++, idx += s->k) {
+		sum += s->sinc[idx] * s->window[j];
 	}
 	if (sum != 0.0f) {
 		float scale = 1.0f / sum;
-		for (uint32_t j = 0; j < rs->N; j++) {
-			rs->window[j] *= scale;
+		for (uint32_t j = 0; j < s->N; j++) {
+			s->window[j] *= scale;
 		}
 	}
 }
 
 // lookup sinc value at fractional table index with linear interpolation
-static inline float sinc_lookup(const resampler_t *rs, float x) {
-	uint32_t n_sinc = rs->n_sinc;
+static inline float sinc_lookup(const resampler_t *s, float x) {
+	uint32_t n_sinc = s->n_sinc;
 
 	// clamp x to valid range
 	if (x < 0.0f) x = 0.0f;
@@ -108,47 +106,45 @@ static inline float sinc_lookup(const resampler_t *rs, float x) {
 
 	float frac = x - (float)i;
 
-	// linear interpolation
-	return rs->sinc[i] + frac * rs->sinc_delta[i];
+	// linear interpolation using pre-computed deltas
+	return s->sinc[i] + frac * s->sinc_delta[i];
 }
 
-// compute interpolated output sample at fractional offset with anti-aliasing
-static float sinc_interpolate(resampler_t *rs, float offset) {
-	float fc = rs->cutoff;
-	float center_f = (float)rs->center;
+// compute interpolated output sample at fractional offset for a specific channel
+// base_frame_ix: starting frame index in input_buf for the N-sample convolution window
+// offset: fractional position within the frame (0.0 - 0.999...)
+// channel: channel index to extract (0 to n_channels-1)
+static float sinc_interpolate_channel(const resampler_t *s, uint32_t base_frame_ix, float offset, uint32_t channel) {
+	S9_ASSERT(channel < s->n_channels);
+
+	float fc = s->cutoff;
+	float center_f = (float)s->center;
 
 	// scale offset by oversampling factor
-	float off_k = offset * (float)rs->k;
+	float off_k = offset * (float)s->k;
 
 	// compute fractional part for phase interpolation
 	float kf = off_k - floorf(off_k);
 
 	// compute initial kernel integer index
-	uint32_t ki = rs->k - (uint32_t)(off_k - kf);
+	uint32_t ki = s->k - (uint32_t)(off_k - kf);
 
-	// perform convolution over circular buffer with anti-aliasing
+	// perform convolution over input buffer with anti-aliasing
 	float accum = 0.0f;
 	float coeff_sum = 0.0f;
-	uint32_t tap = 0;
 	uint32_t idx = ki;
 
-	// part 1: input_ix to N-1
-	for (uint32_t i = rs->input_ix; i < rs->N; i++, idx += rs->k, tap++) {
-		float base = (float)idx - kf;
-		float scaled = center_f + (base - center_f) * fc;
-		float s = sinc_lookup(rs, scaled);
-		float coeff = fc * s * rs->window[tap];
-		accum += rs->input_buf[i] * coeff;
-		coeff_sum += coeff;
-	}
+	for (uint32_t tap = 0; tap < s->N; tap++, idx += s->k) {
+		// calculate buffer position for this tap and channel
+		uint32_t buf_frame = (base_frame_ix + tap) & s->buf_mask;
+		uint32_t buf_idx = buf_frame * s->n_channels + channel;
 
-	// part 2: 0 to input_ix-1
-	for (uint32_t i = 0; i < rs->input_ix; i++, idx += rs->k, tap++) {
 		float base = (float)idx - kf;
 		float scaled = center_f + (base - center_f) * fc;
-		float s = sinc_lookup(rs, scaled);
-		float coeff = fc * s * rs->window[tap];
-		accum += rs->input_buf[i] * coeff;
+		float sinc_val = sinc_lookup(s, scaled);
+		float coeff = fc * sinc_val * s->window[tap];
+
+		accum += s->input_buf[buf_idx] * coeff;
 		coeff_sum += coeff;
 	}
 
@@ -160,115 +156,185 @@ static float sinc_interpolate(resampler_t *rs, float offset) {
 	return accum;
 }
 
-// push one sample into the circular input buffer
-static void push_sample(resampler_t *rs, float sample) {
-	rs->input_buf[rs->input_ix++] = sample;
-	if (rs->input_ix >= rs->N) {
-		rs->input_ix = 0;
-	}
-	if (rs->input_count < rs->N) {
-		rs->input_count++;
-	}
+// get number of frames available for reading
+static inline uint32_t frames_available(uint32_t buf_mask, uint32_t write_ix, uint32_t read_ix) {
+	return (write_ix - read_ix) & buf_mask;
 }
 
-resampler_t *resampler_new(const resampler_config_t *config) {
-	resampler_config_t cfg = config ? *config : default_resampler_config;
+// round up to next power of 2
+static uint32_t next_power_of_2(uint32_t n) {
+	if (n == 0) return 1;
+	n--;
+	n |= n >> 1;
+	n |= n >> 2;
+	n |= n >> 4;
+	n |= n >> 8;
+	n |= n >> 16;
+	return n + 1;
+}
 
-	uint32_t N = cfg.N;
-	uint32_t k = cfg.k;
-	validate_params(&N, &k);
+resampler_t *resampler_new(uint32_t channels, uint32_t buffer_size) {
+	// validate parameters
+	CHECK_PARAMETER(channels >= 1, return NULL);
+	CHECK_PARAMETER(buffer_size >= RESAMPLER_N + 1,
+		S9_LOG_ERROR("buffer_size %u too small, need at least %u", buffer_size, RESAMPLER_N + 1);
+		return NULL);
 
-	uint32_t n_sinc = sinc_table_size(N, k);
+	// round buffer size up to next power of 2
+	uint32_t buffer_frames = next_power_of_2(buffer_size);
 
-	resampler_t *rs = malloc(sizeof(resampler_t));
-	if (!rs) return NULL;
-	memset(rs, 0, sizeof(*rs));
+	// allocate struct
+	resampler_t *s = malloc(sizeof(resampler_t));
+	CHECK_ALLOC(s, return NULL);
+	memset(s, 0, sizeof(*s));
 
-	rs->N = N;
-	rs->k = k;
-	rs->n_sinc = n_sinc;
+	// set configuration
+	s->n_channels = channels;
+	s->N = RESAMPLER_N;
+	s->k = RESAMPLER_K;
+	s->n_sinc = s->N * s->k + 1;
+	s->center = ((s->N >> 1) + 1) * s->k;
 
-	// allocate tables
-	rs->sinc = malloc(n_sinc * sizeof(float));
-	rs->sinc_delta = malloc(n_sinc * sizeof(float));
-	rs->window = malloc(N * sizeof(float));
-	rs->input_buf = malloc(N * sizeof(float));
+	// allocate sinc tables
+	s->sinc = malloc(s->n_sinc * sizeof(float));
+	CHECK_ALLOC(s->sinc, resampler_free(&s); return NULL);
 
-	if (!rs->sinc || !rs->sinc_delta || !rs->window || !rs->input_buf) {
-		resampler_free(&rs);
-		return NULL;
-	}
+	s->sinc_delta = malloc(s->n_sinc * sizeof(float));
+	CHECK_ALLOC(s->sinc_delta, resampler_free(&s); return NULL);
 
-	// initialize input buffer to zeros
-	memset(rs->input_buf, 0, N * sizeof(float));
+	s->window = malloc(s->N * sizeof(float));
+	CHECK_ALLOC(s->window, resampler_free(&s); return NULL);
 
 	// initialize sinc table and window
-	init_sinc_table(rs);
+	init_sinc_table(s);
 
-	// initialize state
-	rs->position = 0.0f;
-	rs->ratio = 0.0f;  // will be set on first read
-	rs->cutoff = 1.0f;
+	// allocate interleaved buffer
+	s->input_buf_frames = buffer_frames;
+	s->buf_mask = buffer_frames - 1;
+	uint32_t buffer_samples = buffer_frames * channels;
+	s->input_buf = malloc(buffer_samples * sizeof(float));
+	CHECK_ALLOC(s->input_buf, resampler_free(&s); return NULL);
+	memset(s->input_buf, 0, buffer_samples * sizeof(float));
 
-	return rs;
+	// initialize atomics
+	SDL_AtomicSet(&s->write_ix, 0);
+	SDL_AtomicSet(&s->read_ix, 0);
+
+	// initialize resampling state
+	s->position = 0.0f;
+	s->ratio = 0.0f;
+	s->cutoff = 1.0f;
+
+	return s;
 }
 
-void resampler_free(resampler_t **rs) {
-	if (rs && *rs) {
-		free((*rs)->sinc);
-		free((*rs)->sinc_delta);
-		free((*rs)->window);
-		free((*rs)->input_buf);
-		free(*rs);
-		*rs = NULL;
+void resampler_free(resampler_t **sampler) {
+	if (sampler && *sampler) {
+		if ((*sampler)->sinc) free((*sampler)->sinc);
+		if ((*sampler)->sinc_delta) free((*sampler)->sinc_delta);
+		if ((*sampler)->window) free((*sampler)->window);
+		if ((*sampler)->input_buf) free((*sampler)->input_buf);
+		free(*sampler);
+		*sampler = NULL;
 	}
 }
 
-uint32_t resampler_read(resampler_t *rs, float *out, uint32_t count, float ratio, resampler_source_fn source, void *context) {
-	if (!rs || !out || !source || ratio <= 0.0f) return 0;
+uint32_t resampler_enqueue(resampler_t *sampler, const float *samples, uint32_t frames, uint32_t n_channels) {
+	if (!sampler || !samples || frames == 0) return 0;
+
+	// validate channel count
+	if (n_channels != sampler->n_channels) {
+		S9_LOG_ERROR("resampler_enqueue: channel mismatch (expected %u, got %u)",
+			sampler->n_channels, n_channels);
+		return 0;
+	}
+
+	// snapshot read_ix (written by render thread)
+	uint32_t read_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->read_ix);
+
+	// work with local write_ix (only audio thread writes this)
+	uint32_t write_ix_local = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
+
+	// calculate available write space (in frames)
+	// usable capacity is buf_mask (one frame kept empty)
+	uint32_t avail = (read_ix_snap - write_ix_local - 1) & sampler->buf_mask;
+
+	uint32_t to_write = frames;
+	if (to_write > avail) {
+		S9_LOG_ERROR("resampler buffer overflow: %u frames dropped", to_write - avail);
+		to_write = avail;
+	}
+
+	// copy interleaved samples to buffer
+	for (uint32_t i = 0; i < to_write; i++) {
+		uint32_t buf_idx = write_ix_local * n_channels;
+		for (uint32_t c = 0; c < n_channels; c++) {
+			sampler->input_buf[buf_idx + c] = samples[i * n_channels + c];
+		}
+		write_ix_local = (write_ix_local + 1) & sampler->buf_mask;
+	}
+
+	// publish final write_ix with release semantics
+	SDL_AtomicSet(&sampler->write_ix, (int)write_ix_local);
+
+	return to_write;
+}
+
+uint32_t resampler_read(resampler_t *sampler, float *out, uint32_t max_frames, float rate, float gain) {
+	if (!sampler || !out || max_frames == 0 || rate <= 0.0f) return 0;
 
 	// update ratio and cutoff if changed
-	if (rs->ratio != ratio) {
-		rs->ratio = ratio;
-		// anti-alias cutoff: when downsampling (ratio < 1), reduce bandwidth
-		rs->cutoff = (ratio < 1.0f) ? ratio : 1.0f;
+	if (sampler->ratio != rate) {
+		sampler->ratio = rate;
+		// anti-alias cutoff: when downsampling (rate < 1), reduce bandwidth
+		sampler->cutoff = (rate < 1.0f) ? rate : 1.0f;
 	}
 
 	// increment is how much we advance through input per output sample
-	float increment = 1.0f / ratio;
+	float increment = 1.0f / rate;
+
+	// snapshot write_ix (written by audio thread)
+	uint32_t write_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
+
+	// work with local read_ix (only render thread writes this)
+	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&sampler->read_ix);
+
+	// local copy of position for processing
+	float position = sampler->position;
 
 	uint32_t written = 0;
+	uint32_t n_channels = sampler->n_channels;
 
-	// temporary buffer for pulling input samples
-	float sample;
-
-	while (written < count) {
-		// ensure we have enough samples in buffer for initial fill
-		while (rs->input_count < rs->N / 2 + 1) {
-			if (source(context, &sample, 1) == 0) {
-				// source exhausted
-				return written;
-			}
-			push_sample(rs, sample);
+	while (written < max_frames) {
+		// check if we have enough frames for convolution + position advance
+		uint32_t advance = (uint32_t)(position + increment);
+		uint32_t avail = frames_available(sampler->buf_mask, write_ix_snap, read_ix_local);
+		if (avail < sampler->N + advance) {
+			break;  // not enough data
 		}
 
-		// compute interpolated output sample
-		out[written++] = sinc_interpolate(rs, rs->position);
+		// resample each channel independently at the same fractional position
+		for (uint32_t c = 0; c < n_channels; c++) {
+			out[written * n_channels + c] =
+				sinc_interpolate_channel(sampler, read_ix_local, position, c) * gain;
+		}
+		written++;
 
 		// advance position
-		rs->position += increment;
+		position += increment;
 
-		// consume input samples as needed
-		while (rs->position >= 1.0f) {
-			rs->position -= 1.0f;
-
-			if (source(context, &sample, 1) == 0) {
-				// source exhausted
-				return written;
-			}
-			push_sample(rs, sample);
+		// consume input frames as needed
+		while (position >= 1.0f) {
+			position -= 1.0f;
+			read_ix_local = (read_ix_local + 1) & sampler->buf_mask;
 		}
 	}
+
+	// update state
+	sampler->position = position;
+
+	// publish final read_ix with release semantics
+	SDL_AtomicSet(&sampler->read_ix, (int)read_ix_local);
 
 	return written;
 }

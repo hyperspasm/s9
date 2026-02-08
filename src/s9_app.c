@@ -4,6 +4,7 @@
 #include "vu.h"
 #include "spectrogram.h"
 #include "oscilloscope.h"
+#include "lissajous.h"
 #include "scratchpad.h"
 
 #include <stdlib.h>
@@ -278,7 +279,7 @@ int s9_app_create(const s9_app_config_t *config) {
 			.margin_top = 0,
 			.margin_right = 0,
 			.margin_bottom = 0,
-			.fixed_width = 1000,
+			.fixed_width = 860,
 			.fixed_height = 0,
 		},
 		.destroy = (void (*)(void **))spectrogram_free,
@@ -287,7 +288,6 @@ int s9_app_create(const s9_app_config_t *config) {
 		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
 	};
 
-#if 1
 	// oscilloscope
 	oscilloscope_t *osc = oscilloscope_new(NULL);
 	CHECK_ERROR(osc != NULL,
@@ -297,19 +297,40 @@ int s9_app_create(const s9_app_config_t *config) {
 	*component++ = (s9_component_t){
 		.instance = osc,
 		.layout = {
-			.margin_left = 1060,
+			.margin_left = 920,
 			.margin_top = 0,
 			.margin_right = 0,
 			.margin_bottom = 0,
 			.fixed_width = 0,
-			.fixed_height = 0,
+			.fixed_height = 360,
 		},
 		.destroy = (void (*)(void **))oscilloscope_free,
 		.render = (void (*)(void *, SDL_Renderer *))oscilloscope_render,
 		.enqueue_audio = (void (*)(void *, uint8_t *, int))oscilloscope_enqueue_audio_data,
 		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))oscilloscope_prepare_to_stream,
 	};
-#endif
+	
+	// lissajous
+	lissajous_t *lissajous = lissajous_new(NULL);
+	CHECK_ERROR(lissajous != NULL,
+				s9_app_destroy();
+				return -1,
+				"Failed to create lissajous instance");
+	*component++ = (s9_component_t){
+		.instance = lissajous,
+		.layout = {
+			.margin_left = 920,
+			.margin_top = 360,
+			.margin_right = 0,
+			.margin_bottom = 0,
+			.fixed_width = 0,
+			.fixed_height = 360,
+		},
+		.destroy = (void (*)(void **))lissajous_free,
+		.render = (void (*)(void *, SDL_Renderer *))lissajous_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))lissajous_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))lissajous_prepare_to_stream,
+	};
 
 #if 0
 	// scratchpad
