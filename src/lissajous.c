@@ -86,15 +86,11 @@ lissajous_t *lissajous_new(const lissajous_config_t *config) {
 	CHECK_ALLOC(liss->graticule, free(liss); return NULL);
 
 	// create MIN blend mode for clipping to trace color
-	// Note: disable with -DS9_DISABLE_CUSTOM_BLEND if hardware doesn't support it
-#ifndef S9_DISABLE_CUSTOM_BLEND
+	// runtime detection will disable this for unsupported renderers
 	liss->clip_blend_mode = SDL_ComposeCustomBlendMode(
 		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM,
 		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM
 	);
-#else
-	liss->clip_blend_mode = SDL_BLENDMODE_INVALID;
-#endif
 
 	return liss;
 }
@@ -118,14 +114,20 @@ static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *rend
 		liss->viewport = viewport;
 
 		// check if renderer supports MIN blend operation
-		// OpenGL ES 1/2 don't support it, only ADD/SUBTRACT/REV_SUBTRACT
+		// Only Direct3D 9/11 and Metal are known to fully support it
+		// OpenGL ES doesn't support it at all
+		// Desktop OpenGL support varies by driver (Pi reports "opengl" but uses ES)
 		SDL_RendererInfo info;
+		int min_blend_supported = 0;
 		if(SDL_GetRendererInfo(renderer, &info) == 0) {
 			const char *name = info.name;
-			if(strstr(name, "opengles") != NULL) {
-				// OpenGL ES detected - disable custom blend mode
-				liss->clip_blend_mode = SDL_BLENDMODE_INVALID;
+			// Enable for renderers we know support MIN blend
+			if(strstr(name, "direct3d") != NULL || strstr(name, "metal") != NULL) {
+				min_blend_supported = 1;
 			}
+		}
+		if(!min_blend_supported) {
+			liss->clip_blend_mode = SDL_BLENDMODE_INVALID;
 		}
 
 		free_render_allocations(liss);
