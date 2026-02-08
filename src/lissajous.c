@@ -26,6 +26,8 @@ typedef struct lissajous {
 	uint32_t max_points;         // capacity in points (1 second of pixel_rate)
 
 	uint32_t frames_since_draw;  // frames elapsed since last draw
+	SDL_FPoint last_point;       // last point drawn (for segment joining)
+	int have_last_point;         // flag indicating last_point is valid
 
 } lissajous_t;
 
@@ -229,26 +231,48 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 		// calculate resampling rate (pixel_rate / sample_rate)
 		float rate = liss->config.pixel_rate / (float)liss->stream_config.sample_rate;
 
-		// read resampled frames (up to max_points)
-		uint32_t frames = resampler_read(liss->resampler, liss->resampled_buffer,
-		                                  liss->max_points, rate, liss->config.gain);
+		// when continuing, reserve points[0] for the join point
+		int joining = liss->have_last_point;
+		uint32_t max_frames = joining ? liss->max_points - 1 : liss->max_points;
 
-		if(frames >= 2) {
+		// read resampled frames (leaving room for join point if needed)
+		uint32_t frames = resampler_read(liss->resampler, liss->resampled_buffer,
+		                                  max_frames, rate, liss->config.gain);
+
+		if(frames > 0) {
 			float center_x = liss->frame_rect.x + liss->frame_rect.w * 0.5f;
 			float center_y = liss->frame_rect.y + liss->frame_rect.h * 0.5f;
 			float scale_x = liss->frame_rect.w * 0.5f;
 			float scale_y = liss->frame_rect.h * 0.5f * -1.0f; // flip Y axis
 
+			// destination starts after join point (if any)
+			SDL_FPoint *dest = liss->points + joining;
+
 			// convert interleaved stereo to points (channel 0 = X, channel 1 = Y)
 			for(uint32_t i = 0; i < frames; i++) {
 				float x = liss->resampled_buffer[i * 2 + 0];  // channel 0 = X
 				float y = liss->resampled_buffer[i * 2 + 1];  // channel 1 = Y
-				liss->points[i].x = center_x + x * scale_x;
-				liss->points[i].y = center_y + y * scale_y;
+				dest[i].x = center_x + x * scale_x;
+				dest[i].y = center_y + y * scale_y;
 			}
 
+			// prepend previous endpoint to form continuous path
+			if(joining) {
+				liss->points[0] = liss->last_point;
+			}
+
+			// save new last point
+			liss->last_point = dest[frames - 1];
+			liss->have_last_point = 1;
+
+			// total points including join
+			uint32_t total_points = frames + joining;
+
 			// render with gradient fade (oldest -> newest)
-			render_gradient_path_lissajous(liss, renderer, liss->points, frames);
+			if(total_points >= 2) {
+				render_gradient_path_lissajous(liss, renderer, liss->points, total_points);
+			}
+
 			liss->frames_since_draw = 0;
 		} else {
 			liss->frames_since_draw++;
@@ -301,6 +325,10 @@ void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config
 	// points buffer for drawing
 	liss->points = malloc(liss->max_points * sizeof(SDL_FPoint));
 	CHECK_ALLOC(liss->points, return);
+
+	// reset continuity tracking
+	liss->have_last_point = 0;
+	liss->frames_since_draw = 0;
 
 	// set flag and stream config
 	liss->stream_config = *stream_config;
