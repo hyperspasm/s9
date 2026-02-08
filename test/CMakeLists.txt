@@ -44,3 +44,27 @@ target_link_libraries(test_osc_sampler
 )
 
 add_test(NAME osc_sampler COMMAND test_osc_sampler)
+
+add_executable(test_resampler
+    test_resampler.c
+    ${CMAKE_SOURCE_DIR}/src/resampler.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+
+target_compile_definitions(test_resampler PRIVATE TESTING)
+
+target_include_directories(test_resampler PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${SDL2_INCLUDE_DIRS}
+)
+
+target_link_directories(test_resampler PRIVATE
+    ${SDL2_LIBRARY_DIRS}
+)
+
+target_link_libraries(test_resampler
+    ${SDL2_LIBRARIES}
+    m
+)
+
+add_test(NAME resampler COMMAND test_resampler)
