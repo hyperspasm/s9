@@ -227,8 +227,8 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 
 	// read resampled data and draw
 	if(liss->resampler && liss->resampled_buffer && liss->points) {
-		// calculate resampling rate (pixel_rate / sample_rate)
-		float rate = liss->config.pixel_rate / (float)liss->stream_config.sample_rate;
+		// resampling rate is the upsampling factor
+		float rate = liss->config.upsampling;
 
 		// when continuing, points[0] already contains the join point
 		int joining = liss->have_last_point;
@@ -309,8 +309,8 @@ void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config
 	liss->resampler = resampler_new(2, buffer_frames);
 	CHECK_ALLOC(liss->resampler, return);
 
-	// allocate buffers for 1 second of pixels (based on pixel_rate)
-	liss->max_points = (uint32_t)liss->config.pixel_rate;
+	// allocate buffers for 1 second of upsampled data
+	liss->max_points = (uint32_t)(liss->config.upsampling * stream_config->sample_rate);
 
 	// resampled buffer: interleaved stereo (2 channels)
 	liss->resampled_buffer = malloc(liss->max_points * 2 * sizeof(float));

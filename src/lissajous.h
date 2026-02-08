@@ -13,7 +13,7 @@ typedef struct {
 	float trace_width;
 	uint8_t persistence;  // 0-255, higher = longer trace persistence
 	float gain;           // gain multiplier for both X and Y axes
-	float pixel_rate;     // pixels per second for resampling
+	float upsampling;     // upsampling factor relative to sample rate
 } lissajous_config_t;
 
 static const lissajous_config_t default_lissajous_config = {
@@ -21,7 +21,7 @@ static const lissajous_config_t default_lissajous_config = {
 	.trace_width = 2.f,
 	.persistence = 180,
 	.gain = 2.0f,
-	.pixel_rate = 176400.0f,
+	.upsampling = 4.0f,
 };
 
 // create lissajous
