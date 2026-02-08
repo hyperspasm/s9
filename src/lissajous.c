@@ -304,8 +304,11 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 	SDL_RenderCopy(renderer, prv, NULL, NULL);
 
 	// clip to trace color using MIN blend (prevents hue shift)
-	SDL_SetTextureBlendMode(liss->clip_texture, liss->clip_blend_mode);
-	SDL_RenderCopy(renderer, liss->clip_texture, NULL, NULL);
+	// only if custom blend mode is supported by hardware
+	if(liss->clip_blend_mode != SDL_BLENDMODE_INVALID) {
+		SDL_SetTextureBlendMode(liss->clip_texture, liss->clip_blend_mode);
+		SDL_RenderCopy(renderer, liss->clip_texture, NULL, NULL);
+	}
 
 	// blit current blur_buffer to screen
 	SDL_SetRenderTarget(renderer, NULL);
