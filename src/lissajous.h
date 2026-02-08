@@ -17,7 +17,7 @@ typedef struct {
 } lissajous_config_t;
 
 static const lissajous_config_t default_lissajous_config = {
-	.trace_color = S9_YELLOW,
+	.trace_color = S9_LEMON,
 	.trace_width = 2.f,
 	.persistence = 180,
 	.gain = 2.0f,

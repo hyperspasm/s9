@@ -15,7 +15,7 @@ typedef struct {
 } oscilloscope_config_t;
 
 static const oscilloscope_config_t default_oscilloscope_config = {
-	.trace_color = S9_YELLOW,
+	.trace_color = S9_ELECTRIC,
 	.trace_width = 2.f,
 	.persistence = 200,
 };
