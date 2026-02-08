@@ -5,29 +5,29 @@
 
 typedef struct resampler resampler_t;
 
-typedef struct {
-	uint32_t N;  // convolution length (filter taps), min 9
-	uint32_t k;  // sinc table oversampling factor, min 10
-} resampler_config_t;
+// Create resampler for multi-channel interleaved audio
+// sample_rate: input sample rate in Hz (for reference)
+// channels: number of channels (must be >= 1)
+// buffer_size: desired buffer size in frames (will be rounded up to power of 2)
+// Returns NULL on allocation failure or invalid parameters
+resampler_t *resampler_new(uint32_t sample_rate, uint32_t channels, uint32_t buffer_size);
 
-static const resampler_config_t default_resampler_config = {
-	.N = 17,
-	.k = 64,
-};
+// Destroy resampler
+void resampler_free(resampler_t **sampler);
 
-// callback type: fills `out` with up to `count` samples, returns actual count
-typedef uint32_t (*resampler_source_fn)(void *context, float *out, uint32_t count);
+// Audio thread: enqueue raw interleaved samples
+// samples: interleaved audio frames [ch0, ch1, ..., ch0, ch1, ...]
+// frames: number of frames to enqueue
+// n_channels: number of channels in input (must match resampler's channel count)
+// Returns number of frames actually enqueued (may be less if buffer full)
+uint32_t resampler_enqueue(resampler_t *sampler, const float *samples, uint32_t frames, uint32_t n_channels);
 
-// create resampler
-resampler_t *resampler_new(const resampler_config_t *config);
-
-// destroy resampler
-void resampler_free(resampler_t **rs);
-
-// read output samples, pulling from source as needed
-// ratio is output_rate / input_rate (e.g., 16.0 for 16x upsampling)
-// internally caches ratio and rebuilds filter when it changes
-// returns number of samples actually written to `out`
-uint32_t resampler_read(resampler_t *rs, float *out, uint32_t count, float ratio, resampler_source_fn source, void *context);
+// Render thread: read resampled interleaved data
+// out: output buffer for interleaved frames
+// max_frames: maximum frames to read
+// rate: output_rate / input_rate (e.g., 2.0 for 2x upsampling, 0.5 for 2x downsampling)
+// gain: amplitude multiplier applied to all channels
+// Returns number of frames written (may be less if insufficient input data)
+uint32_t resampler_read(resampler_t *sampler, float *out, uint32_t max_frames, float rate, float gain);
 
 #endif /* resampler_h */
