@@ -180,11 +180,11 @@ static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *rend
 	uint32_t n_indices = (n_points - 1) * 6;
 	float half_width = 0.5f * liss->config.trace_width;
 
-	SDL_Vertex *vertices = malloc(n_verts * sizeof(SDL_Vertex));
-	if(!vertices) return;
+	SDL_Vertex *vertices = (SDL_Vertex *) malloc(n_verts * sizeof(SDL_Vertex));
+	CHECK_ALLOC(vertices, return);
 
-	int *indices = malloc(n_indices * sizeof(int));
-	if(!indices) { free(vertices); return; }
+	int *indices = (int *) malloc(n_indices * sizeof(int));
+	CHECK_ALLOC(indices, free(vertices); return);
 
 	// calculate fade: left edge p^K (faded), right edge 1.0 (full brightness)
 	float factor = powf(p, (float)K);

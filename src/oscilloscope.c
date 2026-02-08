@@ -191,7 +191,8 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 
 		free(osc->pixel_buffer);
 		osc->pixel_buffer_size = (uint32_t)osc->frame_rect.w;
-		osc->pixel_buffer = malloc(osc->pixel_buffer_size * sizeof(float));
+		osc->pixel_buffer = (float *) malloc(osc->pixel_buffer_size * sizeof(float));
+		CHECK_ALLOC(osc->pixel_buffer, return -1);
 
 		osc->render_mode = osc_mode_none;
 	}
@@ -204,8 +205,8 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
                                   const float *pixel_buf, uint32_t n_pixels, uint32_t x_start,
                                   float vertical_factor, float vertical_offset) {
-	SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * n_pixels);
-	if(!points) return;
+	SDL_FPoint *points = (SDL_FPoint *) malloc(sizeof(SDL_FPoint) * n_pixels);
+	CHECK_ALLOC(points, return);
 
 	for(uint32_t i = 0; i < n_pixels; i++) {
 		points[i].x = osc->frame_rect.x + x_start + i;
@@ -271,11 +272,11 @@ static void render_gradient_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 	uint32_t n_indices = (n_pixels - 1) * 6;
 	float half_width = 0.5f * osc->config.trace_width;
 
-	SDL_Vertex *vertices = malloc(n_verts * sizeof(SDL_Vertex));
-	if(!vertices) return;
+	SDL_Vertex *vertices = (SDL_Vertex *) malloc(n_verts * sizeof(SDL_Vertex));
+	CHECK_ALLOC(vertices, return);
 
-	int *indices = malloc(n_indices * sizeof(int));
-	if(!indices) { free(vertices); return; }
+	int *indices = (int *) malloc(n_indices * sizeof(int));
+	CHECK_ALLOC(indices, free(vertices); return);
 
 	// left edge fades by p^K; right edge is full brightness.
 	// iterate from left to right, multiplying by a constant step each pixel.
