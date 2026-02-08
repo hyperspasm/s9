@@ -1,7 +1,7 @@
 #include "lissajous.h"
 
 #include "s9.h"
-#include "ring_buffer.h"
+#include "resampler.h"
 #include "draw_sdl.h"
 #include "graticule.h"
 
@@ -16,26 +16,33 @@ typedef struct lissajous {
 
 	int streaming;
 	s9_audio_stream_config_t stream_config;
-	ring_buffer_t *rb;
+	resampler_t *resampler;
 
 	SDL_Texture *blur_buffer[2];
 	uint32_t blur_buffer_index;
 
-	float *sample_buffer;        // temp buffer for dequeued samples
-	uint32_t sample_buffer_size; // size in frames
+	float *resampled_buffer;     // temp buffer for resampled interleaved data
+	SDL_FPoint *points;          // points buffer for drawing
+	uint32_t max_points;         // capacity in points (1 second of pixel_rate)
 
 } lissajous_t;
 
 static void free_dsp_allocations(lissajous_t *liss) {
-	if(liss->rb) {
-		ring_buffer_free(&liss->rb);
+	if(liss->resampler) {
+		resampler_free(&liss->resampler);
 	}
 
-	if(liss->sample_buffer) {
-		free(liss->sample_buffer);
-		liss->sample_buffer = NULL;
-		liss->sample_buffer_size = 0;
+	if(liss->resampled_buffer) {
+		free(liss->resampled_buffer);
+		liss->resampled_buffer = NULL;
 	}
+
+	if(liss->points) {
+		free(liss->points);
+		liss->points = NULL;
+	}
+
+	liss->max_points = 0;
 }
 
 static void free_render_allocations(lissajous_t *liss) {
@@ -128,47 +135,33 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 	SDL_RenderSetClipRect(renderer, &liss->frame_rect);
 	draw_sdl_clear_viewport(renderer, NULL);
 
-	// drain ring buffer and draw samples
-	if(liss->rb && liss->sample_buffer) {
-		uint32_t n_channels = liss->stream_config.channels;
-		uint32_t bytes_per_frame = liss->stream_config.audio_format.bytes_per_sample * n_channels;
-		uint32_t bytes_avail = ring_buffer_read_avail(liss->rb);
-		uint32_t frames_avail = bytes_avail / bytes_per_frame;
+	// read resampled data and draw
+	if(liss->resampler && liss->resampled_buffer && liss->points) {
+		// calculate resampling rate (pixel_rate / sample_rate)
+		float rate = liss->config.pixel_rate / (float)liss->stream_config.sample_rate;
 
-		// limit to sample buffer size
-		if(frames_avail > liss->sample_buffer_size) {
-			frames_avail = liss->sample_buffer_size;
-		}
+		// read resampled frames (up to max_points)
+		uint32_t frames = resampler_read(liss->resampler, liss->resampled_buffer,
+		                                  liss->max_points, rate, liss->config.gain);
 
-		if(frames_avail > 0) {
-			uint32_t bytes_to_read = frames_avail * bytes_per_frame;
-			uint32_t bytes_read = ring_buffer_read(liss->rb, (uint8_t*)liss->sample_buffer, bytes_to_read);
-			S9_ASSERT(bytes_read == bytes_to_read);
+		if(frames >= 2) {
+			float center_x = liss->frame_rect.x + liss->frame_rect.w * 0.5f;
+			float center_y = liss->frame_rect.y + liss->frame_rect.h * 0.5f;
+			float scale_x = liss->frame_rect.w * 0.5f;
+			float scale_y = liss->frame_rect.h * 0.5f * -1.0f; // flip Y axis
 
-			// build path from samples (channel 0 = X, channel 1 = Y)
-			if(frames_avail >= 2) {
-				SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * frames_avail);
-				if(points) {
-					float center_x = liss->frame_rect.x + liss->frame_rect.w * 0.5f;
-					float center_y = liss->frame_rect.y + liss->frame_rect.h * 0.5f;
-					float scale_x = liss->frame_rect.w * 0.5f / liss->config.gain;
-					float scale_y = liss->frame_rect.h * 0.5f / liss->config.gain * -1.0f; // flip Y axis
+			// convert interleaved stereo to points (channel 0 = X, channel 1 = Y)
+			for(uint32_t i = 0; i < frames; i++) {
+				float x = liss->resampled_buffer[i * 2 + 0];  // channel 0 = X
+				float y = liss->resampled_buffer[i * 2 + 1];  // channel 1 = Y
+				liss->points[i].x = center_x + x * scale_x;
+				liss->points[i].y = center_y + y * scale_y;
+			}
 
-					for(uint32_t i = 0; i < frames_avail; i++) {
-						float x = liss->sample_buffer[i * n_channels + 0];  // channel 0 = X
-						float y = liss->sample_buffer[i * n_channels + 1];  // channel 1 = Y
-						points[i].x = center_x + x * scale_x;
-						points[i].y = center_y + y * scale_y;
-					}
-
-					sdl_path_t *path = sdl_path_new(&liss->config.trace_color, liss->config.trace_width, 0, points, frames_avail);
-					free(points);
-
-					if(path) {
-						sdl_path_render(path, renderer);
-						sdl_path_free(&path);
-					}
-				}
+			sdl_path_t *path = sdl_path_new(&liss->config.trace_color, liss->config.trace_width, 0, liss->points, frames);
+			if(path) {
+				sdl_path_render(path, renderer);
+				sdl_path_free(&path);
 			}
 		}
 	}
@@ -202,16 +195,21 @@ void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config
 	// free dsp allocations
 	free_dsp_allocations(liss);
 
-	// create ring buffer with capacity for 1 second of data
+	// create resampler with 2 channels, 1 second buffer
 	uint32_t buffer_frames = stream_config->sample_rate;
-	uint32_t buffer_bytes = buffer_frames * stream_config->audio_format.bytes_per_sample * stream_config->channels;
-	liss->rb = ring_buffer_new(buffer_bytes);
-	CHECK_ALLOC(liss->rb, return);
+	liss->resampler = resampler_new(2, buffer_frames);
+	CHECK_ALLOC(liss->resampler, return);
 
-	// allocate sample buffer for 1 second of frames
-	liss->sample_buffer_size = buffer_frames;
-	liss->sample_buffer = malloc(liss->sample_buffer_size * stream_config->audio_format.bytes_per_sample * stream_config->channels);
-	CHECK_ALLOC(liss->sample_buffer, return);
+	// allocate buffers for 1 second of pixels (based on pixel_rate)
+	liss->max_points = (uint32_t)liss->config.pixel_rate;
+
+	// resampled buffer: interleaved stereo (2 channels)
+	liss->resampled_buffer = malloc(liss->max_points * 2 * sizeof(float));
+	CHECK_ALLOC(liss->resampled_buffer, return);
+
+	// points buffer for drawing
+	liss->points = malloc(liss->max_points * sizeof(SDL_FPoint));
+	CHECK_ALLOC(liss->points, return);
 
 	// set flag and stream config
 	liss->stream_config = *stream_config;
@@ -219,7 +217,10 @@ void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config
 }
 
 void lissajous_enqueue_audio_data(lissajous_t *liss, const void *data, uint32_t size) {
-	if(liss->rb) {
-		ring_buffer_write(liss->rb, data, size);
+	if(liss->resampler) {
+		uint32_t n_channels = liss->stream_config.channels;
+		uint32_t bytes_per_frame = liss->stream_config.audio_format.bytes_per_sample * n_channels;
+		uint32_t frames = size / bytes_per_frame;
+		resampler_enqueue(liss->resampler, (const float *)data, frames, n_channels);
 	}
 }
