@@ -25,6 +25,8 @@ typedef struct lissajous {
 	SDL_FPoint *points;          // points buffer for drawing
 	uint32_t max_points;         // capacity in points (1 second of pixel_rate)
 
+	uint32_t frames_since_draw;  // frames elapsed since last draw
+
 } lissajous_t;
 
 static void free_dsp_allocations(lissajous_t *liss) {
@@ -118,6 +120,93 @@ static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *rend
 	return 0;
 }
 
+// render path with exponential per-vertex fade to simulate phosphor decay
+// oldest points (left) fade by p^K, newest points (right) are full brightness
+static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *renderer,
+                                            const SDL_FPoint *points, uint32_t n_points) {
+	if(n_points < 2) return;
+
+	float p = liss->config.persistence / 255.0f;
+	uint32_t K = liss->frames_since_draw + 1;
+
+	uint32_t n_verts = 2 * n_points;
+	uint32_t n_indices = (n_points - 1) * 6;
+	float half_width = 0.5f * liss->config.trace_width;
+
+	SDL_Vertex *vertices = malloc(n_verts * sizeof(SDL_Vertex));
+	if(!vertices) return;
+
+	int *indices = malloc(n_indices * sizeof(int));
+	if(!indices) { free(vertices); return; }
+
+	// calculate fade: left edge p^K (faded), right edge 1.0 (full brightness)
+	float factor = powf(p, (float)K);
+	float step = (factor > 0.0f) ? powf(factor, -1.0f / (float)(n_points - 1)) : 1.0f;
+
+	for(uint32_t i = 0; i < n_points; i++) {
+		float cx = points[i].x;
+		float cy = points[i].y;
+
+		SDL_Color c = {
+			(uint8_t)(liss->config.trace_color.r * factor),
+			(uint8_t)(liss->config.trace_color.g * factor),
+			(uint8_t)(liss->config.trace_color.b * factor),
+			255
+		};
+
+		// perpendicular vector for line width
+		float dx, dy;
+		if(i == 0) {
+			dx = points[1].y - points[0].y;
+			dy = -(points[1].x - points[0].x);
+		} else if(i == n_points - 1) {
+			dx = points[n_points - 1].y - points[n_points - 2].y;
+			dy = -(points[n_points - 1].x - points[n_points - 2].x);
+		} else {
+			dx = points[i + 1].y - points[i - 1].y;
+			dy = -(points[i + 1].x - points[i - 1].x);
+		}
+
+		float len = sqrtf(dx * dx + dy * dy);
+		if(len > 0.0f) {
+			dx = dx / len * half_width;
+			dy = dy / len * half_width;
+		}
+
+		// inner edge (index i)
+		vertices[i] = (SDL_Vertex){
+			.position = { cx + dx, cy + dy },
+			.color = c,
+			.tex_coord = { 0, 0 }
+		};
+
+		// outer edge (reversed)
+		vertices[n_verts - 1 - i] = (SDL_Vertex){
+			.position = { cx - dx, cy - dy },
+			.color = c,
+			.tex_coord = { 0, 0 }
+		};
+
+		factor *= step;
+	}
+
+	// triangle strip indices
+	for(uint32_t i = 0; i < n_points - 1; i++) {
+		int *idx = indices + i * 6;
+		idx[0] = i;
+		idx[1] = n_verts - 1 - i;
+		idx[2] = i + 1;
+		idx[3] = n_verts - 1 - i;
+		idx[4] = i + 1;
+		idx[5] = n_verts - 1 - (i + 1);
+	}
+
+	SDL_RenderGeometry(renderer, NULL, vertices, n_verts, indices, n_indices);
+
+	free(vertices);
+	free(indices);
+}
+
 void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 	if(!liss->streaming) return;
 	if(prepare_to_draw(liss, renderer)) return;
@@ -158,12 +247,14 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 				liss->points[i].y = center_y + y * scale_y;
 			}
 
-			sdl_path_t *path = sdl_path_new(&liss->config.trace_color, liss->config.trace_width, 0, liss->points, frames);
-			if(path) {
-				sdl_path_render(path, renderer);
-				sdl_path_free(&path);
-			}
+			// render with gradient fade (oldest -> newest)
+			render_gradient_path_lissajous(liss, renderer, liss->points, frames);
+			liss->frames_since_draw = 0;
+		} else {
+			liss->frames_since_draw++;
 		}
+	} else {
+		liss->frames_since_draw++;
 	}
 
 	// clear clip rect before blending
