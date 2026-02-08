@@ -6,11 +6,10 @@
 typedef struct resampler resampler_t;
 
 // Create resampler for multi-channel interleaved audio
-// sample_rate: input sample rate in Hz (for reference)
 // channels: number of channels (must be >= 1)
 // buffer_size: desired buffer size in frames (will be rounded up to power of 2)
 // Returns NULL on allocation failure or invalid parameters
-resampler_t *resampler_new(uint32_t sample_rate, uint32_t channels, uint32_t buffer_size);
+resampler_t *resampler_new(uint32_t channels, uint32_t buffer_size);
 
 // Destroy resampler
 void resampler_free(resampler_t **sampler);

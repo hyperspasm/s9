@@ -17,7 +17,6 @@
 
 typedef struct resampler {
 	// Configuration
-	uint32_t sample_rate;       // input sample rate (for reference)
 	uint32_t n_channels;        // number of channels
 
 	// Sinc interpolation parameters
@@ -174,7 +173,7 @@ static uint32_t next_power_of_2(uint32_t n) {
 	return n + 1;
 }
 
-resampler_t *resampler_new(uint32_t sample_rate, uint32_t channels, uint32_t buffer_size) {
+resampler_t *resampler_new(uint32_t channels, uint32_t buffer_size) {
 	// validate parameters
 	CHECK_PARAMETER(channels >= 1, return NULL);
 	CHECK_PARAMETER(buffer_size >= RESAMPLER_N + 1,
@@ -190,7 +189,6 @@ resampler_t *resampler_new(uint32_t sample_rate, uint32_t channels, uint32_t buf
 	memset(s, 0, sizeof(*s));
 
 	// set configuration
-	s->sample_rate = sample_rate;
 	s->n_channels = channels;
 	s->N = RESAMPLER_N;
 	s->k = RESAMPLER_K;
