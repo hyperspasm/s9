@@ -41,7 +41,7 @@ void scratchpad_free(scratchpad_t **sp) {
 	}
 }
 
-static inline void compute_wave(float *points, uint32_t n_points, float amplitude, float offset) {
+static void compute_wave(float *points, uint32_t n_points, float amplitude, float offset) {
 	
 	float frequency = 1.f/n_points;
 	
@@ -57,7 +57,7 @@ static inline void compute_wave(float *points, uint32_t n_points, float amplitud
 	}
 }
 
-static inline void prepare_wave(scratchpad_t *sp) {
+static void prepare_wave(scratchpad_t *sp) {
 	
 	if(sp->wave_path) {
 		sdl_path_free(&sp->wave_path);
@@ -90,7 +90,7 @@ static inline void prepare_wave(scratchpad_t *sp) {
 	free(wave_points);
 }
 
-static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
+static S9_FORCE_INLINE void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
 	SDL_Rect viewport;	
 	SDL_RenderGetViewport(renderer, &viewport);
 	
@@ -103,7 +103,7 @@ static inline void prepare_to_draw(scratchpad_t *sp, SDL_Renderer *renderer) {
 	}
 }
 
-static inline void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {
+static void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {
 	if(sp->wave_path) {
 		sdl_path_render(sp->wave_path, renderer);
 	}

@@ -107,7 +107,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 	}
 }
 
-static void prepare_to_draw(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect *rect) {
+static S9_FORCE_INLINE void prepare_to_draw(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect *rect) {
 	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);
 

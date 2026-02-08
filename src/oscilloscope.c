@@ -136,7 +136,7 @@ void oscilloscope_free(oscilloscope_t **osc) {
 	}
 }
 
-static int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *renderer) {
+static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);
 

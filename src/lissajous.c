@@ -110,7 +110,7 @@ void lissajous_free(lissajous_t **liss) {
 	}
 }
 
-static int prepare_to_draw(lissajous_t *liss, SDL_Renderer *renderer) {
+static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);
 
