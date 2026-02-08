@@ -424,6 +424,8 @@ SDL_Texture* sdl_polygon_render_to_texture(SDL_Renderer *renderer, sdl_polygon_t
 
 // creates polygon indices for rendering a convex polygon
 static int* draw_sdl_create_polygon_indices(SDL_Vertex *vertices, uint32_t n_vertices, uint32_t *out_n_indices) {
+	(void)vertices;
+
 	// ensure there are enough vertices to form a polygon
 	if (n_vertices < 3) {
 		*out_n_indices = 0;

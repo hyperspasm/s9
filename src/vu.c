@@ -108,7 +108,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 	int bar_width = (vu->viewport.w - (n_channels - 1) * vu->config.margin) / n_channels;
 	
 	// update peak holds
-	for(int j = 0; j < n_channels; j++) {
+	for(uint32_t j = 0; j < n_channels; j++) {
 		uint32_t now = SDL_GetTicks();
 		if(vu->channel_vals[j].db_peak > vu->peak_holds[j].db_peak || (now - vu->peak_holds[j].t0) > vu->config.peak_hold_ms) {
 			vu->peak_holds[j].db_peak = vu->channel_vals[j].db_peak;
@@ -385,7 +385,7 @@ void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_confi
 	
 	vu->peak_holds = malloc(sizeof(peak_hold_t) * stream_config->channels);
 	CHECK_ALLOC(vu->peak_holds, return);	
-	for(int j = 0; j < stream_config->channels; j++) {
+	for(uint32_t j = 0; j < stream_config->channels; j++) {
 		vu->peak_holds[j].db_peak = -INFINITY;
 	}
 	

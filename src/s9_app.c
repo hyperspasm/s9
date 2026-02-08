@@ -110,6 +110,8 @@ static void render(SDL_Renderer *renderer) {
 }
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
+	(void)userdata;
+
 	for (s9_component_t *c = g_app->components; c->instance; c++) {
 		if (c->enqueue_audio) {
 			c->enqueue_audio(c->instance, stream, len);

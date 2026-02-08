@@ -34,6 +34,7 @@ static void generate_dc(float *buf, uint32_t n, float value) {
 }
 
 // generate interleaved multi-channel data, each channel gets its own generator
+__attribute__((unused))
 static void generate_interleaved(float *buf, uint32_t frames, uint32_t channels,
                                   void (*gen)(float*, uint32_t, void*), void **gen_args) {
 	float *tmp = malloc(frames * sizeof(float));
@@ -49,18 +50,21 @@ static void generate_interleaved(float *buf, uint32_t frames, uint32_t channels,
 }
 
 typedef struct { float start, end; } ramp_args_t;
+__attribute__((unused))
 static void ramp_gen(float *buf, uint32_t n, void *args) {
 	ramp_args_t *a = (ramp_args_t*)args;
 	generate_ramp(buf, n, a->start, a->end);
 }
 
 typedef struct { float value; } dc_args_t;
+__attribute__((unused))
 static void dc_gen(float *buf, uint32_t n, void *args) {
 	dc_args_t *a = (dc_args_t*)args;
 	generate_dc(buf, n, a->value);
 }
 
 typedef struct { float freq, amp; uint32_t sr; } sine_args_t;
+__attribute__((unused))
 static void sine_gen(float *buf, uint32_t n, void *args) {
 	sine_args_t *a = (sine_args_t*)args;
 	generate_sine(buf, n, a->freq, a->amp, a->sr);

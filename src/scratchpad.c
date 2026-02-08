@@ -45,7 +45,7 @@ static inline void compute_wave(float *points, uint32_t n_points, float amplitud
 	
 	float frequency = 1.f/n_points;
 	
-	for(int i = 0; i < n_points; i++) {
+	for(uint32_t i = 0; i < n_points; i++) {
 		float base_wave = sinf(frequency * (float)i * 2.0f * M_PI);
 		float second_harmonic = 0.1f * sinf(2.0f * frequency * (float)i * 2.0f * M_PI);
 		float fourth_harmonic = 0.2f * sinf(4.0f * frequency * (float)i * 2.0f * M_PI);
@@ -110,6 +110,7 @@ static inline void draw_wave(scratchpad_t *sp, SDL_Renderer *renderer) {
 }
 
 static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n_points) {
+	(void)context;
 	compute_wave(plot_data, n_points, default_fresp_graph_config.max_db - default_fresp_graph_config.min_db, default_fresp_graph_config.min_db);	
 	return 0;
 }
