@@ -86,10 +86,15 @@ lissajous_t *lissajous_new(const lissajous_config_t *config) {
 	CHECK_ALLOC(liss->graticule, free(liss); return NULL);
 
 	// create MIN blend mode for clipping to trace color
+	// Note: disable with -DS9_DISABLE_CUSTOM_BLEND if hardware doesn't support it
+#ifndef S9_DISABLE_CUSTOM_BLEND
 	liss->clip_blend_mode = SDL_ComposeCustomBlendMode(
 		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM,
 		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM
 	);
+#else
+	liss->clip_blend_mode = SDL_BLENDMODE_INVALID;
+#endif
 
 	return liss;
 }
@@ -112,6 +117,17 @@ static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *rend
 		liss->renderer = renderer;
 		liss->viewport = viewport;
 
+		// check if renderer supports MIN blend operation
+		// OpenGL ES 1/2 don't support it, only ADD/SUBTRACT/REV_SUBTRACT
+		SDL_RendererInfo info;
+		if(SDL_GetRendererInfo(renderer, &info) == 0) {
+			const char *name = info.name;
+			if(strstr(name, "opengles") != NULL) {
+				// OpenGL ES detected - disable custom blend mode
+				liss->clip_blend_mode = SDL_BLENDMODE_INVALID;
+			}
+		}
+
 		free_render_allocations(liss);
 
 		liss->blur_buffer[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
@@ -129,11 +145,14 @@ static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *rend
 		liss->blur_buffer_index = 0;
 
 		// create clip texture filled with trace color for MIN blending
-		liss->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
-		CHECK_ALLOC(liss->clip_texture, return -1);
-		SDL_SetRenderTarget(renderer, liss->clip_texture);
-		SDL_SetRenderDrawColor(renderer, liss->config.trace_color.r, liss->config.trace_color.g, liss->config.trace_color.b, 255);
-		SDL_RenderClear(renderer);
+		// only if custom blend mode is supported
+		if(liss->clip_blend_mode != SDL_BLENDMODE_INVALID) {
+			liss->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
+			CHECK_ALLOC(liss->clip_texture, return -1);
+			SDL_SetRenderTarget(renderer, liss->clip_texture);
+			SDL_SetRenderDrawColor(renderer, liss->config.trace_color.r, liss->config.trace_color.g, liss->config.trace_color.b, 255);
+			SDL_RenderClear(renderer);
+		}
 
 		liss->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
 	}
@@ -305,7 +324,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 
 	// clip to trace color using MIN blend (prevents hue shift)
 	// only if custom blend mode is supported by hardware
-	if(liss->clip_blend_mode != SDL_BLENDMODE_INVALID) {
+	if(liss->clip_texture && liss->clip_blend_mode != SDL_BLENDMODE_INVALID) {
 		SDL_SetTextureBlendMode(liss->clip_texture, liss->clip_blend_mode);
 		SDL_RenderCopy(renderer, liss->clip_texture, NULL, NULL);
 	}

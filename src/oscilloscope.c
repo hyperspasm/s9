@@ -120,10 +120,15 @@ oscilloscope_t *oscilloscope_new(const oscilloscope_config_t *config) {
 	CHECK_ALLOC(osc->graticule, free(osc); return NULL);
 
 	// create MIN blend mode for clipping to trace color
+	// Note: disable with -DS9_DISABLE_CUSTOM_BLEND if hardware doesn't support it
+#ifndef S9_DISABLE_CUSTOM_BLEND
 	osc->clip_blend_mode = SDL_ComposeCustomBlendMode(
 		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM,
 		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM
 	);
+#else
+	osc->clip_blend_mode = SDL_BLENDMODE_INVALID;
+#endif
 
 	return osc;
 }
@@ -146,6 +151,17 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 		osc->renderer = renderer;
 		osc->viewport = viewport;
 
+		// check if renderer supports MIN blend operation
+		// OpenGL ES 1/2 don't support it, only ADD/SUBTRACT/REV_SUBTRACT
+		SDL_RendererInfo info;
+		if(SDL_GetRendererInfo(renderer, &info) == 0) {
+			const char *name = info.name;
+			if(strstr(name, "opengles") != NULL) {
+				// OpenGL ES detected - disable custom blend mode
+				osc->clip_blend_mode = SDL_BLENDMODE_INVALID;
+			}
+		}
+
 		free_render_allocations(osc);
 
 		osc->blur_buffer[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, osc->viewport.w, osc->viewport.h);
@@ -163,11 +179,14 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 		osc->blur_buffer_index = 0;
 
 		// create clip texture filled with trace color for MIN blending
-		osc->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, osc->viewport.w, osc->viewport.h);
-		CHECK_ALLOC(osc->clip_texture, return -1);
-		SDL_SetRenderTarget(renderer, osc->clip_texture);
-		SDL_SetRenderDrawColor(renderer, osc->config.trace_color.r, osc->config.trace_color.g, osc->config.trace_color.b, 255);
-		SDL_RenderClear(renderer);
+		// only if custom blend mode is supported
+		if(osc->clip_blend_mode != SDL_BLENDMODE_INVALID) {
+			osc->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, osc->viewport.w, osc->viewport.h);
+			CHECK_ALLOC(osc->clip_texture, return -1);
+			SDL_SetRenderTarget(renderer, osc->clip_texture);
+			SDL_SetRenderDrawColor(renderer, osc->config.trace_color.r, osc->config.trace_color.g, osc->config.trace_color.b, 255);
+			SDL_RenderClear(renderer);
+		}
 
 		osc->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
 
@@ -435,7 +454,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 
 	// clip to trace color using MIN blend (prevents hue shift)
 	// only if custom blend mode is supported by hardware
-	if(osc->clip_blend_mode != SDL_BLENDMODE_INVALID) {
+	if(osc->clip_texture && osc->clip_blend_mode != SDL_BLENDMODE_INVALID) {
 		SDL_SetTextureBlendMode(osc->clip_texture, osc->clip_blend_mode);
 		SDL_RenderCopy(renderer, osc->clip_texture, NULL, NULL);
 	}
