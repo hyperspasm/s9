@@ -26,8 +26,7 @@ typedef struct lissajous {
 	uint32_t max_points;         // capacity in points (1 second of pixel_rate)
 
 	uint32_t frames_since_draw;  // frames elapsed since last draw
-	SDL_FPoint last_point;       // last point drawn (for segment joining)
-	int have_last_point;         // flag indicating last_point is valid
+	int have_last_point;         // flag: points[0] contains valid last point
 
 } lissajous_t;
 
@@ -231,7 +230,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 		// calculate resampling rate (pixel_rate / sample_rate)
 		float rate = liss->config.pixel_rate / (float)liss->stream_config.sample_rate;
 
-		// when continuing, reserve points[0] for the join point
+		// when continuing, points[0] already contains the join point
 		int joining = liss->have_last_point;
 		uint32_t max_frames = joining ? liss->max_points - 1 : liss->max_points;
 
@@ -256,22 +255,17 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 				dest[i].y = center_y + y * scale_y;
 			}
 
-			// prepend previous endpoint to form continuous path
-			if(joining) {
-				liss->points[0] = liss->last_point;
-			}
-
-			// save new last point
-			liss->last_point = dest[frames - 1];
-			liss->have_last_point = 1;
-
-			// total points including join
+			// total points including join (if joining, points[0] already has last point)
 			uint32_t total_points = frames + joining;
 
 			// render with gradient fade (oldest -> newest)
 			if(total_points >= 2) {
 				render_gradient_path_lissajous(liss, renderer, liss->points, total_points);
 			}
+
+			// save new last point to points[0] for next frame
+			liss->points[0] = dest[frames - 1];
+			liss->have_last_point = 1;
 
 			liss->frames_since_draw = 0;
 		} else {
