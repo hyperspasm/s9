@@ -43,6 +43,8 @@ typedef struct oscilloscope {
 
 	SDL_Texture *blur_buffer[2];
 	uint32_t blur_buffer_index;
+	SDL_Texture *clip_texture;             // filled with trace color for MIN clipping
+	SDL_BlendMode clip_blend_mode;         // MIN blend mode
 
 	oscilloscope_settings_t settings;
 	sdl_path_t *path;    // last drawn sweep path (persists across render calls)
@@ -81,6 +83,11 @@ static void free_render_allocations(oscilloscope_t *osc) {
 		osc->blur_buffer[1] = NULL;
 	}
 
+	if(osc->clip_texture) {
+		SDL_DestroyTexture(osc->clip_texture);
+		osc->clip_texture = NULL;
+	}
+
 	if(osc->pixel_buffer) {
 		free(osc->pixel_buffer);
 		osc->pixel_buffer = NULL;
@@ -111,6 +118,12 @@ oscilloscope_t *oscilloscope_new(const oscilloscope_config_t *config) {
 	// create graticule with default config
 	osc->graticule = graticule_new(NULL);
 	CHECK_ALLOC(osc->graticule, free(osc); return NULL);
+
+	// create MIN blend mode for clipping to trace color
+	osc->clip_blend_mode = SDL_ComposeCustomBlendMode(
+		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM,
+		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM
+	);
 
 	return osc;
 }
@@ -148,6 +161,13 @@ static S9_FORCE_INLINE int prepare_to_draw(oscilloscope_t *osc, SDL_Renderer *re
 		SDL_RenderClear(renderer);
 
 		osc->blur_buffer_index = 0;
+
+		// create clip texture filled with trace color for MIN blending
+		osc->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, osc->viewport.w, osc->viewport.h);
+		CHECK_ALLOC(osc->clip_texture, return -1);
+		SDL_SetRenderTarget(renderer, osc->clip_texture);
+		SDL_SetRenderDrawColor(renderer, osc->config.trace_color.r, osc->config.trace_color.g, osc->config.trace_color.b, 255);
+		SDL_RenderClear(renderer);
 
 		osc->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
 
@@ -412,6 +432,10 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
 	SDL_SetTextureAlphaMod(prv, osc->config.persistence);
 	SDL_RenderCopy(renderer, prv, NULL, NULL);
+
+	// clip to trace color using MIN blend (prevents hue shift)
+	SDL_SetTextureBlendMode(osc->clip_texture, osc->clip_blend_mode);
+	SDL_RenderCopy(renderer, osc->clip_texture, NULL, NULL);
 
 	// blit current blur_buffer to screen
 	SDL_SetRenderTarget(renderer, NULL);

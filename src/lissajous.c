@@ -20,6 +20,8 @@ typedef struct lissajous {
 
 	SDL_Texture *blur_buffer[2];
 	uint32_t blur_buffer_index;
+	SDL_Texture *clip_texture;             // filled with trace color for MIN clipping
+	SDL_BlendMode clip_blend_mode;         // MIN blend mode
 
 	float *resampled_buffer;     // temp buffer for resampled interleaved data
 	SDL_FPoint *points;          // points buffer for drawing
@@ -58,6 +60,11 @@ static void free_render_allocations(lissajous_t *liss) {
 		SDL_DestroyTexture(liss->blur_buffer[1]);
 		liss->blur_buffer[1] = NULL;
 	}
+
+	if(liss->clip_texture) {
+		SDL_DestroyTexture(liss->clip_texture);
+		liss->clip_texture = NULL;
+	}
 }
 
 void lissajous_set_config(lissajous_t *liss, const lissajous_config_t *config) {
@@ -77,6 +84,12 @@ lissajous_t *lissajous_new(const lissajous_config_t *config) {
 	// create graticule with default config
 	liss->graticule = graticule_new(NULL);
 	CHECK_ALLOC(liss->graticule, free(liss); return NULL);
+
+	// create MIN blend mode for clipping to trace color
+	liss->clip_blend_mode = SDL_ComposeCustomBlendMode(
+		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM,
+		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM
+	);
 
 	return liss;
 }
@@ -114,6 +127,13 @@ static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *rend
 		SDL_RenderClear(renderer);
 
 		liss->blur_buffer_index = 0;
+
+		// create clip texture filled with trace color for MIN blending
+		liss->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
+		CHECK_ALLOC(liss->clip_texture, return -1);
+		SDL_SetRenderTarget(renderer, liss->clip_texture);
+		SDL_SetRenderDrawColor(renderer, liss->config.trace_color.r, liss->config.trace_color.g, liss->config.trace_color.b, 255);
+		SDL_RenderClear(renderer);
 
 		liss->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
 	}
@@ -278,10 +298,14 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 	// clear clip rect before blending
 	SDL_RenderSetClipRect(renderer, NULL);
 
-	// blend in history blur_buffer for persistence effect (always, even if no new data)
+	// blend in history blur_buffer for persistence effect using ADD
 	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
 	SDL_SetTextureAlphaMod(prv, liss->config.persistence);
 	SDL_RenderCopy(renderer, prv, NULL, NULL);
+
+	// clip to trace color using MIN blend (prevents hue shift)
+	SDL_SetTextureBlendMode(liss->clip_texture, liss->clip_blend_mode);
+	SDL_RenderCopy(renderer, liss->clip_texture, NULL, NULL);
 
 	// blit current blur_buffer to screen
 	SDL_SetRenderTarget(renderer, NULL);
