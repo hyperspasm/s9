@@ -1,10 +1,3 @@
-//
-//  oscilloscope.c
-//  s9
-//
-//  Created by shea on 7/28/24.
-//
-
 #include "oscilloscope.h"
 
 #include "s9.h"
@@ -66,6 +59,10 @@ typedef struct oscilloscope {
 
 static void free_dsp_allocations(oscilloscope_t *osc) {
 
+	// clear flag and stream config
+	osc->streaming = 0;
+	osc->stream_config.audio_format.sample_type = S9_SAMPLE_NONE;
+
 	if(osc->sampler) {
 		osc_sampler_free(&osc->sampler);
 	}
@@ -108,7 +105,7 @@ void oscilloscope_set_config(oscilloscope_t *osc, const oscilloscope_config_t *c
 }
 
 oscilloscope_t *oscilloscope_new(const oscilloscope_config_t *config) {
-	oscilloscope_t *osc = malloc(sizeof(oscilloscope_t));
+	oscilloscope_t *osc = (oscilloscope_t *) malloc(sizeof(oscilloscope_t));
 	CHECK_ALLOC(osc, return NULL);
 	memset(osc, 0, sizeof(*osc));
 	oscilloscope_set_config(osc, config);

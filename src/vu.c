@@ -302,9 +302,9 @@ static void compute_channel_vals(vu_t *vu) {
 }
 
 void vu_render(vu_t *vu, SDL_Renderer *renderer) {
-	prepare_to_draw(vu, renderer);	
 	if(!vu->streaming) return;
-	
+	prepare_to_draw(vu, renderer);
+
 	compute_channel_vals(vu);
 	draw(vu, renderer);
 }

@@ -1,5 +1,5 @@
-#ifndef OSC_SAMPLER_H
-#define OSC_SAMPLER_H
+#ifndef osc_sampler_h
+#define osc_sampler_h
 
 #include <stdint.h>
 
@@ -38,4 +38,4 @@ uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t ma
 // Allows sampler to transition trigger state appropriately
 void osc_sampler_sweep_complete(osc_sampler_t *sampler);
 
-#endif // OSC_SAMPLER_H
+#endif /* osc_sampler_h */

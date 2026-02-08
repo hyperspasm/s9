@@ -33,6 +33,11 @@ typedef struct lissajous {
 } lissajous_t;
 
 static void free_dsp_allocations(lissajous_t *liss) {
+
+	// clear flag and stream config
+	liss->streaming = 0;
+	liss->stream_config.audio_format.sample_type = S9_SAMPLE_NONE;
+
 	if(liss->resampler) {
 		resampler_free(&liss->resampler);
 	}
@@ -76,7 +81,7 @@ void lissajous_set_config(lissajous_t *liss, const lissajous_config_t *config) {
 }
 
 lissajous_t *lissajous_new(const lissajous_config_t *config) {
-	lissajous_t *liss = malloc(sizeof(lissajous_t));
+	lissajous_t *liss = (lissajous_t *) malloc(sizeof(lissajous_t));
 	CHECK_ALLOC(liss, return NULL);
 	memset(liss, 0, sizeof(*liss));
 	lissajous_set_config(liss, config);
