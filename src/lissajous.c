@@ -2,26 +2,17 @@
 
 #include "s9.h"
 #include "resampler.h"
-#include "draw_sdl.h"
-#include "graticule.h"
+#include "scope_display.h"
 
 #include <math.h>
 
 typedef struct lissajous {
-	SDL_Renderer *renderer;
-	SDL_Rect viewport;
-	SDL_Rect frame_rect;
 	lissajous_config_t config;
-	graticule_t *graticule;
+	scope_display_t *display;
 
 	int streaming;
 	s9_audio_stream_config_t stream_config;
 	resampler_t *resampler;
-
-	SDL_Texture *blur_buffer[2];
-	uint32_t blur_buffer_index;
-	SDL_Texture *clip_texture;             // filled with trace color for MIN clipping
-	SDL_BlendMode clip_blend_mode;         // MIN blend mode
 
 	float *resampled_buffer;     // temp buffer for resampled interleaved data
 	SDL_FPoint *points;          // points buffer for drawing
@@ -55,116 +46,43 @@ static void free_dsp_allocations(lissajous_t *liss) {
 	liss->max_points = 0;
 }
 
-static void free_render_allocations(lissajous_t *liss) {
-	if(liss->blur_buffer[0]) {
-		SDL_DestroyTexture(liss->blur_buffer[0]);
-		liss->blur_buffer[0] = NULL;
-	}
-
-	if(liss->blur_buffer[1]) {
-		SDL_DestroyTexture(liss->blur_buffer[1]);
-		liss->blur_buffer[1] = NULL;
-	}
-
-	if(liss->clip_texture) {
-		SDL_DestroyTexture(liss->clip_texture);
-		liss->clip_texture = NULL;
-	}
-}
-
 void lissajous_set_config(lissajous_t *liss, const lissajous_config_t *config) {
 	if (config == NULL) {
 		liss->config = default_lissajous_config;
 	} else {
 		liss->config = *config;
 	}
+
+	scope_display_set_config(liss->display, &(scope_display_config_t){
+		.trace_color = liss->config.trace_color,
+		.persistence = liss->config.persistence,
+	});
 }
 
 lissajous_t *lissajous_new(const lissajous_config_t *config) {
 	lissajous_t *liss = (lissajous_t *) malloc(sizeof(lissajous_t));
 	CHECK_ALLOC(liss, return NULL);
 	memset(liss, 0, sizeof(*liss));
+
+	const lissajous_config_t *c = config ? config : &default_lissajous_config;
+	liss->display = scope_display_new(&(scope_display_config_t){
+		.trace_color = c->trace_color,
+		.persistence = c->persistence,
+	});
+	CHECK_ALLOC(liss->display, free(liss); return NULL);
+
 	lissajous_set_config(liss, config);
-
-	// create graticule with default config
-	liss->graticule = graticule_new(NULL);
-	CHECK_ALLOC(liss->graticule, free(liss); return NULL);
-
-	// create MIN blend mode for clipping to trace color
-	// runtime detection will disable this for unsupported renderers
-	liss->clip_blend_mode = SDL_ComposeCustomBlendMode(
-		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM,
-		SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_MINIMUM
-	);
 
 	return liss;
 }
 
 void lissajous_free(lissajous_t **liss) {
 	if(liss && *liss) {
-		free_render_allocations(*liss);
 		free_dsp_allocations(*liss);
-		graticule_free(&(*liss)->graticule);
+		scope_display_free(&(*liss)->display);
 		free(*liss);
 		*liss = NULL;
 	}
-}
-
-static S9_FORCE_INLINE int prepare_to_draw(lissajous_t *liss, SDL_Renderer *renderer) {
-	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
-
-	if(liss->renderer != renderer || !SDL_RectEquals(&liss->viewport, &viewport)) {
-		liss->renderer = renderer;
-		liss->viewport = viewport;
-
-		// check if renderer supports MIN blend operation
-		// Only Direct3D 9/11 and Metal are known to fully support it
-		// OpenGL ES doesn't support it at all
-		// Desktop OpenGL support varies by driver (Pi reports "opengl" but uses ES)
-		SDL_RendererInfo info;
-		int min_blend_supported = 0;
-		if(SDL_GetRendererInfo(renderer, &info) == 0) {
-			const char *name = info.name;
-			// Enable for renderers we know support MIN blend
-			if(strstr(name, "direct3d") != NULL || strstr(name, "metal") != NULL) {
-				min_blend_supported = 1;
-			}
-		}
-		if(!min_blend_supported) {
-			liss->clip_blend_mode = SDL_BLENDMODE_INVALID;
-		}
-
-		free_render_allocations(liss);
-
-		liss->blur_buffer[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
-		CHECK_ALLOC(liss->blur_buffer[0], return -1);
-		SDL_SetRenderTarget(renderer, liss->blur_buffer[0]);
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-		SDL_RenderClear(renderer);
-
-		liss->blur_buffer[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
-		SDL_SetRenderTarget(renderer, liss->blur_buffer[1]);
-		CHECK_ALLOC(liss->blur_buffer[1], return -1);
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-		SDL_RenderClear(renderer);
-
-		liss->blur_buffer_index = 0;
-
-		// create clip texture filled with trace color for MIN blending
-		// only if custom blend mode is supported
-		if(liss->clip_blend_mode != SDL_BLENDMODE_INVALID) {
-			liss->clip_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, liss->viewport.w, liss->viewport.h);
-			CHECK_ALLOC(liss->clip_texture, return -1);
-			SDL_SetRenderTarget(renderer, liss->clip_texture);
-			SDL_SetRenderDrawColor(renderer, liss->config.trace_color.r, liss->config.trace_color.g, liss->config.trace_color.b, 255);
-			SDL_RenderClear(renderer);
-		}
-
-		liss->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
-	}
-
-	return 0;
 }
 
 // render path with exponential per-vertex fade to simulate phosphor decay
@@ -256,23 +174,17 @@ static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *rend
 
 void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 	if(!liss->streaming) return;
-	if(prepare_to_draw(liss, renderer)) return;
+	if(scope_display_prepare(liss->display, renderer) < 0) return;
 
 	// check if we have at least 2 channels
 	if(liss->stream_config.channels < 2) return;
 
-	// select and toggle blur buffer (always, for smooth persistence)
-	SDL_Texture *prv = liss->blur_buffer[liss->blur_buffer_index];
-	liss->blur_buffer_index = liss->blur_buffer_index == 0;
-	SDL_Texture *cur = liss->blur_buffer[liss->blur_buffer_index];
-
-	// draw to current blur_buffer with clipping to frame_rect
-	SDL_SetRenderTarget(renderer, cur);
-	SDL_RenderSetClipRect(renderer, &liss->frame_rect);
-	draw_sdl_clear_viewport(renderer, NULL);
+	scope_display_begin_frame(liss->display, renderer);
 
 	// read resampled data and draw
 	if(liss->resampler && liss->resampled_buffer && liss->points) {
+		const SDL_Rect *frame = scope_display_frame_rect(liss->display);
+
 		// resampling rate is the upsampling factor
 		float rate = liss->config.upsampling;
 
@@ -285,10 +197,10 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 		                                  max_frames, rate, 1.0f / (liss->config.amp_per_div * 5.0f));
 
 		if(frames > 0) {
-			float center_x = liss->frame_rect.x + liss->frame_rect.w * 0.5f;
-			float center_y = liss->frame_rect.y + liss->frame_rect.h * 0.5f;
-			float scale_x = liss->frame_rect.w * 0.5f;
-			float scale_y = liss->frame_rect.h * 0.5f * -1.0f; // flip Y axis
+			float center_x = frame->x + frame->w * 0.5f;
+			float center_y = frame->y + frame->h * 0.5f;
+			float scale_x = frame->w * 0.5f;
+			float scale_y = frame->h * 0.5f * -1.0f; // flip Y axis
 
 			// destination starts after join point (if any)
 			SDL_FPoint *dest = liss->points + joining;
@@ -321,28 +233,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 		liss->frames_since_draw++;
 	}
 
-	// clear clip rect before blending
-	SDL_RenderSetClipRect(renderer, NULL);
-
-	// blend in history blur_buffer for persistence effect using ADD
-	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
-	SDL_SetTextureAlphaMod(prv, liss->config.persistence);
-	SDL_RenderCopy(renderer, prv, NULL, NULL);
-
-	// clip to trace color using MIN blend (prevents hue shift)
-	// only if custom blend mode is supported by hardware
-	if(liss->clip_texture && liss->clip_blend_mode != SDL_BLENDMODE_INVALID) {
-		SDL_SetTextureBlendMode(liss->clip_texture, liss->clip_blend_mode);
-		SDL_RenderCopy(renderer, liss->clip_texture, NULL, NULL);
-	}
-
-	// blit current blur_buffer to screen
-	SDL_SetRenderTarget(renderer, NULL);
-	SDL_SetTextureBlendMode(cur, SDL_BLENDMODE_NONE);
-	SDL_RenderCopy(renderer, cur, NULL, NULL);
-
-	// render graticule on top
-	graticule_render(liss->graticule, renderer, &liss->frame_rect);
+	scope_display_end_frame(liss->display, renderer);
 }
 
 void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config_t *stream_config) {
