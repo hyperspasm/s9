@@ -282,7 +282,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 
 		// read resampled frames (leaving room for join point if needed)
 		uint32_t frames = resampler_read(liss->resampler, liss->resampled_buffer,
-		                                  max_frames, rate, liss->config.gain);
+		                                  max_frames, rate, 1.0f / (liss->config.amp_per_div * 5.0f));
 
 		if(frames > 0) {
 			float center_x = liss->frame_rect.x + liss->frame_rect.w * 0.5f;

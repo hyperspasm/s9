@@ -11,13 +11,13 @@
 #define FAST_MODE_HOLD_TIME			0.0667f // seconds to keep displaying last sweep while waiting for next
 
 typedef struct {
-	float time_per_display;	// seconds
-	float amp_per_display;  // <= 2.0
+	float time_per_div;   // seconds per division
+	float amp_per_div;    // amplitude per division
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
-	.time_per_display = 0.01,
-	.amp_per_display = 2.0f,
+	.time_per_div = 0.002f,
+	.amp_per_div = 0.1f,
 };
 
 typedef struct oscilloscope {
@@ -415,8 +415,8 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 	draw_sdl_clear_viewport(renderer, NULL);
 
 	if(osc->pixel_buffer && osc->sampler) {
-		float pixel_rate = (float)osc->frame_rect.w / osc->settings.time_per_display;
-		float gain = 1.0f / osc->settings.amp_per_display * 2.0f;
+		float pixel_rate = (float)osc->frame_rect.w / (osc->settings.time_per_div * 10.0f);
+		float gain = 1.0f / (osc->settings.amp_per_div * 5.0f);
 		uint32_t sweep_width = (uint32_t)osc->frame_rect.w;
 		float vertical_factor = osc->frame_rect.h * 0.5f * -1.f;
 		float vertical_offset = osc->frame_rect.y + osc->frame_rect.h * 0.5f;
@@ -427,7 +427,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		float fast_mode_threshold = ceilf(fast_mode_min_time / frame_period) * frame_period;
 		uint32_t path_hold_frames = (uint32_t)ceilf(FAST_MODE_HOLD_TIME / frame_period);
 
-		typeof(osc->render_mode) mode = (osc->settings.time_per_display < fast_mode_threshold)
+		typeof(osc->render_mode) mode = (osc->settings.time_per_div * 10.0f < fast_mode_threshold)
 			? osc_mode_fast : osc_mode_slow;
 
 		if(osc->render_mode != mode) {

@@ -12,7 +12,7 @@ typedef struct {
 	SDL_Color trace_color;
 	float trace_width;
 	uint8_t persistence;  // 0-255, higher = longer trace persistence
-	float gain;           // gain multiplier for both X and Y axes
+	float amp_per_div;    // amplitude per division
 	float upsampling;     // upsampling factor relative to sample rate
 } lissajous_config_t;
 
@@ -20,7 +20,7 @@ static const lissajous_config_t default_lissajous_config = {
 	.trace_color = S9_LEMON,
 	.trace_width = 2.f,
 	.persistence = 180,
-	.gain = 2.0f,
+	.amp_per_div = 0.1f,
 	.upsampling = 4.0f,
 };
 
