@@ -1,0 +1,11 @@
+# nanopb options for pn.proto
+# These sizes must match PN_MAX_PATH and PN_MAX_STRING in pn_node.h.
+# Compile-time assertions in pn_server.c enforce this.
+
+# Value
+pn.Value.string_val             max_size:256  # PN_MAX_STRING
+
+# Set/Get/Update paths
+pn.Set.path                     max_size:256  # PN_MAX_PATH
+pn.Get.path                     max_size:256  # PN_MAX_PATH
+pn.Update.path                  max_size:256  # PN_MAX_PATH

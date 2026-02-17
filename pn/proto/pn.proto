@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package pn;
+
+// --- Value ---
+
+message Value {
+	oneof kind {
+		bool     bool_val   = 1;
+		int32    int_val    = 2;
+		float    float_val  = 3;
+		uint32   enum_val   = 4;
+		string   string_val = 5;
+	}
+}
+
+// --- Messages ---
+
+message Set {
+	string path  = 1;
+	Value  value = 2;
+}
+
+message Get {
+	string path = 1;
+}
+
+message Update {
+	string path  = 1;
+	Value  value = 2;
+}
+
+// --- Envelope ---
+
+message Message {
+	oneof msg {
+		Set    set    = 1;
+		Get    get    = 2;
+		Update update = 3;
+	}
+}
