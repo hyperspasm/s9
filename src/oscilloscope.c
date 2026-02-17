@@ -13,11 +13,19 @@
 typedef struct {
 	float time_per_div;   // seconds per division
 	float amp_per_div;    // amplitude per division
+	bool trig_auto;       // true = auto trigger, false = normal
+	int trig_slope;       // 1 = rising, -1 = falling
+	float trig_thresh;    // -1.0 to 1.0
+	float trig_holdoff;   // seconds
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
 	.time_per_div = 0.002f,
 	.amp_per_div = 0.1f,
+	.trig_auto = true,
+	.trig_slope = 1,
+	.trig_thresh = 0.1f,
+	.trig_holdoff = 0.00001f,
 };
 
 typedef struct oscilloscope {
@@ -362,6 +370,68 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 }
 
 
+void oscilloscope_set_time_per_div(oscilloscope_t *osc, float seconds) {
+	osc->settings.time_per_div = seconds;
+}
+
+float oscilloscope_get_time_per_div(const oscilloscope_t *osc) {
+	return osc->settings.time_per_div;
+}
+
+void oscilloscope_set_amp_per_div(oscilloscope_t *osc, float amplitude) {
+	osc->settings.amp_per_div = amplitude;
+}
+
+float oscilloscope_get_amp_per_div(const oscilloscope_t *osc) {
+	return osc->settings.amp_per_div;
+}
+
+static void push_trigger_settings(oscilloscope_t *osc) {
+	if (!osc->sampler) return;
+	osc_sampler_set_settings(osc->sampler, &(osc_sampler_settings_t){
+		.trigger_mode = osc->settings.trig_auto ? osc_trig_mode_auto : osc_trig_mode_normal,
+		.trig_slope = osc->settings.trig_slope,
+		.trig_thresh = osc->settings.trig_thresh,
+		.trig_holdoff = osc->settings.trig_holdoff,
+	});
+}
+
+void oscilloscope_set_trig_auto(oscilloscope_t *osc, bool auto_mode) {
+	osc->settings.trig_auto = auto_mode;
+	push_trigger_settings(osc);
+}
+
+bool oscilloscope_get_trig_auto(const oscilloscope_t *osc) {
+	return osc->settings.trig_auto;
+}
+
+void oscilloscope_set_trig_slope(oscilloscope_t *osc, int slope) {
+	osc->settings.trig_slope = slope;
+	push_trigger_settings(osc);
+}
+
+int oscilloscope_get_trig_slope(const oscilloscope_t *osc) {
+	return osc->settings.trig_slope;
+}
+
+void oscilloscope_set_trig_thresh(oscilloscope_t *osc, float thresh) {
+	osc->settings.trig_thresh = thresh;
+	push_trigger_settings(osc);
+}
+
+float oscilloscope_get_trig_thresh(const oscilloscope_t *osc) {
+	return osc->settings.trig_thresh;
+}
+
+void oscilloscope_set_trig_holdoff(oscilloscope_t *osc, float seconds) {
+	osc->settings.trig_holdoff = seconds;
+	push_trigger_settings(osc);
+}
+
+float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc) {
+	return osc->settings.trig_holdoff;
+}
+
 void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_config_t *stream_config) {
 	// only S9_AUDIO_FLOAT32 is supported
 	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
@@ -378,6 +448,7 @@ void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_c
 	uint32_t buffer_size = stream_config->sample_rate;
 	osc->sampler = osc_sampler_new(stream_config->sample_rate, buffer_size);
 	CHECK_ALLOC(osc->sampler, return);
+	push_trigger_settings(osc);
 
 	// set flag and stream config
 	osc->stream_config = *stream_config;
