@@ -40,6 +40,7 @@ target_link_libraries(s9
     PkgConfig::SDL2_TTF
     PkgConfig::FFTW3F
     pn
+    pn_uds
     m
 )
 

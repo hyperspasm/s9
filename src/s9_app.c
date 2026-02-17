@@ -7,6 +7,8 @@
 #include "lissajous.h"
 #include "scratchpad.h"
 
+#include "s9_pn.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -51,6 +53,7 @@ typedef struct s9_app {
 	SDL_DisplayMode display_mode;
 
 	s9_component_t components[S9_MAX_COMPONENTS]; // NULL-terminated (instance == NULL)
+	s9_pn_t *pn;
 
 	SDL_AudioDeviceID audio_device_id;
 	SDL_AudioSpec audio_spec;
@@ -356,6 +359,12 @@ int s9_app_create(const s9_app_config_t *config) {
 	};
 #endif
 
+	// create pn
+	g_app->pn = s9_pn_new(&(s9_pn_config_t){
+		.osc = osc,
+	});
+	CHECK_ALLOC(g_app->pn, s9_app_destroy(); return -1);
+
 	// check for audio input device
 	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
 	CHECK_ERROR(num_audio_devices > 0,
@@ -425,7 +434,6 @@ int s9_app_create(const s9_app_config_t *config) {
 	
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
-	
 	return 0;
 }
 
@@ -445,9 +453,12 @@ void s9_app_destroy(void) {
 		SDL_CloseAudioDevice(g_app->audio_device_id);
 	}
 	
+	// close pn
+	s9_pn_free(&g_app->pn);
+
 	TTF_Quit();
 	SDL_Quit();
-	
+
 	free(g_app);
 	g_app = NULL;
 }
@@ -472,6 +483,9 @@ int s9_app_run(void) {
 	// exit if necessary
 	if (g_app->ret) return g_app->ret;
 	
+	// poll pn
+	s9_pn_update(g_app->pn);
+
 	// reset viewport to default
 	SDL_RenderSetViewport(g_app->renderer, NULL);
 	
