@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "s9sd"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "pn",
+    "streamdeck<0.9.7",
+    "pillow",
+]
+
+[project.scripts]
+s9sd = "s9sd:main"

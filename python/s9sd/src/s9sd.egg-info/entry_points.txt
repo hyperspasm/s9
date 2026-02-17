@@ -1,0 +1,2 @@
+[console_scripts]
+s9sd = s9sd:main
