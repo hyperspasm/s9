@@ -10,17 +10,62 @@
 #define SOCKET_PATH    "/tmp/s9.sock"
 #define UDS_READ_BUF   1024
 
+#define OSC_NUM_PARAMS 6
+
 struct s9_pn {
 	s9_pn_config_t config;
 
+	pn_param_t osc_params[OSC_NUM_PARAMS];
+	pn_param_t osc_group;
 	pn_param_t root;
+
 	pn_server_t *server;
 	pn_uds_t *uds;
 };
 
+// -- oscilloscope callbacks
+
+static void set_time_per_div(void *ctx, float val) { oscilloscope_set_time_per_div(ctx, val); }
+static float get_time_per_div(void *ctx) { return oscilloscope_get_time_per_div(ctx); }
+
+static void set_amp_per_div(void *ctx, float val) { oscilloscope_set_amp_per_div(ctx, val); }
+static float get_amp_per_div(void *ctx) { return oscilloscope_get_amp_per_div(ctx); }
+
+static void set_trig_auto(void *ctx, bool val) { oscilloscope_set_trig_auto(ctx, val); }
+static bool get_trig_auto(void *ctx) { return oscilloscope_get_trig_auto(ctx); }
+
+static void set_trig_slope(void *ctx, int32_t val) { oscilloscope_set_trig_slope(ctx, val); }
+static int32_t get_trig_slope(void *ctx) { return oscilloscope_get_trig_slope(ctx); }
+
+static void set_trig_thresh(void *ctx, float val) { oscilloscope_set_trig_thresh(ctx, val); }
+static float get_trig_thresh(void *ctx) { return oscilloscope_get_trig_thresh(ctx); }
+
+static void set_trig_holdoff(void *ctx, float val) { oscilloscope_set_trig_holdoff(ctx, val); }
+static float get_trig_holdoff(void *ctx) { return oscilloscope_get_trig_holdoff(ctx); }
+
+// -- tree
+
+static void build_tree(s9_pn_t *pn) {
+	oscilloscope_t *osc = pn->config.osc;
+
+	pn->osc_params[0] = pn_float("time_per_div", osc, set_time_per_div, get_time_per_div, 0.00001f, 1.0f, 0);
+	pn->osc_params[1] = pn_float("amp_per_div",  osc, set_amp_per_div,  get_amp_per_div,  0.001f, 10.0f, 0);
+	pn->osc_params[2] = pn_bool("trig_auto",     osc, set_trig_auto,    get_trig_auto);
+	pn->osc_params[3] = pn_int("trig_slope",     osc, set_trig_slope,   get_trig_slope, -1, 1, 2);
+	pn->osc_params[4] = pn_float("trig_thresh",  osc, set_trig_thresh,  get_trig_thresh, -1.0f, 1.0f, 0);
+	pn->osc_params[5] = pn_float("trig_holdoff", osc, set_trig_holdoff, get_trig_holdoff, 0.0f, 1.0f, 0);
+
+	pn->osc_group = pn_group("osc", pn->osc_params, OSC_NUM_PARAMS);
+	pn->root = pn_group("s9", &pn->osc_group, 1);
+}
+
+// -- transport
+
 static void on_recv(const uint8_t *data, uint32_t len, void *ctx) {
 	pn_server_feed((pn_server_t *)ctx, data, len);
 }
+
+// -- public
 
 s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	s9_pn_t *pn = malloc(sizeof(s9_pn_t));
@@ -28,7 +73,7 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	memset(pn, 0, sizeof(*pn));
 
 	pn->config = *config;
-	pn->root = pn_group("s9", NULL, 0);
+	build_tree(pn);
 
 	// allocate server
 	pn_server_config_t server_config = {
