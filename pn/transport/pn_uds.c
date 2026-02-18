@@ -13,6 +13,7 @@ struct pn_uds {
 	pn_uds_config_t config;
 	int listen_fd;
 	int fd;
+	int client_mode;
 	uint32_t read_buf_size;
 	uint8_t read_buf[];
 };
@@ -68,8 +69,8 @@ pn_uds_listen(pn_uds_t *uds) {
 	return 0;
 }
 
-int
-pn_uds_connect(pn_uds_t *uds) {
+static int
+try_connect(pn_uds_t *uds) {
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd == -1) return -1;
 
@@ -91,6 +92,12 @@ pn_uds_connect(pn_uds_t *uds) {
 }
 
 int
+pn_uds_connect(pn_uds_t *uds) {
+	uds->client_mode = 1;
+	return try_connect(uds);
+}
+
+int
 pn_uds_poll(pn_uds_t *uds) {
 	// Server: accept new connection if none
 	if (uds->listen_fd != -1 && uds->fd == -1) {
@@ -99,6 +106,10 @@ pn_uds_poll(pn_uds_t *uds) {
 			set_nonblocking(fd);
 			uds->fd = fd;
 		}
+	}
+
+	if (uds->client_mode && uds->fd == -1) {
+		try_connect(uds);
 	}
 
 	if (uds->fd == -1)
@@ -132,12 +143,20 @@ pn_uds_poll(pn_uds_t *uds) {
 int
 pn_uds_send(const uint8_t *buf, uint32_t len, void *ctx) {
 	pn_uds_t *uds = (pn_uds_t *)ctx;
-	if (uds->fd == -1) return -1;
+
+	if (uds->fd == -1) {
+		if (!uds->client_mode || try_connect(uds) != 0)
+			return -1;
+	}
 
 	uint32_t sent = 0;
 	while (sent < len) {
 		ssize_t n = write(uds->fd, buf + sent, len - sent);
-		if (n <= 0) return -1;
+		if (n <= 0) {
+			close(uds->fd);
+			uds->fd = -1;
+			return -1;
+		}
 		sent += (uint32_t)n;
 	}
 	return 0;

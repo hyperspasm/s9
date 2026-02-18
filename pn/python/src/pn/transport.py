@@ -52,3 +52,63 @@ async def connect_uds(client, path):
         writer.close()
 
     return task, close
+
+
+async def connect_uds_persistent(client, path, *,
+                                  retry_interval=1.0,
+                                  on_connect=None,
+                                  on_disconnect=None):
+    """Connect a client with auto-reconnection.
+
+    Keeps trying to connect (or reconnect after disconnect) every
+    retry_interval seconds.  Sends are silently dropped while disconnected.
+    Returns (task, close_fn).
+    """
+    writer_ref = [None]
+
+    def send(data):
+        w = writer_ref[0]
+        if w and not w.is_closing():
+            try:
+                w.write(data)
+            except Exception:
+                pass
+
+    client.bind(send)
+
+    async def run():
+        while True:
+            connected = False
+            try:
+                reader, writer = await asyncio.open_unix_connection(path)
+                writer_ref[0] = writer
+                connected = True
+                if on_connect:
+                    on_connect()
+                while True:
+                    data = await reader.read(4096)
+                    if not data:
+                        break
+                    client.feed(data)
+            except asyncio.CancelledError:
+                return
+            except (ConnectionRefusedError, FileNotFoundError, OSError):
+                pass
+            finally:
+                if connected:
+                    writer_ref[0] = None
+                    writer.close()
+                    if on_disconnect:
+                        on_disconnect()
+
+            try:
+                await asyncio.sleep(retry_interval)
+            except asyncio.CancelledError:
+                return
+
+    task = asyncio.ensure_future(run())
+
+    def close():
+        task.cancel()
+
+    return task, close

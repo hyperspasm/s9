@@ -2,7 +2,7 @@ import asyncio
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.Devices.StreamDeck import DialEventType
 from pn.client import Client
-from pn.transport import connect_uds
+from pn.transport import connect_uds_persistent
 
 SOCKET_PATH = "/tmp/s9.sock"
 
@@ -27,15 +27,20 @@ async def _main():
         if path in state:
             state[path] = value
 
+    def on_connect():
+        print(f"pn: connected to {SOCKET_PATH}")
+        for path in state:
+            client.get(path)
+
+    def on_disconnect():
+        print("pn: disconnected, will retry...")
+
     client = Client(on_update=on_update)
-    task, close = await connect_uds(client, SOCKET_PATH)
-
-    # fetch initial values from server
-    for path in state:
-        client.get(path)
-
-    # allow responses to arrive
-    await asyncio.sleep(0.1)
+    task, close = await connect_uds_persistent(
+        client, SOCKET_PATH,
+        on_connect=on_connect,
+        on_disconnect=on_disconnect,
+    )
 
     def on_dial(deck, dial_index, event, value):
         if event != DialEventType.TURN or dial_index >= len(DIALS):
