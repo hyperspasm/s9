@@ -7,10 +7,10 @@ from pn.transport import connect_uds_persistent
 SOCKET_PATH = "/tmp/s9.sock"
 
 DIALS = [
-    {"path": "s9/osc/time_per_div", "mode": "log",    "factor": 1/1.1},
-    {"path": "s9/osc/amp_per_div",  "mode": "log",    "factor": 1/1.1},
-    {"path": "s9/osc/trig_thresh",  "mode": "linear", "step": 0.02},
-    {"path": "s9/osc/channel",      "mode": "int",    "step": 1},
+    {"path": "s9/osc/time_per_div", "mode": "log",    "factor": 1/1.1, "min": 0.00001, "max": 1.0},
+    {"path": "s9/osc/amp_per_div",  "mode": "log",    "factor": 1/1.1, "min": 0.001,   "max": 10.0},
+    {"path": "s9/osc/trig_thresh",  "mode": "linear", "step": 0.02,    "min": -1.0,    "max": 1.0},
+    {"path": "s9/osc/channel",      "mode": "int",    "step": 1,       "min": -1,      "max": 31},
 ]
 
 DEFAULTS = {
@@ -28,6 +28,7 @@ async def _main():
     def on_update(path, value, ptype):
         if path in state:
             state[path] = value
+            print(f"{path} = {value}")
 
     def on_connect():
         print(f"pn: connected to {SOCKET_PATH}")
@@ -59,13 +60,12 @@ async def _main():
         else:
             new_val = current + dial["step"] * value
 
+        new_val = max(dial["min"], min(dial["max"], new_val))
         state[path] = new_val
         if dial["mode"] == "int":
             loop.call_soon_threadsafe(client.set_int, path, new_val)
-            print(f"{path} = {new_val}")
         else:
             loop.call_soon_threadsafe(client.set_float, path, new_val)
-            print(f"{path} = {new_val:.6f}")
 
     manager = DeviceManager()
     decks = manager.enumerate()
