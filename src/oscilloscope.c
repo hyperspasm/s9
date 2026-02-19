@@ -17,6 +17,7 @@ typedef struct {
 	int trig_slope;       // 1 = rising, -1 = falling
 	float trig_thresh;    // -1.0 to 1.0
 	float trig_holdoff;   // seconds
+	uint32_t channel;     // channel index, or OSC_CHANNEL_ALL to sum
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
@@ -26,6 +27,7 @@ static const oscilloscope_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,
+	.channel = OSC_CHANNEL_ALL,
 };
 
 typedef struct oscilloscope {
@@ -393,6 +395,7 @@ static void push_trigger_settings(oscilloscope_t *osc) {
 		.trig_slope = osc->settings.trig_slope,
 		.trig_thresh = osc->settings.trig_thresh,
 		.trig_holdoff = osc->settings.trig_holdoff,
+		.channel = osc->settings.channel,
 	});
 }
 
@@ -430,6 +433,15 @@ void oscilloscope_set_trig_holdoff(oscilloscope_t *osc, float seconds) {
 
 float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc) {
 	return osc->settings.trig_holdoff;
+}
+
+void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel) {
+	osc->settings.channel = channel;
+	push_trigger_settings(osc);
+}
+
+uint32_t oscilloscope_get_channel(const oscilloscope_t *osc) {
+	return osc->settings.channel;
 }
 
 void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_config_t *stream_config) {

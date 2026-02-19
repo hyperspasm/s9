@@ -10,7 +10,7 @@
 #define SOCKET_PATH    "/tmp/s9.sock"
 #define UDS_READ_BUF   1024
 
-#define OSC_NUM_PARAMS 6
+#define OSC_NUM_PARAMS 7
 
 struct s9_pn {
 	s9_pn_config_t config;
@@ -43,6 +43,9 @@ static float get_trig_thresh(void *ctx) { return oscilloscope_get_trig_thresh(ct
 static void set_trig_holdoff(void *ctx, float val) { oscilloscope_set_trig_holdoff(ctx, val); }
 static float get_trig_holdoff(void *ctx) { return oscilloscope_get_trig_holdoff(ctx); }
 
+static void set_channel(void *ctx, int32_t val) { oscilloscope_set_channel(ctx, (uint32_t)val); }
+static int32_t get_channel(void *ctx) { return (int32_t)oscilloscope_get_channel(ctx); }
+
 // -- tree
 
 static void build_tree(s9_pn_t *pn) {
@@ -54,6 +57,7 @@ static void build_tree(s9_pn_t *pn) {
 	pn->osc_params[3] = pn_int("trig_slope",     osc, set_trig_slope,   get_trig_slope, -1, 1, 2);
 	pn->osc_params[4] = pn_float("trig_thresh",  osc, set_trig_thresh,  get_trig_thresh, -1.0f, 1.0f, 0);
 	pn->osc_params[5] = pn_float("trig_holdoff", osc, set_trig_holdoff, get_trig_holdoff, 0.0f, 1.0f, 0);
+	pn->osc_params[6] = pn_int("channel",       osc, set_channel,      get_channel,      -1, 31, 1);
 
 	pn->osc_group = pn_group("osc", pn->osc_params, OSC_NUM_PARAMS);
 	pn->root = pn_group("s9", &pn->osc_group, 1);

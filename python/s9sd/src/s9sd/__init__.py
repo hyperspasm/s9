@@ -10,12 +10,14 @@ DIALS = [
     {"path": "s9/osc/time_per_div", "mode": "log",    "factor": 1/1.1},
     {"path": "s9/osc/amp_per_div",  "mode": "log",    "factor": 1/1.1},
     {"path": "s9/osc/trig_thresh",  "mode": "linear", "step": 0.02},
+    {"path": "s9/osc/channel",      "mode": "int",    "step": 1},
 ]
 
 DEFAULTS = {
     "s9/osc/time_per_div": 0.002,
     "s9/osc/amp_per_div": 0.1,
     "s9/osc/trig_thresh": 0.1,
+    "s9/osc/channel": -1,
 }
 
 
@@ -52,12 +54,18 @@ async def _main():
 
         if dial["mode"] == "log":
             new_val = current * (dial["factor"] ** value)
+        elif dial["mode"] == "int":
+            new_val = int(current) + dial["step"] * value
         else:
             new_val = current + dial["step"] * value
 
         state[path] = new_val
-        loop.call_soon_threadsafe(client.set_float, path, new_val)
-        print(f"{path} = {new_val:.6f}")
+        if dial["mode"] == "int":
+            loop.call_soon_threadsafe(client.set_int, path, new_val)
+            print(f"{path} = {new_val}")
+        else:
+            loop.call_soon_threadsafe(client.set_float, path, new_val)
+            print(f"{path} = {new_val:.6f}")
 
     manager = DeviceManager()
     decks = manager.enumerate()

@@ -13,6 +13,7 @@ typedef struct {
 	int trig_slope;           // 1 = rising, -1 = falling
 	float trig_thresh;        // -1.0 to 1.0
 	float trig_holdoff;       // seconds
+	uint32_t channel;         // channel index to extract, or >= n_channels to sum all
 } osc_sampler_settings_t;
 
 typedef struct osc_sampler osc_sampler_t;

@@ -29,6 +29,7 @@ static const osc_sampler_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,  // 10µs
+	.channel = UINT32_MAX, // sum all channels
 };
 
 struct osc_sampler {
@@ -464,10 +465,24 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 		to_write = avail;
 	}
 
-	// extract channel 0 from interleaved input and write to input buffer
-	for (uint32_t i = 0; i < to_write; i++) {
-		sampler->input_buf[write_ix_local] = samples[i * n_channels];
-		write_ix_local = (write_ix_local + 1) & sampler->buf_mask;
+	// extract selected channel from interleaved input and write to input buffer
+	// channel >= n_channels means sum all channels
+	uint32_t ch = sampler->settings.channel;
+	if (ch < n_channels) {
+		for (uint32_t i = 0; i < to_write; i++) {
+			sampler->input_buf[write_ix_local] = samples[i * n_channels + ch];
+			write_ix_local = (write_ix_local + 1) & sampler->buf_mask;
+		}
+	} else {
+		float scale = 1.0f / (float)n_channels;
+		for (uint32_t i = 0; i < to_write; i++) {
+			float sum = 0.0f;
+			for (uint32_t c = 0; c < n_channels; c++) {
+				sum += samples[i * n_channels + c];
+			}
+			sampler->input_buf[write_ix_local] = sum * scale;
+			write_ix_local = (write_ix_local + 1) & sampler->buf_mask;
+		}
 	}
 
 	// publish final write_ix with release semantics
