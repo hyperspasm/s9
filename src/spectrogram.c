@@ -314,11 +314,15 @@ static uint32_t next_power_of_2(uint32_t n) {
 	return n + 1;
 }
 
+void spectrogram_stop_streaming(spectrogram_t *sg) {
+	sg->streaming = 0;
+}
+
 void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config) {
 	// only S9_AUDIO_FLOAT32 is supported
 	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
 	
-	if( S9_AUDIO_STREAM_CONFIG_EQUALS(sg->stream_config, *stream_config) ) {
+	if( sg->streaming && S9_AUDIO_STREAM_CONFIG_EQUALS(sg->stream_config, *stream_config) ) {
 		// no change
 		return;
 	}

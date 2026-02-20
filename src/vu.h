@@ -50,6 +50,9 @@ void vu_free(vu_t **vu);
 // render vu
 void vu_render(vu_t *vu, SDL_Renderer *renderer);
 
+// stop audio streaming
+void vu_stop_streaming(vu_t *vu);
+
 // prepare for audio streaming
 void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_config);
 

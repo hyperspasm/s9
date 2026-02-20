@@ -48,6 +48,9 @@ float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc);
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel);
 uint32_t oscilloscope_get_channel(const oscilloscope_t *osc);
 
+// stop audio streaming
+void oscilloscope_stop_streaming(oscilloscope_t *osc);
+
 // prepare for audio streaming
 void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_config_t *stream_config);
 

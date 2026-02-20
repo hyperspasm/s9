@@ -444,11 +444,15 @@ uint32_t oscilloscope_get_channel(const oscilloscope_t *osc) {
 	return osc->settings.channel;
 }
 
+void oscilloscope_stop_streaming(oscilloscope_t *osc) {
+	osc->streaming = 0;
+}
+
 void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_config_t *stream_config) {
 	// only S9_AUDIO_FLOAT32 is supported
 	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
 
-	if( S9_AUDIO_STREAM_CONFIG_EQUALS(osc->stream_config, *stream_config) ) {
+	if( osc->streaming && S9_AUDIO_STREAM_CONFIG_EQUALS(osc->stream_config, *stream_config) ) {
 		// no change
 		return;
 	}

@@ -33,6 +33,9 @@ void lissajous_free(lissajous_t **liss);
 // render lissajous
 void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer);
 
+// stop audio streaming
+void lissajous_stop_streaming(lissajous_t *liss);
+
 // prepare for audio streaming
 void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config_t *stream_config);
 
