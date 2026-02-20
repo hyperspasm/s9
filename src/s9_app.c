@@ -26,13 +26,18 @@ typedef struct s9_layout {
 
 typedef struct s9_component {
 	void *instance;
-	s9_layout_t layout;
 
 	void (*destroy)(void **instance);
 	void (*render)(void *instance, SDL_Renderer *renderer);
 	void (*enqueue_audio)(void *instance, uint8_t *stream, int len);
 	void (*prepare_to_stream)(void *instance, const s9_audio_stream_config_t *config);
 } s9_component_t;
+
+typedef struct s9_component_slot {
+	s9_component_t *component;
+	int enabled;
+	s9_layout_t layout;
+} s9_component_slot_t;
 
 static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *parent) {
 	SDL_Rect vp;
@@ -52,7 +57,8 @@ typedef struct s9_app {
 	SDL_RendererInfo renderer_info;
 	SDL_DisplayMode display_mode;
 
-	s9_component_t components[S9_MAX_COMPONENTS]; // NULL-terminated (instance == NULL)
+	s9_component_t components[S9_MAX_COMPONENTS];
+	s9_component_slot_t slots[S9_MAX_COMPONENTS]; // NULL-terminated (component == NULL)
 	s9_pn_t *pn;
 
 	SDL_AudioDeviceID audio_device_id;
@@ -102,11 +108,11 @@ static void render(SDL_Renderer *renderer) {
 	SDL_Rect default_viewport;
 	SDL_RenderGetViewport(renderer, &default_viewport);
 
-	for (s9_component_t *c = g_app->components; c->instance; c++) {
-		if (c->render) {
-			SDL_Rect viewport = compute_viewport(&c->layout, &default_viewport);
+	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
+		if (s->enabled && s->component->render) {
+			SDL_Rect viewport = compute_viewport(&s->layout, &default_viewport);
 			SDL_RenderSetViewport(renderer, &viewport);
-			c->render(c->instance, renderer);
+			s->component->render(s->component->instance, renderer);
 		}
 	}
 
@@ -116,9 +122,9 @@ static void render(SDL_Renderer *renderer) {
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	(void)userdata;
 
-	for (s9_component_t *c = g_app->components; c->instance; c++) {
-		if (c->enqueue_audio) {
-			c->enqueue_audio(c->instance, stream, len);
+	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
+		if (s->enabled && s->component->enqueue_audio) {
+			s->component->enqueue_audio(s->component->instance, stream, len);
 		}
 	}
 }
@@ -224,6 +230,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	
 	// create components
 	s9_component_t *component = g_app->components;
+	s9_component_slot_t *slot = g_app->slots;
 
 	// fps
 	fps_t *fps = fps_new(g_app->renderer, load_font, (SDL_Color){255, 255, 255, 255}, 1000);
@@ -236,8 +243,14 @@ int s9_app_create(const s9_app_config_t *config) {
 				SDL_Quit();
 				return -1,
 				"Failed to create fps instance");
-	*component++ = (s9_component_t){
+	*component = (s9_component_t){
 		.instance = fps,
+		.destroy = (void (*)(void **))fps_free,
+		.render = (void (*)(void *, SDL_Renderer *))fps_render,
+	};
+	*slot = (s9_component_slot_t){
+		.component = component,
+		.enabled = 1,
 		.layout = {
 			.margin_left = 10,
 			.margin_top = 10,
@@ -246,9 +259,9 @@ int s9_app_create(const s9_app_config_t *config) {
 			.fixed_width = 50,
 			.fixed_height = 40,
 		},
-		.destroy = (void (*)(void **))fps_free,
-		.render = (void (*)(void *, SDL_Renderer *))fps_render,
 	};
+	component++;
+	slot++;
 
 	// vu
 	vu_t *vu = vu_new(NULL);
@@ -256,8 +269,16 @@ int s9_app_create(const s9_app_config_t *config) {
 				s9_app_destroy();
 				return -1,
 				"Failed to create vu instance");
-	*component++ = (s9_component_t){
+	*component = (s9_component_t){
 		.instance = vu,
+		.destroy = (void (*)(void **))vu_free,
+		.render = (void (*)(void *, SDL_Renderer *))vu_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))vu_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))vu_prepare_to_stream,
+	};
+	*slot = (s9_component_slot_t){
+		.component = component,
+		.enabled = 1,
 		.layout = {
 			.margin_left = 10,
 			.margin_top = 40,
@@ -266,11 +287,9 @@ int s9_app_create(const s9_app_config_t *config) {
 			.fixed_width = 50,
 			.fixed_height = 0,
 		},
-		.destroy = (void (*)(void **))vu_free,
-		.render = (void (*)(void *, SDL_Renderer *))vu_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))vu_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))vu_prepare_to_stream,
 	};
+	component++;
+	slot++;
 
 	// spectrogram
 	spectrogram_t *sg = spectrogram_new(NULL, load_font);
@@ -278,8 +297,16 @@ int s9_app_create(const s9_app_config_t *config) {
 				s9_app_destroy();
 				return -1,
 				"Failed to create spectrogram instance");
-	*component++ = (s9_component_t){
+	*component = (s9_component_t){
 		.instance = sg,
+		.destroy = (void (*)(void **))spectrogram_free,
+		.render = (void (*)(void *, SDL_Renderer *))spectrogram_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrogram_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
+	};
+	*slot = (s9_component_slot_t){
+		.component = component,
+		.enabled = 1,
 		.layout = {
 			.margin_left = 60,
 			.margin_top = 0,
@@ -288,11 +315,9 @@ int s9_app_create(const s9_app_config_t *config) {
 			.fixed_width = 860,
 			.fixed_height = 0,
 		},
-		.destroy = (void (*)(void **))spectrogram_free,
-		.render = (void (*)(void *, SDL_Renderer *))spectrogram_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrogram_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
 	};
+	component++;
+	slot++;
 
 	// oscilloscope
 	oscilloscope_t *osc = oscilloscope_new(NULL);
@@ -300,8 +325,16 @@ int s9_app_create(const s9_app_config_t *config) {
 				s9_app_destroy();
 				return -1,
 				"Failed to create oscilloscope instance");
-	*component++ = (s9_component_t){
+	*component = (s9_component_t){
 		.instance = osc,
+		.destroy = (void (*)(void **))oscilloscope_free,
+		.render = (void (*)(void *, SDL_Renderer *))oscilloscope_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))oscilloscope_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))oscilloscope_prepare_to_stream,
+	};
+	*slot = (s9_component_slot_t){
+		.component = component,
+		.enabled = 1,
 		.layout = {
 			.margin_left = 920,
 			.margin_top = 0,
@@ -310,20 +343,26 @@ int s9_app_create(const s9_app_config_t *config) {
 			.fixed_width = 0,
 			.fixed_height = 360,
 		},
-		.destroy = (void (*)(void **))oscilloscope_free,
-		.render = (void (*)(void *, SDL_Renderer *))oscilloscope_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))oscilloscope_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))oscilloscope_prepare_to_stream,
 	};
-	
+	component++;
+	slot++;
+
 	// lissajous
 	lissajous_t *lissajous = lissajous_new(NULL);
 	CHECK_ERROR(lissajous != NULL,
 				s9_app_destroy();
 				return -1,
 				"Failed to create lissajous instance");
-	*component++ = (s9_component_t){
+	*component = (s9_component_t){
 		.instance = lissajous,
+		.destroy = (void (*)(void **))lissajous_free,
+		.render = (void (*)(void *, SDL_Renderer *))lissajous_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))lissajous_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))lissajous_prepare_to_stream,
+	};
+	*slot = (s9_component_slot_t){
+		.component = component,
+		.enabled = 1,
 		.layout = {
 			.margin_left = 920,
 			.margin_top = 360,
@@ -332,11 +371,9 @@ int s9_app_create(const s9_app_config_t *config) {
 			.fixed_width = 0,
 			.fixed_height = 360,
 		},
-		.destroy = (void (*)(void **))lissajous_free,
-		.render = (void (*)(void *, SDL_Renderer *))lissajous_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))lissajous_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))lissajous_prepare_to_stream,
 	};
+	component++;
+	slot++;
 
 #if 0
 	// scratchpad
@@ -345,8 +382,14 @@ int s9_app_create(const s9_app_config_t *config) {
 				s9_app_destroy();
 				return -1,
 				"Failed to create scratchpad instance");
-	*component++ = (s9_component_t){
+	*component = (s9_component_t){
 		.instance = scratchpad,
+		.destroy = (void (*)(void **))scratchpad_free,
+		.render = (void (*)(void *, SDL_Renderer *))scratchpad_render,
+	};
+	*slot = (s9_component_slot_t){
+		.component = component,
+		.enabled = 1,
 		.layout = {
 			.margin_left = 60,
 			.margin_top = 0,
@@ -355,9 +398,9 @@ int s9_app_create(const s9_app_config_t *config) {
 			.fixed_width = 0,
 			.fixed_height = 0,
 		},
-		.destroy = (void (*)(void **))scratchpad_free,
-		.render = (void (*)(void *, SDL_Renderer *))scratchpad_render,
 	};
+	component++;
+	slot++;
 #endif
 
 	// create pn
@@ -435,9 +478,9 @@ void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
 
 	// destroy components
-	for (s9_component_t *c = g_app->components; c->instance; c++) {
-		if (c->destroy) {
-			c->destroy(&c->instance);
+	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
+		if (s->component->destroy) {
+			s->component->destroy(&s->component->instance);
 		}
 	}
 
@@ -469,9 +512,9 @@ int s9_app_run(void) {
 	if (g_app->streaming == 0) {
 		
 		SDL_LockAudioDevice(g_app->audio_device_id);
-		for (s9_component_t *c = g_app->components; c->instance; c++) {
-			if (c->prepare_to_stream) {
-				c->prepare_to_stream(c->instance, &g_app->stream_config);
+		for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
+			if (s->component->prepare_to_stream) {
+				s->component->prepare_to_stream(s->component->instance, &g_app->stream_config);
 			}
 		}		
 		SDL_UnlockAudioDevice(g_app->audio_device_id);
