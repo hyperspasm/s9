@@ -58,6 +58,7 @@ typedef struct s9_app {
 	SDL_AudioDeviceID audio_device_id;
 	SDL_AudioSpec audio_spec;
 	s9_audio_stream_config_t stream_config;
+	int streaming;
 
 	int ret;
 } s9_app_t;
@@ -424,14 +425,7 @@ int s9_app_create(const s9_app_config_t *config) {
 		.buffer_frames = g_app->audio_spec.samples,
 		.samples_per_display_frame = ceil(g_app->audio_spec.freq / g_app->display_mode.refresh_rate),
 	};
-	
-	// prepare to stream
-	for (s9_component_t *c = g_app->components; c->instance; c++) {
-		if (c->prepare_to_stream) {
-			c->prepare_to_stream(c->instance, &g_app->stream_config);
-		}
-	}
-	
+		
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
 	return 0;
@@ -470,6 +464,20 @@ int s9_app_run(void) {
 	
 	// exit if necessary
 	if (g_app->ret) return g_app->ret;
+
+	// prepare to stream if necessary
+	if (g_app->streaming == 0) {
+		
+		SDL_LockAudioDevice(g_app->audio_device_id);
+		for (s9_component_t *c = g_app->components; c->instance; c++) {
+			if (c->prepare_to_stream) {
+				c->prepare_to_stream(c->instance, &g_app->stream_config);
+			}
+		}		
+		SDL_UnlockAudioDevice(g_app->audio_device_id);
+
+		g_app->streaming = 1;
+	}
 	
 	// poll until all events are handled!
 	while (SDL_PollEvent(&e)) {
