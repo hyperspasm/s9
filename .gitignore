@@ -6,4 +6,5 @@
 **/xcshareddata/
 
 build/
+xc_build/
 .claude/
