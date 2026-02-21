@@ -35,7 +35,7 @@ static const spectrogram_config_t default_spectrogram_config = {
 };
 
 // create spectrogram
-spectrogram_t *spectrogram_new(const spectrogram_config_t *config, TTF_Font* (*load_font)(int point_size));
+spectrogram_t *spectrogram_new(const spectrogram_config_t *config);
 
 // destroy spectrogram
 void spectrogram_free(spectrogram_t **sg);

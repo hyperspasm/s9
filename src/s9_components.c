@@ -1,6 +1,5 @@
 #include "s9_components.h"
 #include "s9.h"
-
 #include "fps.h"
 #include "vu.h"
 #include "spectrogram.h"
@@ -17,7 +16,6 @@ struct s9_components {
 s9_components_t *s9_components_new(const s9_components_config_t *config) {
 	CHECK_PARAMETER(config != NULL, return NULL);
 	CHECK_PARAMETER(config->renderer != NULL, return NULL);
-	CHECK_PARAMETER(config->load_font != NULL, return NULL);
 
 	s9_components_t *comps = malloc(sizeof(s9_components_t));
 	CHECK_ALLOC(comps, return NULL);
@@ -26,7 +24,7 @@ s9_components_t *s9_components_new(const s9_components_config_t *config) {
 	comps->config = *config;
 
 	// fps
-	fps_t *fps = fps_new(config->renderer, config->load_font, (SDL_Color){255, 255, 255, 255}, 1000);
+	fps_t *fps = fps_new(config->renderer, (SDL_Color){255, 255, 255, 255}, 1000);
 	CHECK_ERROR(fps != NULL, s9_components_free(&comps); return NULL, "Failed to create fps instance");
 	comps->components[COMP_FPS] = (s9_component_t){
 		.instance = fps,
@@ -47,7 +45,7 @@ s9_components_t *s9_components_new(const s9_components_config_t *config) {
 	};
 
 	// spectrogram
-	spectrogram_t *sg = spectrogram_new(NULL, config->load_font);
+	spectrogram_t *sg = spectrogram_new(NULL);
 	CHECK_ERROR(sg != NULL, s9_components_free(&comps); return NULL, "Failed to create spectrogram instance");
 	comps->components[COMP_SPECTROGRAM] = (s9_component_t){
 		.instance = sg,

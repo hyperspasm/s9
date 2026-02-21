@@ -5,7 +5,6 @@
 #include "s9_dsp.h"
 
 #include <SDL2/SDL_Render.h>
-#include <SDL2/SDL_ttf.h>
 
 // component identification
 typedef enum {
@@ -47,7 +46,6 @@ typedef struct s9_components s9_components_t;
 
 typedef struct {
 	SDL_Renderer *renderer;
-	TTF_Font* (*load_font)(int point_size);
 } s9_components_config_t;
 
 s9_components_t *s9_components_new(const s9_components_config_t *config);

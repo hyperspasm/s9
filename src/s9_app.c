@@ -1,7 +1,5 @@
 #include "s9_app.h"
 #include "s9_components.h"
-#include "Roboto-Regular.h"
-
 #include "s9_pn.h"
 
 #include <stdlib.h>
@@ -59,23 +57,6 @@ static void print_renderer_info(void) {
 	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(g_app->display_mode.format));
 	S9_LOG_INFO("    %d x %d", g_app->display_mode.w, g_app->display_mode.h);
 	S9_LOG_INFO("    %d Hz", g_app->display_mode.refresh_rate);
-}
-
-// static function to load a font
-static TTF_Font* load_font_from_memory(const uint8_t *font_data, int data_size, int point_size) {
-	// create an SDL_RWops from the font data
-	SDL_RWops *rw = SDL_RWFromConstMem(font_data, data_size);
-	CHECK_ERROR(rw != NULL, return NULL, "SDL_RWFromConstMem failed: %s", SDL_GetError());
-	
-	// load the font from the SDL_RWops
-	TTF_Font *font = TTF_OpenFontRW(rw, 1, point_size); // 1 means SDL will free the RWops
-	CHECK_ERROR(font != NULL, return NULL, "TTF_OpenFontRW failed: %s", TTF_GetError());
-	
-	return font;
-}
-
-static TTF_Font* load_font(int point_size) {
-	return load_font_from_memory(Roboto_Regular_TTF, sizeof(Roboto_Regular_TTF), point_size);
 }
 
 static void render(SDL_Renderer *renderer) {
@@ -253,7 +234,6 @@ int s9_app_create(const s9_app_config_t *config) {
 	// create components
 	g_app->components = s9_components_new(&(s9_components_config_t){
 		.renderer = g_app->renderer,
-		.load_font = load_font,
 	});
 	CHECK_ALLOC(g_app->components, s9_app_destroy(); return -1);
 

@@ -1,4 +1,5 @@
 #include "fps.h"
+#include "s9_font.h"
 #include "draw_sdl.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -19,7 +20,7 @@ typedef struct fps {
 	
 } fps_t;
 
-fps_t *fps_new(SDL_Renderer *renderer, TTF_Font* (*load_font)(int point_size), SDL_Color color, uint32_t interval_ms) {
+fps_t *fps_new(SDL_Renderer *renderer, SDL_Color color, uint32_t interval_ms) {
 	fps_t *fps = (fps_t *)malloc(sizeof(fps_t));
 	CHECK_ALLOC(fps, return NULL);
 	memset(fps, 0, sizeof(*fps));
@@ -34,7 +35,7 @@ fps_t *fps_new(SDL_Renderer *renderer, TTF_Font* (*load_font)(int point_size), S
 	fps->width = 0;
 	fps->height = 0;	
 	
-	fps->font = load_font(16);
+	fps->font = s9_open_font(16);
 	CHECK_ERROR(fps->font != NULL,
 				fps_free(&fps);
 				return NULL,
