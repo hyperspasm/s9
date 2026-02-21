@@ -49,7 +49,7 @@ static int32_t get_channel(void *ctx) { return (int32_t)oscilloscope_get_channel
 // -- tree
 
 static void build_tree(s9_pn_t *pn) {
-	oscilloscope_t *osc = pn->config.osc;
+	oscilloscope_t *osc = s9_components_get(pn->config.components, COMP_OSCILLOSCOPE)->instance;
 
 	pn->osc_params[0] = pn_float("time_per_div", osc, set_time_per_div, get_time_per_div, 0.00001f, 1.0f, 0);
 	pn->osc_params[1] = pn_float("amp_per_div",  osc, set_amp_per_div,  get_amp_per_div,  0.001f, 10.0f, 0);

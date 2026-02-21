@@ -1,11 +1,6 @@
 #include "s9_app.h"
+#include "s9_components.h"
 #include "Roboto-Regular.h"
-#include "fps.h"
-#include "vu.h"
-#include "spectrogram.h"
-#include "oscilloscope.h"
-#include "lissajous.h"
-#include "scratchpad.h"
 
 #include "s9_pn.h"
 
@@ -17,27 +12,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_audio.h>
-
-typedef struct s9_layout {
-	uint32_t margin_left, margin_top, margin_right, margin_bottom;
-	uint32_t fixed_width;   // >0 ignores margin_right; 0 fills remaining
-	uint32_t fixed_height;  // >0 ignores margin_bottom; 0 fills remaining
-} s9_layout_t;
-
-typedef struct s9_component {
-	void *instance;
-
-	void (*destroy)(void **instance);
-	void (*render)(void *instance, SDL_Renderer *renderer);
-	void (*enqueue_audio)(void *instance, uint8_t *stream, int len);
-	void (*prepare_to_stream)(void *instance, const s9_audio_stream_config_t *config);
-} s9_component_t;
-
-typedef struct s9_component_slot {
-	s9_component_t *component;
-	int enabled;
-	s9_layout_t layout;
-} s9_component_slot_t;
 
 static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *parent) {
 	SDL_Rect vp;
@@ -57,14 +31,14 @@ typedef struct s9_app {
 	SDL_RendererInfo renderer_info;
 	SDL_DisplayMode display_mode;
 
-	s9_component_t components[S9_MAX_COMPONENTS];
+	s9_components_t *components;
 	s9_component_slot_t slots[S9_MAX_COMPONENTS]; // NULL-terminated (component == NULL)
+	const s9_mode_slot_t *current_mode;
 	s9_pn_t *pn;
 
 	SDL_AudioDeviceID audio_device_id;
 	SDL_AudioSpec audio_spec;
 	s9_audio_stream_config_t stream_config;
-	int streaming;
 
 	int ret;
 } s9_app_t;
@@ -109,7 +83,7 @@ static void render(SDL_Renderer *renderer) {
 	SDL_RenderGetViewport(renderer, &default_viewport);
 
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
-		if (s->enabled && s->component->render) {
+		if (s->component->render) {
 			SDL_Rect viewport = compute_viewport(&s->layout, &default_viewport);
 			SDL_RenderSetViewport(renderer, &viewport);
 			s->component->render(s->component->instance, renderer);
@@ -119,11 +93,59 @@ static void render(SDL_Renderer *renderer) {
 	SDL_RenderSetViewport(renderer, &default_viewport);
 }
 
+static void apply_mode(const s9_mode_slot_t *mode) {
+	s9_component_slot_t *slot = g_app->slots;
+	for (const s9_mode_slot_t *m = mode; m->id != COMP_NONE; m++) {
+		*slot++ = (s9_component_slot_t){
+			.component = s9_components_get(g_app->components, m->id),
+			.layout = m->layout,
+		};
+	}
+	slot->component = NULL; // sentinel
+}
+
+static void switch_mode(const s9_mode_slot_t *new_mode) {
+	SDL_LockAudioDevice(g_app->audio_device_id);
+
+	int incoming[COMP_COUNT] = {0};
+	for (const s9_mode_slot_t *m = new_mode; m->id != COMP_NONE; m++)
+		incoming[m->id] = 1;
+
+	int outgoing[COMP_COUNT] = {0};
+	if (g_app->current_mode) {
+		for (const s9_mode_slot_t *m = g_app->current_mode; m->id != COMP_NONE; m++)
+			outgoing[m->id] = 1;
+	}
+
+	// stop streaming on components leaving the mode
+	for (int i = 0; i < COMP_COUNT; i++) {
+		if (outgoing[i] && !incoming[i]) {
+			s9_component_t *c = s9_components_get(g_app->components, i);
+			if (c && c->stop_streaming) c->stop_streaming(c->instance);
+		}
+	}
+
+	// rebuild slot array
+	apply_mode(new_mode);
+
+	// prepare components entering the mode
+	for (int i = 0; i < COMP_COUNT; i++) {
+		if (incoming[i] && !outgoing[i]) {
+			s9_component_t *c = s9_components_get(g_app->components, i);
+			if (c && c->prepare_to_stream)
+				c->prepare_to_stream(c->instance, &g_app->stream_config);
+		}
+	}
+
+	g_app->current_mode = new_mode;
+	SDL_UnlockAudioDevice(g_app->audio_device_id);
+}
+
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	(void)userdata;
 
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
-		if (s->enabled && s->component->enqueue_audio) {
+		if (s->component->enqueue_audio) {
 			s->component->enqueue_audio(s->component->instance, stream, len);
 		}
 	}
@@ -229,183 +251,15 @@ int s9_app_create(const s9_app_config_t *config) {
 	SDL_SetRenderDrawBlendMode(g_app->renderer, SDL_BLENDMODE_BLEND);
 	
 	// create components
-	s9_component_t *component = g_app->components;
-	s9_component_slot_t *slot = g_app->slots;
-
-	// fps
-	fps_t *fps = fps_new(g_app->renderer, load_font, (SDL_Color){255, 255, 255, 255}, 1000);
-	CHECK_ERROR(fps != NULL,
-				SDL_DestroyRenderer(g_app->renderer);
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
-				return -1,
-				"Failed to create fps instance");
-	*component = (s9_component_t){
-		.instance = fps,
-		.destroy = (void (*)(void **))fps_free,
-		.render = (void (*)(void *, SDL_Renderer *))fps_render,
-	};
-	*slot = (s9_component_slot_t){
-		.component = component,
-		.enabled = 1,
-		.layout = {
-			.margin_left = 10,
-			.margin_top = 10,
-			.margin_right = 0,
-			.margin_bottom = 0,
-			.fixed_width = 50,
-			.fixed_height = 40,
-		},
-	};
-	component++;
-	slot++;
-
-	// vu
-	vu_t *vu = vu_new(NULL);
-	CHECK_ERROR(vu != NULL,
-				s9_app_destroy();
-				return -1,
-				"Failed to create vu instance");
-	*component = (s9_component_t){
-		.instance = vu,
-		.destroy = (void (*)(void **))vu_free,
-		.render = (void (*)(void *, SDL_Renderer *))vu_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))vu_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))vu_prepare_to_stream,
-	};
-	*slot = (s9_component_slot_t){
-		.component = component,
-		.enabled = 1,
-		.layout = {
-			.margin_left = 10,
-			.margin_top = 40,
-			.margin_right = 0,
-			.margin_bottom = 10,
-			.fixed_width = 50,
-			.fixed_height = 0,
-		},
-	};
-	component++;
-	slot++;
-
-	// spectrogram
-	spectrogram_t *sg = spectrogram_new(NULL, load_font);
-	CHECK_ERROR(sg != NULL,
-				s9_app_destroy();
-				return -1,
-				"Failed to create spectrogram instance");
-	*component = (s9_component_t){
-		.instance = sg,
-		.destroy = (void (*)(void **))spectrogram_free,
-		.render = (void (*)(void *, SDL_Renderer *))spectrogram_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrogram_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
-	};
-	*slot = (s9_component_slot_t){
-		.component = component,
-		.enabled = 1,
-		.layout = {
-			.margin_left = 60,
-			.margin_top = 0,
-			.margin_right = 0,
-			.margin_bottom = 0,
-			.fixed_width = 860,
-			.fixed_height = 0,
-		},
-	};
-	component++;
-	slot++;
-
-	// oscilloscope
-	oscilloscope_t *osc = oscilloscope_new(NULL);
-	CHECK_ERROR(osc != NULL,
-				s9_app_destroy();
-				return -1,
-				"Failed to create oscilloscope instance");
-	*component = (s9_component_t){
-		.instance = osc,
-		.destroy = (void (*)(void **))oscilloscope_free,
-		.render = (void (*)(void *, SDL_Renderer *))oscilloscope_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))oscilloscope_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))oscilloscope_prepare_to_stream,
-	};
-	*slot = (s9_component_slot_t){
-		.component = component,
-		.enabled = 1,
-		.layout = {
-			.margin_left = 920,
-			.margin_top = 0,
-			.margin_right = 0,
-			.margin_bottom = 0,
-			.fixed_width = 0,
-			.fixed_height = 360,
-		},
-	};
-	component++;
-	slot++;
-
-	// lissajous
-	lissajous_t *lissajous = lissajous_new(NULL);
-	CHECK_ERROR(lissajous != NULL,
-				s9_app_destroy();
-				return -1,
-				"Failed to create lissajous instance");
-	*component = (s9_component_t){
-		.instance = lissajous,
-		.destroy = (void (*)(void **))lissajous_free,
-		.render = (void (*)(void *, SDL_Renderer *))lissajous_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))lissajous_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))lissajous_prepare_to_stream,
-	};
-	*slot = (s9_component_slot_t){
-		.component = component,
-		.enabled = 1,
-		.layout = {
-			.margin_left = 920,
-			.margin_top = 360,
-			.margin_right = 0,
-			.margin_bottom = 0,
-			.fixed_width = 0,
-			.fixed_height = 360,
-		},
-	};
-	component++;
-	slot++;
-
-#if 0
-	// scratchpad
-	scratchpad_t *scratchpad = scratchpad_new(load_font);
-	CHECK_ERROR(scratchpad != NULL,
-				s9_app_destroy();
-				return -1,
-				"Failed to create scratchpad instance");
-	*component = (s9_component_t){
-		.instance = scratchpad,
-		.destroy = (void (*)(void **))scratchpad_free,
-		.render = (void (*)(void *, SDL_Renderer *))scratchpad_render,
-	};
-	*slot = (s9_component_slot_t){
-		.component = component,
-		.enabled = 1,
-		.layout = {
-			.margin_left = 60,
-			.margin_top = 0,
-			.margin_right = 0,
-			.margin_bottom = 0,
-			.fixed_width = 0,
-			.fixed_height = 0,
-		},
-	};
-	component++;
-	slot++;
-#endif
+	g_app->components = s9_components_new(&(s9_components_config_t){
+		.renderer = g_app->renderer,
+		.load_font = load_font,
+	});
+	CHECK_ALLOC(g_app->components, s9_app_destroy(); return -1);
 
 	// create pn
 	g_app->pn = s9_pn_new(&(s9_pn_config_t){
-		.osc = osc,
+		.components = g_app->components,
 	});
 	CHECK_ALLOC(g_app->pn, s9_app_destroy(); return -1);
 
@@ -468,7 +322,10 @@ int s9_app_create(const s9_app_config_t *config) {
 		.buffer_frames = g_app->audio_spec.samples,
 		.samples_per_display_frame = ceil(g_app->audio_spec.freq / g_app->display_mode.refresh_rate),
 	};
-		
+
+	// apply initial mode (prepares components for streaming)
+	switch_mode(s9_mode_full);
+
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
 	return 0;
@@ -478,11 +335,7 @@ void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
 
 	// destroy components
-	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
-		if (s->component->destroy) {
-			s->component->destroy(&s->component->instance);
-		}
-	}
+	s9_components_free(&g_app->components);
 
 	// close audio device
 	if (g_app->audio_device_id > 0) {
@@ -508,26 +361,18 @@ int s9_app_run(void) {
 	// exit if necessary
 	if (g_app->ret) return g_app->ret;
 
-	// prepare to stream if necessary
-	if (g_app->streaming == 0) {
-		
-		SDL_LockAudioDevice(g_app->audio_device_id);
-		for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
-			if (s->component->prepare_to_stream) {
-				s->component->prepare_to_stream(s->component->instance, &g_app->stream_config);
-			}
-		}		
-		SDL_UnlockAudioDevice(g_app->audio_device_id);
-
-		g_app->streaming = 1;
-	}
-	
 	// poll until all events are handled!
 	while (SDL_PollEvent(&e)) {
 		if (e.type == SDL_QUIT) {
 			g_app->ret = 1;
 		} else if (e.type == SDL_KEYDOWN) {
 			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
+			switch (e.key.keysym.sym) {
+			case SDLK_1: switch_mode(s9_mode_full);     break;
+			case SDLK_2: switch_mode(s9_mode_scope);    break;
+			case SDLK_3: switch_mode(s9_mode_spectrum);  break;
+			default: break;
+			}
 		}
 	}
 	
