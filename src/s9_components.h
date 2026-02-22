@@ -4,7 +4,7 @@
 #include "s9.h"
 #include "s9_dsp.h"
 
-#include <SDL2/SDL_Render.h>
+#include <SDL2/SDL_render.h>
 
 // component identification
 typedef enum {
