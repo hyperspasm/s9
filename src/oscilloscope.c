@@ -446,6 +446,7 @@ uint32_t oscilloscope_get_channel(const oscilloscope_t *osc) {
 
 void oscilloscope_stop_streaming(oscilloscope_t *osc) {
 	osc->streaming = 0;
+	scope_display_invalidate(osc->display);
 }
 
 void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_config_t *stream_config) {

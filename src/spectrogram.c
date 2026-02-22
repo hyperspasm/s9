@@ -314,6 +314,7 @@ static uint32_t next_power_of_2(uint32_t n) {
 
 void spectrogram_stop_streaming(spectrogram_t *sg) {
 	sg->streaming = 0;
+	sg->renderer = NULL;
 }
 
 void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config) {

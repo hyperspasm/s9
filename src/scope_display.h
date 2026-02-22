@@ -26,6 +26,9 @@ void scope_display_free(scope_display_t **display);
 // update config
 void scope_display_set_config(scope_display_t *display, const scope_display_config_t *config);
 
+// invalidate cached rendering state — forces reinit on next prepare
+void scope_display_invalidate(scope_display_t *display);
+
 // prepare for rendering — checks viewport changes, recreates textures if needed
 // returns: -1 on error, 0 if no change, 1 if reinitialized
 int scope_display_prepare(scope_display_t *display, SDL_Renderer *renderer);

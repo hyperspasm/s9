@@ -256,6 +256,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 
 void lissajous_stop_streaming(lissajous_t *liss) {
 	liss->streaming = 0;
+	scope_display_invalidate(liss->display);
 }
 
 void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config_t *stream_config) {

@@ -69,6 +69,10 @@ void scope_display_free(scope_display_t **d) {
 	}
 }
 
+void scope_display_invalidate(scope_display_t *d) {
+	d->renderer = NULL;
+}
+
 int scope_display_prepare(scope_display_t *d, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);

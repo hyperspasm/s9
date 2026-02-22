@@ -311,6 +311,7 @@ void vu_render(vu_t *vu, SDL_Renderer *renderer) {
 
 void vu_stop_streaming(vu_t *vu) {
 	vu->streaming = 0;
+	vu->renderer = NULL;
 }
 
 void vu_prepare_to_stream(vu_t *vu, const s9_audio_stream_config_t *stream_config) {
