@@ -44,11 +44,7 @@ typedef struct s9_component_slot {
 // opaque component manager
 typedef struct s9_components s9_components_t;
 
-typedef struct {
-	SDL_Renderer *renderer;
-} s9_components_config_t;
-
-s9_components_t *s9_components_new(const s9_components_config_t *config);
+s9_components_t *s9_components_new(void);
 void s9_components_free(s9_components_t **comps);
 s9_component_t *s9_components_get(s9_components_t *comps, s9_component_id_t id);
 

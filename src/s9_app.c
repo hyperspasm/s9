@@ -232,9 +232,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	SDL_SetRenderDrawBlendMode(g_app->renderer, SDL_BLENDMODE_BLEND);
 	
 	// create components
-	g_app->components = s9_components_new(&(s9_components_config_t){
-		.renderer = g_app->renderer,
-	});
+	g_app->components = s9_components_new();
 	CHECK_ALLOC(g_app->components, s9_app_destroy(); return -1);
 
 	// create pn

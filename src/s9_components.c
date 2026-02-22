@@ -9,22 +9,16 @@
 #include <stdlib.h>
 
 struct s9_components {
-	s9_components_config_t config;
 	s9_component_t components[COMP_COUNT];
 };
 
-s9_components_t *s9_components_new(const s9_components_config_t *config) {
-	CHECK_PARAMETER(config != NULL, return NULL);
-	CHECK_PARAMETER(config->renderer != NULL, return NULL);
-
+s9_components_t *s9_components_new(void) {
 	s9_components_t *comps = malloc(sizeof(s9_components_t));
 	CHECK_ALLOC(comps, return NULL);
 	memset(comps, 0, sizeof(*comps));
 
-	comps->config = *config;
-
 	// fps
-	fps_t *fps = fps_new(config->renderer, (SDL_Color){255, 255, 255, 255}, 1000);
+	fps_t *fps = fps_new((SDL_Color){255, 255, 255, 255}, 1000);
 	CHECK_ERROR(fps != NULL, s9_components_free(&comps); return NULL, "Failed to create fps instance");
 	comps->components[COMP_FPS] = (s9_component_t){
 		.instance = fps,
