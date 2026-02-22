@@ -6,9 +6,20 @@
 
 #include <math.h>
 
+typedef struct {
+	float amp_per_div;
+	float upsampling;
+} lissajous_settings_t;
+
+static const lissajous_settings_t default_settings = {
+	.amp_per_div = 0.2f,
+	.upsampling = 4.0f,
+};
+
 typedef struct lissajous {
 	lissajous_config_t config;
 	scope_display_t *display;
+	lissajous_settings_t settings;
 
 	int streaming;
 	s9_audio_stream_config_t stream_config;
@@ -73,6 +84,8 @@ lissajous_t *lissajous_new(const lissajous_config_t *config) {
 
 	lissajous_set_config(liss, config);
 
+	liss->settings = default_settings;
+
 	return liss;
 }
 
@@ -84,6 +97,11 @@ void lissajous_free(lissajous_t **liss) {
 		*liss = NULL;
 	}
 }
+
+void lissajous_set_amp_per_div(lissajous_t *liss, float amplitude) { liss->settings.amp_per_div = amplitude; }
+float lissajous_get_amp_per_div(const lissajous_t *liss) { return liss->settings.amp_per_div; }
+void lissajous_set_upsampling(lissajous_t *liss, float factor) { liss->settings.upsampling = factor; }
+float lissajous_get_upsampling(const lissajous_t *liss) { return liss->settings.upsampling; }
 
 // render path with exponential per-vertex fade to simulate phosphor decay
 // oldest points (left) fade by p^K, newest points (right) are full brightness
@@ -186,7 +204,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 		const SDL_Rect *frame = scope_display_frame_rect(liss->display);
 
 		// resampling rate is the upsampling factor
-		float rate = liss->config.upsampling;
+		float rate = liss->settings.upsampling;
 
 		// when continuing, points[0] already contains the join point
 		int joining = liss->have_last_point;
@@ -194,7 +212,7 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 
 		// read resampled frames (leaving room for join point if needed)
 		uint32_t frames = resampler_read(liss->resampler, liss->resampled_buffer,
-		                                  max_frames, rate, 1.0f / (liss->config.amp_per_div * 5.0f));
+		                                  max_frames, rate, 1.0f / (liss->settings.amp_per_div * 5.0f));
 
 		if(frames > 0) {
 			float center_x = frame->x + frame->w * 0.5f;
@@ -258,7 +276,7 @@ void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config
 	CHECK_ALLOC(liss->resampler, return);
 
 	// allocate buffers for 1 second of upsampled data
-	liss->max_points = (uint32_t)(liss->config.upsampling * stream_config->sample_rate);
+	liss->max_points = (uint32_t)(liss->settings.upsampling * stream_config->sample_rate);
 
 	// resampled buffer: interleaved stereo (2 channels)
 	liss->resampled_buffer = malloc(liss->max_points * 2 * sizeof(float));

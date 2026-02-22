@@ -12,16 +12,12 @@ typedef struct {
 	SDL_Color trace_color;
 	float trace_width;
 	uint8_t persistence;  // 0-255, higher = longer trace persistence
-	float amp_per_div;    // amplitude per division
-	float upsampling;     // upsampling factor relative to sample rate
 } lissajous_config_t;
 
 static const lissajous_config_t default_lissajous_config = {
 	.trace_color = S9_LEMON,
 	.trace_width = 2.f,
 	.persistence = 180,
-	.amp_per_div = 0.2f,
-	.upsampling = 4.0f,
 };
 
 // create lissajous
@@ -32,6 +28,12 @@ void lissajous_free(lissajous_t **liss);
 
 // render lissajous
 void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer);
+
+// settings
+void lissajous_set_amp_per_div(lissajous_t *liss, float amplitude);
+float lissajous_get_amp_per_div(const lissajous_t *liss);
+void lissajous_set_upsampling(lissajous_t *liss, float factor);
+float lissajous_get_upsampling(const lissajous_t *liss);
 
 // stop audio streaming
 void lissajous_stop_streaming(lissajous_t *liss);
