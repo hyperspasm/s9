@@ -23,8 +23,9 @@ graticule_t *graticule_new(const graticule_config_t *config);
 // destroy graticule
 void graticule_free(graticule_t **grat);
 
-// set label text (rendered at bottom-left of graticule, NULL to clear)
-void graticule_set_label(graticule_t *grat, const char *label);
+// set label text (NULL to clear)
+void graticule_set_label_bottom(graticule_t *grat, const char *label);
+void graticule_set_label_top(graticule_t *grat, const char *label);
 
 // render graticule in the given rect
 void graticule_render(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect *rect);

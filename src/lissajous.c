@@ -37,7 +37,7 @@ typedef struct lissajous {
 static void update_label(lissajous_t *liss) {
 	char buf[32];
 	snprintf(buf, sizeof(buf), "%0.2f/div", liss->settings.amp_per_div);
-	scope_display_set_label(liss->display, buf);
+	scope_display_set_label_bottom(liss->display, buf);
 }
 
 static void free_dsp_allocations(lissajous_t *liss) {

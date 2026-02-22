@@ -10,7 +10,8 @@ typedef struct graticule {
 	SDL_Rect rect;
 
 	graticule_config_t config;
-	char *label;
+	char *label_bottom;
+	char *label_top;
 
 	SDL_Texture *texture;
 } graticule_t;
@@ -40,15 +41,22 @@ void graticule_free(graticule_t **grat) {
 			(*grat)->texture = NULL;
 		}
 
-		free((*grat)->label);
+		free((*grat)->label_bottom);
+		free((*grat)->label_top);
 		free(*grat);
 		*grat = NULL;
 	}
 }
 
-void graticule_set_label(graticule_t *grat, const char *label) {
-	free(grat->label);
-	grat->label = label ? strdup(label) : NULL;
+void graticule_set_label_bottom(graticule_t *grat, const char *label) {
+	free(grat->label_bottom);
+	grat->label_bottom = label ? strdup(label) : NULL;
+	grat->renderer = NULL; // invalidate to force redraw
+}
+
+void graticule_set_label_top(graticule_t *grat, const char *label) {
+	free(grat->label_top);
+	grat->label_top = label ? strdup(label) : NULL;
 	grat->renderer = NULL; // invalidate to force redraw
 }
 
@@ -117,13 +125,20 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		sdl_polygon_free(&frame);
 	}
 
-	// draw label
-	if (grat->label) {
+	// draw labels
+	if (grat->label_bottom || grat->label_top) {
 		TTF_Font *font = s9_open_font(16);
 		if (font) {
-			draw_sdl_render_text_at_position(renderer, font, grat->label,
-				ANCHOR_BOTTOM_LEFT, grat->config.major_color,
-				rect->x + 4, rect->y + rect->h - 4);
+			if (grat->label_bottom) {
+				draw_sdl_render_text_at_position(renderer, font, grat->label_bottom,
+					ANCHOR_BOTTOM_LEFT, grat->config.major_color,
+					rect->x + 4, rect->y + rect->h - 4);
+			}
+			if (grat->label_top) {
+				draw_sdl_render_text_at_position(renderer, font, grat->label_top,
+					ANCHOR_TOP_LEFT, grat->config.major_color,
+					rect->x + 4, rect->y + 4);
+			}
 			TTF_CloseFont(font);
 		}
 	}

@@ -71,7 +71,7 @@ static void update_label(oscilloscope_t *osc) {
 	else { t_val = t * 1e6f; t_unit = "us"; }
 
 	snprintf(buf, sizeof(buf), "%0.2f %s/div  %0.2f/div", t_val, t_unit, a);
-	scope_display_set_label(osc->display, buf);
+	scope_display_set_label_bottom(osc->display, buf);
 }
 
 static void free_dsp_allocations(oscilloscope_t *osc) {

@@ -69,8 +69,12 @@ void scope_display_free(scope_display_t **d) {
 	}
 }
 
-void scope_display_set_label(scope_display_t *d, const char *label) {
-	graticule_set_label(d->graticule, label);
+void scope_display_set_label_bottom(scope_display_t *d, const char *label) {
+	graticule_set_label_bottom(d->graticule, label);
+}
+
+void scope_display_set_label_top(scope_display_t *d, const char *label) {
+	graticule_set_label_top(d->graticule, label);
 }
 
 void scope_display_invalidate(scope_display_t *d) {
