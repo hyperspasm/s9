@@ -26,6 +26,9 @@ void scope_display_free(scope_display_t **display);
 // update config
 void scope_display_set_config(scope_display_t *display, const scope_display_config_t *config);
 
+// set label text (rendered at bottom-left of graticule, NULL to clear)
+void scope_display_set_label(scope_display_t *display, const char *label);
+
 // invalidate cached rendering state — forces reinit on next prepare
 void scope_display_invalidate(scope_display_t *display);
 

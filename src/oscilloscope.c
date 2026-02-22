@@ -59,6 +59,21 @@ typedef struct oscilloscope {
 
 } oscilloscope_t;
 
+static void update_label(oscilloscope_t *osc) {
+	char buf[64];
+	float t = osc->settings.time_per_div;
+	float a = osc->settings.amp_per_div;
+
+	const char *t_unit;
+	float t_val;
+	if (t >= 1.0f) { t_val = t; t_unit = "s"; }
+	else if (t >= 0.001f) { t_val = t * 1000.0f; t_unit = "ms"; }
+	else { t_val = t * 1e6f; t_unit = "us"; }
+
+	snprintf(buf, sizeof(buf), "%0.2f %s/div  %0.2f/div", t_val, t_unit, a);
+	scope_display_set_label(osc->display, buf);
+}
+
 static void free_dsp_allocations(oscilloscope_t *osc) {
 
 	// clear flag and stream config
@@ -98,6 +113,7 @@ oscilloscope_t *oscilloscope_new(const oscilloscope_config_t *config) {
 	CHECK_ALLOC(osc->display, free(osc); return NULL);
 
 	oscilloscope_set_config(osc, config);
+	update_label(osc);
 
 	return osc;
 }
@@ -374,6 +390,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 
 void oscilloscope_set_time_per_div(oscilloscope_t *osc, float seconds) {
 	osc->settings.time_per_div = seconds;
+	update_label(osc);
 }
 
 float oscilloscope_get_time_per_div(const oscilloscope_t *osc) {
@@ -382,6 +399,7 @@ float oscilloscope_get_time_per_div(const oscilloscope_t *osc) {
 
 void oscilloscope_set_amp_per_div(oscilloscope_t *osc, float amplitude) {
 	osc->settings.amp_per_div = amplitude;
+	update_label(osc);
 }
 
 float oscilloscope_get_amp_per_div(const oscilloscope_t *osc) {

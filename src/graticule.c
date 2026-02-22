@@ -1,12 +1,16 @@
 #include "graticule.h"
 #include "s9.h"
+#include "s9_font.h"
 #include "draw_sdl.h"
+
+#include <string.h>
 
 typedef struct graticule {
 	SDL_Renderer *renderer;
 	SDL_Rect rect;
 
 	graticule_config_t config;
+	char *label;
 
 	SDL_Texture *texture;
 } graticule_t;
@@ -36,9 +40,16 @@ void graticule_free(graticule_t **grat) {
 			(*grat)->texture = NULL;
 		}
 
+		free((*grat)->label);
 		free(*grat);
 		*grat = NULL;
 	}
+}
+
+void graticule_set_label(graticule_t *grat, const char *label) {
+	free(grat->label);
+	grat->label = label ? strdup(label) : NULL;
+	grat->renderer = NULL; // invalidate to force redraw
 }
 
 static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
@@ -104,6 +115,17 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 	if (frame) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
+	}
+
+	// draw label
+	if (grat->label) {
+		TTF_Font *font = s9_open_font(16);
+		if (font) {
+			draw_sdl_render_text_at_position(renderer, font, grat->label,
+				ANCHOR_BOTTOM_LEFT, grat->config.major_color,
+				rect->x + 4, rect->y + rect->h - 4);
+			TTF_CloseFont(font);
+		}
 	}
 }
 

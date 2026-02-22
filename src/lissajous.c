@@ -34,6 +34,12 @@ typedef struct lissajous {
 
 } lissajous_t;
 
+static void update_label(lissajous_t *liss) {
+	char buf[32];
+	snprintf(buf, sizeof(buf), "%0.2f/div", liss->settings.amp_per_div);
+	scope_display_set_label(liss->display, buf);
+}
+
 static void free_dsp_allocations(lissajous_t *liss) {
 
 	// clear flag and stream config
@@ -85,6 +91,7 @@ lissajous_t *lissajous_new(const lissajous_config_t *config) {
 	lissajous_set_config(liss, config);
 
 	liss->settings = default_settings;
+	update_label(liss);
 
 	return liss;
 }
@@ -98,7 +105,7 @@ void lissajous_free(lissajous_t **liss) {
 	}
 }
 
-void lissajous_set_amp_per_div(lissajous_t *liss, float amplitude) { liss->settings.amp_per_div = amplitude; }
+void lissajous_set_amp_per_div(lissajous_t *liss, float amplitude) { liss->settings.amp_per_div = amplitude; update_label(liss); }
 float lissajous_get_amp_per_div(const lissajous_t *liss) { return liss->settings.amp_per_div; }
 void lissajous_set_upsampling(lissajous_t *liss, float factor) { liss->settings.upsampling = factor; }
 float lissajous_get_upsampling(const lissajous_t *liss) { return liss->settings.upsampling; }
