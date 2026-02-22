@@ -22,7 +22,7 @@ typedef struct {
 
 static const oscilloscope_settings_t default_settings = {
 	.time_per_div = 0.002f,
-	.amp_per_div = 0.1f,
+	.amp_per_div = 0.2f,
 	.trig_auto = true,
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
