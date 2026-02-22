@@ -108,6 +108,7 @@ const s9_mode_slot_t s9_mode_full[] = {
 
 const s9_mode_slot_t s9_mode_scope[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
+	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
 	{ COMP_OSCILLOSCOPE,  { .margin_left = 60 } },
 	{ COMP_NONE, {0} },
 };
