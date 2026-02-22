@@ -1,11 +1,11 @@
 #include "fps.h"
+#include "s9_font.h"
 #include "draw_sdl.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 
 typedef struct fps {
-	SDL_Renderer *renderer;
 	TTF_Font *font;
 	SDL_Color color;
 	uint32_t interval_ms;
@@ -19,12 +19,11 @@ typedef struct fps {
 	
 } fps_t;
 
-fps_t *fps_new(SDL_Renderer *renderer, TTF_Font* (*load_font)(int point_size), SDL_Color color, uint32_t interval_ms) {
+fps_t *fps_new(SDL_Color color, uint32_t interval_ms) {
 	fps_t *fps = (fps_t *)malloc(sizeof(fps_t));
 	CHECK_ALLOC(fps, return NULL);
 	memset(fps, 0, sizeof(*fps));
-	
-	fps->renderer = renderer;
+
 	fps->interval_ms = interval_ms;
 	fps->color = color;
 	fps->last_time = SDL_GetTicks();
@@ -34,7 +33,7 @@ fps_t *fps_new(SDL_Renderer *renderer, TTF_Font* (*load_font)(int point_size), S
 	fps->width = 0;
 	fps->height = 0;	
 	
-	fps->font = load_font(16);
+	fps->font = s9_open_font(16);
 	CHECK_ERROR(fps->font != NULL,
 				fps_free(&fps);
 				return NULL,
@@ -59,26 +58,24 @@ void fps_free(fps_t **fps) {
 	}
 }
 
-static void update_fps_texture(fps_t *fps) {
+static void update_fps_texture(fps_t *fps, SDL_Renderer *renderer) {
 	char fps_text[32];
-	snprintf(fps_text, sizeof(fps_text), "%.2f", fps->fps_value);	
-	draw_sdl_render_text(fps->renderer, &fps->fps_texture, fps->font, &fps->color, fps_text, &fps->width, &fps->height);
+	snprintf(fps_text, sizeof(fps_text), "%.2f", fps->fps_value);
+	draw_sdl_render_text(renderer, &fps->fps_texture, fps->font, &fps->color, fps_text, &fps->width, &fps->height);
 }
 
 void fps_render(fps_t *fps, SDL_Renderer *renderer) {
-	(void)renderer;
-
 	uint32_t current_time = SDL_GetTicks();
 	fps->frame_count++;
 	if (current_time - fps->last_time >= fps->interval_ms) {
 		fps->fps_value = fps->frame_count * 1000.0f / (current_time - fps->last_time);
 		fps->frame_count = 0;
 		fps->last_time = current_time;
-		update_fps_texture(fps);
+		update_fps_texture(fps, renderer);
 	}
-	
+
 	if (fps->fps_texture) {
 		SDL_Rect dst_rect = { 0, 0, fps->width, fps->height };
-		SDL_RenderCopy(fps->renderer, fps->fps_texture, NULL, &dst_rect);
+		SDL_RenderCopy(renderer, fps->fps_texture, NULL, &dst_rect);
 	}
 }

@@ -236,11 +236,15 @@ void lissajous_render(lissajous_t *liss, SDL_Renderer *renderer) {
 	scope_display_end_frame(liss->display, renderer);
 }
 
+void lissajous_stop_streaming(lissajous_t *liss) {
+	liss->streaming = 0;
+}
+
 void lissajous_prepare_to_stream(lissajous_t *liss, const s9_audio_stream_config_t *stream_config) {
 	// only S9_AUDIO_FLOAT32 is supported
 	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
 
-	if( S9_AUDIO_STREAM_CONFIG_EQUALS(liss->stream_config, *stream_config) ) {
+	if( liss->streaming && S9_AUDIO_STREAM_CONFIG_EQUALS(liss->stream_config, *stream_config) ) {
 		// no change
 		return;
 	}

@@ -1,5 +1,6 @@
 #include "fresp_graph.h"
 #include "s9.h"
+#include "s9_font.h"
 #include "draw_sdl.h"
 
 typedef struct fresp_graph {
@@ -7,7 +8,6 @@ typedef struct fresp_graph {
 	SDL_Rect viewport;
 	
 	fresp_graph_config_t config;
-	TTF_Font* (*load_font)(int point_size);
 	float log10_min_freq;
 	float log10_max_freq;
 	
@@ -37,11 +37,10 @@ void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config) {
 	frg->renderer = NULL;
 }
 
-fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config, TTF_Font* (*load_font)(int point_size)) {
+fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config) {
 	fresp_graph_t *frg = (fresp_graph_t *) malloc(sizeof(fresp_graph_t));
 	CHECK_ALLOC(frg, return NULL);
 	memset(frg, 0, sizeof(*frg));
-	frg->load_font = load_font;
 	fresp_graph_set_config(frg, config);
 	
 	return frg;
@@ -234,7 +233,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0); // clear background
 	SDL_RenderClear(renderer);
 	
-	TTF_Font *font = frg->load_font(16);
+	TTF_Font *font = s9_open_font(16);
 	CHECK_ERROR(font != NULL, return, "unable to create font");
 	
 	compute_plot_rect(frg, font);

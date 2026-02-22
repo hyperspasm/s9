@@ -22,6 +22,12 @@ pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED IMPORTED_TARGET SDL2_ttf)
 pkg_check_modules(FFTW3F REQUIRED IMPORTED_TARGET fftw3f)
 
+# Tests
+include(CTest)
+
+# pn library (parameter network)
+add_subdirectory(pn)
+
 # Collect source files
 file(GLOB SOURCES src/*.c)
 
@@ -33,9 +39,9 @@ target_link_libraries(s9
     PkgConfig::SDL2
     PkgConfig::SDL2_TTF
     PkgConfig::FFTW3F
+    pn
+    pn_uds
     m
 )
 
-# Tests
-include(CTest)
 add_subdirectory(test)

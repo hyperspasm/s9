@@ -8,8 +8,7 @@
 typedef struct spectrogram {
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
-	spectrogram_config_t config;	
-	TTF_Font* (*load_font)(int point_size);
+	spectrogram_config_t config;
 	
 	int streaming;
 	s9_audio_stream_config_t stream_config;
@@ -40,12 +39,11 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	}
 }
 
-spectrogram_t *spectrogram_new(const spectrogram_config_t *config, TTF_Font* (*load_font)(int point_size)) {
+spectrogram_t *spectrogram_new(const spectrogram_config_t *config) {
 	spectrogram_t *sg = (spectrogram_t *) malloc(sizeof(spectrogram_t));
 	CHECK_ALLOC(sg, return NULL);
 	memset(sg, 0, sizeof(*sg));
-	
-	sg->load_font = load_font;
+
 	spectrogram_set_config(sg, config);
 	
 	return sg;
@@ -144,7 +142,7 @@ static S9_FORCE_INLINE void prepare_to_draw(spectrogram_t *sg, SDL_Renderer *ren
 			memset(sg->graphs, 0, sizeof(fresp_graph_t*) * sg->n_fft_channels);
 			
 			for(uint32_t i=0; i < sg->n_fft_channels; i++) {
-				sg->graphs[i] = fresp_graph_new(&sg->config.graph_config, sg->load_font);
+				sg->graphs[i] = fresp_graph_new(&sg->config.graph_config);
 			}
 			
 			sg->n_graphs = sg->n_fft_channels;
@@ -314,11 +312,15 @@ static uint32_t next_power_of_2(uint32_t n) {
 	return n + 1;
 }
 
+void spectrogram_stop_streaming(spectrogram_t *sg) {
+	sg->streaming = 0;
+}
+
 void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config) {
 	// only S9_AUDIO_FLOAT32 is supported
 	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
 	
-	if( S9_AUDIO_STREAM_CONFIG_EQUALS(sg->stream_config, *stream_config) ) {
+	if( sg->streaming && S9_AUDIO_STREAM_CONFIG_EQUALS(sg->stream_config, *stream_config) ) {
 		// no change
 		return;
 	}

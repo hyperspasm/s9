@@ -35,13 +35,16 @@ static const spectrogram_config_t default_spectrogram_config = {
 };
 
 // create spectrogram
-spectrogram_t *spectrogram_new(const spectrogram_config_t *config, TTF_Font* (*load_font)(int point_size));
+spectrogram_t *spectrogram_new(const spectrogram_config_t *config);
 
 // destroy spectrogram
 void spectrogram_free(spectrogram_t **sg);
 
 // render spectrogram
 void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer);
+
+// stop audio streaming
+void spectrogram_stop_streaming(spectrogram_t *sg);
 
 // prepare for audio streaming
 void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config);

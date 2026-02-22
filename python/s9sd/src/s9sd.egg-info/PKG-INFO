@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: s9sd
+Version: 0.1.0
+Requires-Python: >=3.9
+Requires-Dist: pn
+Requires-Dist: streamdeck
+Requires-Dist: pillow

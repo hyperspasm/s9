@@ -8,19 +8,17 @@ typedef struct scratchpad {
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
 	
-	TTF_Font* (*load_font)(int point_size);
 	sdl_path_t *wave_path;
 	fresp_graph_t *frg;
 	
 } scratchpad_t;
 
-scratchpad_t *scratchpad_new(TTF_Font* (*load_font)(int point_size)) {
+scratchpad_t *scratchpad_new(void) {
 	scratchpad_t *sp = (scratchpad_t *) malloc(sizeof(scratchpad_t));
 	CHECK_ALLOC(sp, return NULL);
 	memset(sp, 0, sizeof(*sp));
-	
-	sp->load_font = load_font;
-	sp->frg = fresp_graph_new(NULL, sp->load_font);
+
+	sp->frg = fresp_graph_new(NULL);
 	
 	return sp;
 }

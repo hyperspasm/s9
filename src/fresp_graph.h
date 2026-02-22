@@ -2,7 +2,6 @@
 #define fresp_graph_h
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
 
 #include "s9_colors.h"
 
@@ -33,7 +32,7 @@ static const fresp_graph_config_t default_fresp_graph_config = {
 };
 
 // create fresp_graph
-fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config, TTF_Font* (*load_font)(int point_size));
+fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config);
 
 // destroy fresp_graph
 void fresp_graph_free(fresp_graph_t **frg);
