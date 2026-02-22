@@ -74,6 +74,29 @@ static void update_label(oscilloscope_t *osc) {
 	scope_display_set_label_bottom(osc->display, buf);
 }
 
+static void update_channel_label(oscilloscope_t *osc) {
+	uint32_t n = osc->stream_config.channels;
+	if (n == 0) {
+		scope_display_set_label_top(osc->display, NULL);
+		return;
+	}
+
+	char buf[256];
+	uint32_t ch = osc->settings.channel;
+
+	if (ch < n) {
+		snprintf(buf, sizeof(buf), "CH%u", ch + 1);
+	} else {
+		int pos = 0;
+		for (uint32_t i = 0; i < n && pos < (int)sizeof(buf) - 1; i++) {
+			if (i > 0) pos += snprintf(buf + pos, sizeof(buf) - pos, "+");
+			pos += snprintf(buf + pos, sizeof(buf) - pos, "CH%u", i + 1);
+		}
+	}
+
+	scope_display_set_label_top(osc->display, buf);
+}
+
 static void free_dsp_allocations(oscilloscope_t *osc) {
 
 	// clear flag and stream config
@@ -114,6 +137,7 @@ oscilloscope_t *oscilloscope_new(const oscilloscope_config_t *config) {
 
 	oscilloscope_set_config(osc, config);
 	update_label(osc);
+	update_channel_label(osc);
 
 	return osc;
 }
@@ -456,6 +480,7 @@ float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc) {
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel) {
 	osc->settings.channel = channel;
 	push_trigger_settings(osc);
+	update_channel_label(osc);
 }
 
 uint32_t oscilloscope_get_channel(const oscilloscope_t *osc) {
@@ -488,6 +513,7 @@ void oscilloscope_prepare_to_stream(oscilloscope_t *osc, const s9_audio_stream_c
 	// set flag and stream config
 	osc->stream_config = *stream_config;
 	osc->streaming = 1;
+	update_channel_label(osc);
 }
 
 void oscilloscope_enqueue_audio_data(oscilloscope_t *osc, const void *data, uint32_t size) {
