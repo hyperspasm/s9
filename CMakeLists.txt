@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(s9 VERSION 1.0.0 LANGUAGES C)
+project(s9 VERSION 0.1.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -33,6 +33,21 @@ file(GLOB SOURCES src/*.c)
 
 # Main executable
 add_executable(s9 ${SOURCES})
+
+# Version info: semantic version from project(), git hash generated at build time
+set(GIT_VERSION_HEADER ${CMAKE_BINARY_DIR}/generated/s9_git_version.h)
+add_custom_target(s9_git_version
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC_DIR=${CMAKE_SOURCE_DIR}
+        -DOUT=${GIT_VERSION_HEADER}
+        -P ${CMAKE_SOURCE_DIR}/cmake/git_version.cmake
+    BYPRODUCTS ${GIT_VERSION_HEADER}
+    COMMENT "Updating git version header"
+    VERBATIM
+)
+add_dependencies(s9 s9_git_version)
+target_include_directories(s9 PRIVATE ${CMAKE_BINARY_DIR}/generated)
+target_compile_definitions(s9 PRIVATE S9_VERSION="${PROJECT_VERSION}")
 
 # Link using imported targets (handles includes, library dirs, and dependencies automatically)
 target_link_libraries(s9

@@ -15,6 +15,7 @@ s9 [options]
 | `-a, --audio_device` | Audio input device name | System default |
 | `-r, --sample_rate` | Sample rate in Hz | 44100 |
 | `-l, --log_level` | Log verbosity (0-3) | 1 |
+| `--version` | Print version and git hash, then exit | |
 
 Settings can also be specified in `~/.s9rc` as key-value pairs (e.g. `sample_rate=48000`). Command-line arguments override the config file.
 

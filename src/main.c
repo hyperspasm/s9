@@ -5,6 +5,15 @@
 #include <getopt.h>
 
 #include "s9_app.h"
+#include "s9_git_version.h"
+
+// version info (S9_VERSION is defined by CMake, S9_GIT_HASH by the generated header)
+#ifndef S9_VERSION
+#define S9_VERSION "unknown"
+#endif
+#ifndef S9_GIT_HASH
+#define S9_GIT_HASH "unknown"
+#endif
 
 // default configuration values
 #define DEFAULT_WINDOW_WIDTH 1280
@@ -59,6 +68,10 @@ void load_config_file(s9_app_config_t *config) {
 	fclose(file);
 }
 
+void print_version(void) {
+	fprintf(stdout, "s9 %s (%s)\n", S9_VERSION, S9_GIT_HASH);
+}
+
 void print_help(const char *prog_name) {
 	fprintf(stdout, "Usage: %s [options]\n", prog_name);
 	fprintf(stdout, "Options:\n");
@@ -68,6 +81,7 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "  -a, --audio_device <device name> Set audio device\n");
 	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
 	fprintf(stdout, "  --help                           Display this help message\n");
+	fprintf(stdout, "  --version                        Display version information\n");
 	fprintf(stdout, "\nConfiguration File:\n");
 	fprintf(stdout, "  The application can also be configured using a ~/.s9rc file.\n");
 	fprintf(stdout, "  The configuration file supports the following key-value pairs:\n");
@@ -79,6 +93,7 @@ void print_help(const char *prog_name) {
 }
 
 void log_config_options(const s9_app_config_t *config) {
+	S9_LOG_INFO("s9 %s (%s)", S9_VERSION, S9_GIT_HASH);
 	S9_LOG_INFO("Configuration options:");
 	S9_LOG_INFO("  window_width: %hu", config->window_width);
 	S9_LOG_INFO("  window_height: %hu", config->window_height);
@@ -110,6 +125,7 @@ int main(int argc, const char * argv[]) {
 	// define long options
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 0},
+		{"version", no_argument, 0, 0},
 		{"window_width", required_argument, 0, 'w'},
 		{"window_height", required_argument, 0, 'h'},
 		{"log_level", required_argument, 0, 'l'},
@@ -126,6 +142,10 @@ int main(int argc, const char * argv[]) {
 			case 0:
 				if (strcmp("help", long_options[long_index].name) == 0) {
 					print_help(argv[0]);
+					exit(EXIT_SUCCESS);
+				}
+				if (strcmp("version", long_options[long_index].name) == 0) {
+					print_version();
 					exit(EXIT_SUCCESS);
 				}
 				break;
