@@ -1,4 +1,5 @@
-"""Stream Deck dial controller for s9: each dial drives one s9 parameter over pn."""
+"""Stream Deck controller for s9: the dials drive s9 parameters and the top
+corner keys step the display mode, all over pn."""
 import argparse
 import asyncio
 import sys
@@ -24,29 +25,52 @@ DIALS = [
     {"path": "s9/osc/channel",      "mode": "int",    "step": 1},
 ]
 
-def load_dials(manifest_path):
-    """Read the manifest and return the dials with their ranges filled in."""
+# The display mode, stepped by the top-left (down) and top-right (up) keys.
+# Its names come from the manifest.
+MODE_PATH = "s9/mode"
+
+
+def mode_step(key, cols):
+    """The mode step a key means on a deck with cols columns: -1 for the
+    top-left key, +1 for the top-right key, None for any other."""
+    if key == 0:
+        return -1
+    if key == cols - 1:
+        return 1
+    return None
+
+
+def load_manifest(manifest_path):
+    """Read the manifest; return it, the dials with their ranges, and the mode names."""
     try:
         m = manifest.parse(Path(manifest_path).read_bytes())
     except OSError as e:
         sys.exit(f"{manifest_path}: {e.strerror}")
     except manifest.ManifestError as e:
         sys.exit(f"{manifest_path}: {e}")
+
+    def entry(path):
+        e = m.by_path.get(path)
+        if e is None:
+            sys.exit(f"{manifest_path}: no entry for {path}")
+        return e
+
     dials = []
     for spec in DIALS:
-        entry = m.by_path.get(spec["path"])
-        if entry is None:
-            sys.exit(f"{manifest_path}: no entry for {spec['path']}")
-        dials.append({**spec, "min": entry.min, "max": entry.max})
-    return m, dials
+        e = entry(spec["path"])
+        dials.append({**spec, "min": e.min, "max": e.max})
+    modes = entry(MODE_PATH).labels
+    return m, dials, modes
 
 
 async def _main(manifest_path):
     loop = asyncio.get_event_loop()
-    m, dials = load_dials(manifest_path)
-    # The server's value of each dial's parameter, or None until it has reported one.
-    # A dial does nothing while its value is unknown, so it never moves from a guess.
+    m, dials, modes = load_manifest(manifest_path)
+    # The server's value of each parameter, or None until it has reported one.
+    # A dial or key does nothing while its value is unknown, so it never moves
+    # from a guess.
     state = {d["path"]: None for d in dials}
+    state[MODE_PATH] = None
 
     # A mismatch is reported on every reconnect, not only the first
     warnings.simplefilter("always", SchemaMismatchWarning)
@@ -54,11 +78,12 @@ async def _main(manifest_path):
     def on_update(path, value, ptype):
         if path in state:
             state[path] = value
-            print(f"{path} = {value}")
+            shown = modes[value] if path == MODE_PATH and value < len(modes) else value
+            print(f"{path} = {shown}")
 
     async def on_connected():
         # Warn if the server's schema differs from the manifest, then carry on:
-        # the dials only touch parameters they know
+        # the controls only touch parameters they know
         try:
             await client.check_schema(m)
         except asyncio.TimeoutError:
@@ -106,6 +131,18 @@ async def _main(manifest_path):
         else:
             loop.call_soon_threadsafe(client.set_float, path, new_val)
 
+    def on_key(deck, key, pressed):
+        if not pressed:
+            return
+        _, cols = deck.key_layout()
+        step = mode_step(key, cols)
+        current = state[MODE_PATH]
+        if step is None or current is None:
+            return
+        new_val = (current + step) % len(modes)
+        state[MODE_PATH] = new_val
+        loop.call_soon_threadsafe(client.set_enum, MODE_PATH, new_val)
+
     manager = DeviceManager()
     decks = manager.enumerate()
     deck = next((d for d in decks if hasattr(d, "DIAL_COUNT") and d.DIAL_COUNT > 0), None)
@@ -117,8 +154,10 @@ async def _main(manifest_path):
 
     deck.open()
     deck.set_dial_callback(on_dial)
+    deck.set_key_callback(on_key)
     print(f"connected: {deck.deck_type()}")
     print(f"dials: {', '.join(d['path'].split('/')[-1] for d in dials)}")
+    print(f"top-left/top-right keys: mode down/up through {', '.join(modes)}")
 
     try:
         await asyncio.sleep(float("inf"))
@@ -133,7 +172,7 @@ async def _main(manifest_path):
 def main():
     parser = argparse.ArgumentParser(prog="s9sd", description=__doc__)
     parser.add_argument("manifest", nargs="?", default=MANIFEST_PATH,
-                        help="manifest to take the parameter ranges from "
+                        help="manifest to take the parameter ranges and mode names from "
                              "(default: the s9.manifest of this checkout)")
     args = parser.parse_args()
     try:
