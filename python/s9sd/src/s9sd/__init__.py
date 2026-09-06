@@ -1,4 +1,5 @@
 """Stream Deck dial controller for s9: each dial drives one s9 parameter over pn."""
+import argparse
 import asyncio
 import sys
 import warnings
@@ -34,7 +35,12 @@ DEFAULTS = {
 
 def load_dials(manifest_path):
     """Read the manifest and return the dials with their ranges filled in."""
-    m = manifest.parse(Path(manifest_path).read_bytes())
+    try:
+        m = manifest.parse(Path(manifest_path).read_bytes())
+    except OSError as e:
+        sys.exit(f"{manifest_path}: {e.strerror}")
+    except manifest.ManifestError as e:
+        sys.exit(f"{manifest_path}: {e}")
     dials = []
     for spec in DIALS:
         entry = m.by_path.get(spec["path"])
@@ -128,9 +134,12 @@ async def _main(manifest_path):
 
 
 def main():
-    """s9sd [MANIFEST]: MANIFEST defaults to the s9.manifest of this checkout."""
-    manifest_path = sys.argv[1] if len(sys.argv) > 1 else MANIFEST_PATH
+    parser = argparse.ArgumentParser(prog="s9sd", description=__doc__)
+    parser.add_argument("manifest", nargs="?", default=MANIFEST_PATH,
+                        help="manifest to take the parameter ranges from "
+                             "(default: the s9.manifest of this checkout)")
+    args = parser.parse_args()
     try:
-        asyncio.run(_main(manifest_path))
+        asyncio.run(_main(args.manifest))
     except KeyboardInterrupt:
         pass
