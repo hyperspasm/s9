@@ -25,9 +25,12 @@ C, pn_manifest.h:
 
 ```c
 typedef int (*pn_sink_t)(const uint8_t *buf, uint32_t len, void *ctx);  // same signature as send callbacks
-int      pn_manifest_write(const pn_param_t *root, pn_sink_t sink, void *ctx);
-uint32_t pn_manifest_hash(const pn_param_t *root);
+pn_schema_result_t pn_schema_validate(const pn_param_t *root, const pn_param_t **offender);
+int pn_schema_hash(const pn_param_t *root, uint32_t *hash);
+int pn_manifest_write(const pn_param_t *root, pn_sink_t sink, void *ctx);
 ```
+
+Validation lives in the manifest module because it owns the name rules; the server start calls it. The hash and the writer validate first, so neither produces output for an invalid tree. The result enum names the violated rule and the offender pointer identifies the node, so a failed start can say why.
 
 C, pn_server.h:
 

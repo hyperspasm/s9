@@ -2,6 +2,7 @@
 #include "pn_crc.h"
 #include "pn_cobs.h"
 #include "pn_param.h"
+#include "pn_fnv.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdalign.h>
@@ -1095,6 +1096,365 @@ static int test_e2e_notify_nested(void) {
 	return 0;
 }
 
+// === Manifest test helpers ===
+
+typedef struct {
+	char buf[2048];
+	uint32_t len;
+	int calls;
+	int fail_at_call;  // 0: never fail
+	int fail_rc;
+} manifest_sink_t;
+
+static int manifest_sink(const uint8_t *buf, uint32_t len, void *ctx) {
+	manifest_sink_t *s = ctx;
+	s->calls++;
+	if (s->fail_at_call && s->calls >= s->fail_at_call)
+		return s->fail_rc;
+	if (s->len + len >= sizeof(s->buf)) return -1;
+	memcpy(s->buf + s->len, buf, len);
+	s->len += len;
+	s->buf[s->len] = '\0';
+	return 0;
+}
+
+// The body of a written manifest: everything after the header line.
+static const char *manifest_body(const manifest_sink_t *s) {
+	const char *nl = strchr(s->buf, '\n');
+	return nl ? nl + 1 : s->buf;
+}
+
+// The example schema from MANIFEST.md: root "amp", every type, one nested group.
+// Bindings are NULL: the manifest never touches them.
+
+static const char *amp_input_labels[] = { "mic", "line", "aux" };
+
+typedef struct {
+	pn_param_t eq[2];
+	pn_param_t nodes[6];
+	pn_param_t root;
+} amp_tree_t;
+
+static void amp_tree_init(amp_tree_t *t) {
+	t->eq[0]    = pn_float("bass",   NULL, NULL, NULL, -12.0f, 12.0f, 0.5f);
+	t->eq[1]    = pn_float("treble", NULL, NULL, NULL, -12.0f, 12.0f, 0.5f);
+	t->nodes[0] = pn_bool("power",   NULL, NULL, NULL);
+	t->nodes[1] = pn_int("volume",   NULL, NULL, NULL, 0, 100, 1);
+	t->nodes[2] = pn_group("eq", t->eq, 2);
+	t->nodes[3] = pn_enum("input",   NULL, NULL, NULL, amp_input_labels, 3);
+	t->nodes[4] = pn_string("name",  NULL, NULL, NULL, 32);
+	t->nodes[5] = pn_action("reset", NULL, NULL);
+	t->root     = pn_group("amp", t->nodes, 6);
+}
+
+static const char amp_manifest[] =
+	"# pn manifest v1 amp fnv1a32=09decefb\n"
+	"amp/power bool\n"
+	"amp/volume int 0 100 1\n"
+	"amp/eq/bass float 0xc1400000 0x41400000 0x3f000000\n"
+	"amp/eq/treble float 0xc1400000 0x41400000 0x3f000000\n"
+	"amp/input enum mic|line|aux\n"
+	"amp/name string 32\n"
+	"amp/reset action\n";
+
+#define AMP_HASH 0x09decefbu
+
+// === Hash tests ===
+
+// FNV-1a 32-bit matches the reference test vectors.
+static int test_fnv1a32_vectors(void) {
+	ASSERT_EQ(pn_fnv1a32(PN_FNV1A32_INIT, NULL, 0), 0x811c9dc5u);
+	ASSERT_EQ(pn_fnv1a32(PN_FNV1A32_INIT, (const uint8_t *)"a", 1), 0xe40c292cu);
+	ASSERT_EQ(pn_fnv1a32(PN_FNV1A32_INIT, (const uint8_t *)"foobar", 6), 0xbf9cf968u);
+	return 0;
+}
+
+// Hashing data in pieces gives the same result as hashing it at once.
+static int test_fnv1a32_incremental(void) {
+	uint32_t h = pn_fnv1a32(PN_FNV1A32_INIT, (const uint8_t *)"foo", 3);
+	h = pn_fnv1a32(h, (const uint8_t *)"bar", 3);
+	ASSERT_EQ(h, 0xbf9cf968u);
+	return 0;
+}
+
+// === Manifest tests ===
+
+// The manifest of the MANIFEST.md example schema is byte-identical to the text
+// shown there, and its schema hash is the declared hash.
+static int test_manifest_example(void) {
+	amp_tree_t t;
+	amp_tree_init(&t);
+
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&t.root, manifest_sink, &s), 0);
+	ASSERT_STR(s.buf, amp_manifest);
+
+	uint32_t hash = 0;
+	ASSERT_EQ(pn_schema_hash(&t.root, &hash), 0);
+	ASSERT_EQ(hash, AMP_HASH);
+	return 0;
+}
+
+// The schema hash covers exactly the bytes written after the header.
+static int test_manifest_hash_covers_body(void) {
+	test_tree_t t;
+	test_tree_init(&t);
+
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&t.root, manifest_sink, &s), 0);
+	const char *body = manifest_body(&s);
+	uint32_t written = pn_fnv1a32(PN_FNV1A32_INIT, (const uint8_t *)body, (uint32_t)strlen(body));
+
+	uint32_t hash = 0;
+	ASSERT_EQ(pn_schema_hash(&t.root, &hash), 0);
+	ASSERT_EQ(hash, written);
+	return 0;
+}
+
+// Entries follow declared order, depth first, and groups produce no entry.
+static int test_manifest_order(void) {
+	test_tree_t t;
+	test_tree_init(&t);
+
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&t.root, manifest_sink, &s), 0);
+	ASSERT_STR(manifest_body(&s),
+		"root/gain float 0xc2900000 0x40c00000 0x3dcccccd\n"
+		"root/mute bool\n"
+		"root/input enum mic|line\n"
+		"root/name string 32\n"
+		"root/reset action\n"
+		"root/sub/level int 0 100 1\n"
+		"root/sub/pan float 0xbf800000 0x3f800000 0x3c23d70a\n");
+	return 0;
+}
+
+// An empty group changes neither the manifest nor the hash.
+static int test_manifest_empty_group_invisible(void) {
+	pn_param_t with_nodes[3];
+	with_nodes[0] = pn_bool("a", NULL, NULL, NULL);
+	with_nodes[1] = pn_group("empty", NULL, 0);
+	with_nodes[2] = pn_bool("b", NULL, NULL, NULL);
+	pn_param_t with = pn_group("r", with_nodes, 3);
+
+	pn_param_t without_nodes[2];
+	without_nodes[0] = with_nodes[0];
+	without_nodes[1] = with_nodes[2];
+	pn_param_t without = pn_group("r", without_nodes, 2);
+
+	uint32_t h_with = 0, h_without = 0;
+	ASSERT_EQ(pn_schema_hash(&with, &h_with), 0);
+	ASSERT_EQ(pn_schema_hash(&without, &h_without), 0);
+	ASSERT_EQ(h_with, h_without);
+	return 0;
+}
+
+// A schema with no leaves has an empty body and hashes to the FNV offset basis.
+static int test_manifest_no_leaves(void) {
+	pn_param_t root = pn_group("r", NULL, 0);
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &s), 0);
+	ASSERT_STR(s.buf, "# pn manifest v1 r fnv1a32=811c9dc5\n");
+	return 0;
+}
+
+// Float constraints are written as their binary32 bit pattern, verbatim:
+// the sign of zero and a NaN payload survive.
+static int test_manifest_float_bits(void) {
+	uint32_t nan_bits = 0x7fc00123u;
+	float nan;
+	memcpy(&nan, &nan_bits, sizeof(nan));
+
+	pn_param_t leaf = pn_float("f", NULL, NULL, NULL, -0.0f, nan, 0.0f);
+	pn_param_t root = pn_group("r", &leaf, 1);
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &s), 0);
+	ASSERT_STR(manifest_body(&s), "r/f float 0x80000000 0x7fc00123 0x00000000\n");
+	return 0;
+}
+
+// Integer constraints are written in decimal across the whole int32 range.
+static int test_manifest_int_range(void) {
+	pn_param_t leaf = pn_int("i", NULL, NULL, NULL, INT32_MIN, INT32_MAX, -1);
+	pn_param_t root = pn_group("r", &leaf, 1);
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &s), 0);
+	ASSERT_STR(manifest_body(&s), "r/i int -2147483648 2147483647 -1\n");
+	return 0;
+}
+
+// Names and labels are written as their UTF-8 bytes, unchanged.
+static int test_manifest_utf8(void) {
+	static const char *labels[] = { "µs", "ms" };
+	pn_param_t leaf = pn_enum("Ω", NULL, NULL, NULL, labels, 2);
+	pn_param_t root = pn_group("r", &leaf, 1);
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &s), 0);
+	ASSERT_STR(manifest_body(&s), "r/Ω enum µs|ms\n");
+	return 0;
+}
+
+// A sink error aborts the write, is returned unchanged, and the sink is not
+// called again.
+static int test_manifest_sink_error(void) {
+	amp_tree_t t;
+	amp_tree_init(&t);
+	manifest_sink_t s = { .fail_at_call = 5, .fail_rc = 7 };
+	ASSERT_EQ(pn_manifest_write(&t.root, manifest_sink, &s), 7);
+	ASSERT_EQ(s.calls, 5);
+	return 0;
+}
+
+// Neither the hash nor the manifest is produced for a schema that does not
+// validate, and the sink is never called.
+static int test_manifest_rejects_invalid(void) {
+	pn_param_t leaf = pn_bool("bad name", NULL, NULL, NULL);
+	pn_param_t root = pn_group("r", &leaf, 1);
+
+	uint32_t hash = 0;
+	ASSERT_EQ(pn_schema_hash(&root, &hash), -1);
+
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &s), -1);
+	ASSERT_EQ(s.calls, 0);
+	return 0;
+}
+
+// === Schema validation tests ===
+
+// A valid schema validates, reporting no offender.
+static int test_validate_ok(void) {
+	amp_tree_t t;
+	amp_tree_init(&t);
+	const pn_param_t *bad = &t.root;
+	ASSERT_EQ(pn_schema_validate(&t.root, &bad), PN_SCHEMA_OK);
+	ASSERT(bad == NULL);
+	return 0;
+}
+
+// A NULL root is rejected without an offender.
+static int test_validate_no_root(void) {
+	const pn_param_t *bad = (const pn_param_t *)1;
+	ASSERT_EQ(pn_schema_validate(NULL, &bad), PN_SCHEMA_NO_ROOT);
+	ASSERT(bad == NULL);
+	return 0;
+}
+
+// Every forbidden byte in a name is rejected, and the offending node is reported.
+static int test_validate_bad_name(void) {
+	static const char *bad_names[] = { "", "a b", "a/b", "a#b", "a|b", "a\tb", "\x7f", "a\x01" };
+	for (size_t i = 0; i < sizeof(bad_names) / sizeof(bad_names[0]); i++) {
+		pn_param_t leaf = pn_bool(bad_names[i], NULL, NULL, NULL);
+		pn_param_t root = pn_group("r", &leaf, 1);
+		const pn_param_t *bad = NULL;
+		ASSERT_EQ(pn_schema_validate(&root, &bad), PN_SCHEMA_BAD_NAME);
+		ASSERT(bad == &leaf);
+	}
+
+	pn_param_t unnamed = pn_bool(NULL, NULL, NULL, NULL);
+	pn_param_t root = pn_group("r", &unnamed, 1);
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_NAME);
+	return 0;
+}
+
+// The root name follows the same rules as every other name.
+static int test_validate_bad_root_name(void) {
+	pn_param_t root = pn_group("my root", NULL, 0);
+	const pn_param_t *bad = NULL;
+	ASSERT_EQ(pn_schema_validate(&root, &bad), PN_SCHEMA_BAD_NAME);
+	ASSERT(bad == &root);
+	return 0;
+}
+
+// Enum labels follow the name rules, and an enum needs at least one label.
+static int test_validate_labels(void) {
+	static const char *bad_labels[] = { "mic", "line in" };
+	pn_param_t leaf = pn_enum("e", NULL, NULL, NULL, bad_labels, 2);
+	pn_param_t root = pn_group("r", &leaf, 1);
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_LABEL);
+
+	leaf = pn_enum("e", NULL, NULL, NULL, NULL, 1);
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_LABEL);
+
+	leaf = pn_enum("e", NULL, NULL, NULL, NULL, 0);
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_EMPTY_ENUM);
+	return 0;
+}
+
+// Siblings must have distinct names; the later duplicate is reported.
+static int test_validate_duplicate(void) {
+	pn_param_t nodes[3];
+	nodes[0] = pn_bool("a", NULL, NULL, NULL);
+	nodes[1] = pn_bool("b", NULL, NULL, NULL);
+	nodes[2] = pn_bool("a", NULL, NULL, NULL);
+	pn_param_t root = pn_group("r", nodes, 3);
+	const pn_param_t *bad = NULL;
+	ASSERT_EQ(pn_schema_validate(&root, &bad), PN_SCHEMA_DUPLICATE_NAME);
+	ASSERT(bad == &nodes[2]);
+	return 0;
+}
+
+// Only a group may have children.
+static int test_validate_not_group(void) {
+	pn_param_t child = pn_bool("c", NULL, NULL, NULL);
+	pn_param_t leaf = pn_bool("leaf", NULL, NULL, NULL);
+	leaf.children = &child;
+	leaf.num_children = 1;
+	pn_param_t root = pn_group("r", &leaf, 1);
+	const pn_param_t *bad = NULL;
+	ASSERT_EQ(pn_schema_validate(&root, &bad), PN_SCHEMA_NOT_GROUP);
+	ASSERT(bad == &leaf);
+	return 0;
+}
+
+// A node whose type is not a pn_type_t value is rejected.
+static int test_validate_bad_type(void) {
+	pn_param_t leaf = pn_bool("leaf", NULL, NULL, NULL);
+	leaf.node.type = (pn_type_t)99;
+	pn_param_t root = pn_group("r", &leaf, 1);
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_TYPE);
+	return 0;
+}
+
+// A tree may have at most PN_MAX_DEPTH levels, the root included.
+static int test_validate_too_deep(void) {
+	pn_param_t chain[PN_MAX_DEPTH + 1];
+	chain[PN_MAX_DEPTH] = pn_bool("leaf", NULL, NULL, NULL);
+	for (int i = PN_MAX_DEPTH - 1; i >= 0; i--)
+		chain[i] = pn_group("g", &chain[i + 1], 1);
+
+	// chain[0] is the root at depth 0, so the leaf sits at depth PN_MAX_DEPTH
+	ASSERT_EQ(pn_schema_validate(&chain[0], NULL), PN_SCHEMA_TOO_DEEP);
+
+	// One level shallower fits
+	chain[PN_MAX_DEPTH - 1] = pn_bool("leaf", NULL, NULL, NULL);
+	ASSERT_EQ(pn_schema_validate(&chain[0], NULL), PN_SCHEMA_OK);
+	return 0;
+}
+
+// A path must fit in PN_MAX_PATH bytes including its terminator.
+static int test_validate_path_too_long(void) {
+	static char name[257];
+	memset(name, 'x', 256);
+	name[256] = '\0';
+
+	pn_param_t fits = pn_group(name + 1, NULL, 0);   // 255 bytes
+	ASSERT_EQ(pn_schema_validate(&fits, NULL), PN_SCHEMA_OK);
+
+	pn_param_t too_long = pn_group(name, NULL, 0);   // 256 bytes
+	ASSERT_EQ(pn_schema_validate(&too_long, NULL), PN_SCHEMA_PATH_TOO_LONG);
+
+	// Short names whose joined path is too long: 3 x 100 bytes + 2 separators
+	name[100] = '\0';
+	pn_param_t leaf = pn_bool(name, NULL, NULL, NULL);
+	pn_param_t mid = pn_group(name, &leaf, 1);
+	pn_param_t root = pn_group(name, &mid, 1);
+	const pn_param_t *bad = NULL;
+	ASSERT_EQ(pn_schema_validate(&root, &bad), PN_SCHEMA_PATH_TOO_LONG);
+	ASSERT(bad == &leaf);
+	return 0;
+}
+
 // === Main ===
 
 int main(void) {
@@ -1171,6 +1531,34 @@ int main(void) {
 	TEST(test_e2e_sequential_ops);
 	TEST(test_e2e_notify);
 	TEST(test_e2e_notify_nested);
+
+	printf("hash:\n");
+	TEST(test_fnv1a32_vectors);
+	TEST(test_fnv1a32_incremental);
+
+	printf("manifest:\n");
+	TEST(test_manifest_example);
+	TEST(test_manifest_hash_covers_body);
+	TEST(test_manifest_order);
+	TEST(test_manifest_empty_group_invisible);
+	TEST(test_manifest_no_leaves);
+	TEST(test_manifest_float_bits);
+	TEST(test_manifest_int_range);
+	TEST(test_manifest_utf8);
+	TEST(test_manifest_sink_error);
+	TEST(test_manifest_rejects_invalid);
+
+	printf("schema validation:\n");
+	TEST(test_validate_ok);
+	TEST(test_validate_no_root);
+	TEST(test_validate_bad_name);
+	TEST(test_validate_bad_root_name);
+	TEST(test_validate_labels);
+	TEST(test_validate_duplicate);
+	TEST(test_validate_not_group);
+	TEST(test_validate_bad_type);
+	TEST(test_validate_too_deep);
+	TEST(test_validate_path_too_long);
 
 	printf("\n%d/%d tests passed\n", tests_run - tests_failed, tests_run);
 	return tests_failed ? 1 : 0;

@@ -18,6 +18,8 @@ endif()
 add_library(pn STATIC
     src/pn_server.c
     src/pn_client.c
+    src/pn_manifest.c
+    src/pn_fnv.c
     src/pn_crc.c
     src/pn_cobs.c
     extern/nanopb/pb_common.c
