@@ -18,6 +18,18 @@ PB_BIND(pn_Get, pn_Get, 2)
 PB_BIND(pn_Update, pn_Update, 2)
 
 
+PB_BIND(pn_SchemaGet, pn_SchemaGet, 2)
+
+
+PB_BIND(pn_Schema, pn_Schema, 2)
+
+
+PB_BIND(pn_ManifestGet, pn_ManifestGet, 2)
+
+
+PB_BIND(pn_ManifestChunk, pn_ManifestChunk, 2)
+
+
 PB_BIND(pn_Message, pn_Message, 2)
 
 

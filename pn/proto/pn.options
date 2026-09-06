@@ -9,3 +9,12 @@ pn.Value.string_val             max_size:256  # PN_MAX_STRING
 pn.Set.path                     max_size:256  # PN_MAX_PATH
 pn.Get.path                     max_size:256  # PN_MAX_PATH
 pn.Update.path                  max_size:256  # PN_MAX_PATH
+
+# Root names: a root is a whole path on its own, so it gets the path bound
+pn.SchemaGet.root               max_size:256  # PN_MAX_PATH
+pn.Schema.root                  max_size:256  # PN_MAX_PATH
+pn.ManifestGet.root             max_size:256  # PN_MAX_PATH
+
+# Manifest chunk payload: the largest size that keeps ManifestChunk no bigger
+# than Set/Update, so the packet buffers do not grow. pn_server.c asserts this.
+pn.ManifestChunk.data           max_size:512

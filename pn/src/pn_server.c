@@ -12,6 +12,13 @@ _Static_assert(sizeof(((pn_Set *)0)->path) == PN_MAX_PATH,
 	"PN_MAX_PATH out of sync with pn.options");
 _Static_assert(sizeof(((pn_Value *)0)->kind.string_val) == PN_MAX_STRING,
 	"PN_MAX_STRING out of sync with pn.options");
+_Static_assert(sizeof(((pn_Schema *)0)->root) == PN_MAX_PATH,
+	"PN_MAX_PATH out of sync with pn.options");
+
+// The chunk payload is sized so that streaming a manifest needs no larger
+// buffers than sending an Update.
+_Static_assert(pn_ManifestChunk_size <= pn_Update_size,
+	"ManifestChunk.data max_size in pn.options enlarges the packet buffers");
 
 // Internal packet size — the max protobuf-encoded message size.
 // All COBS buffers are sized from this.
@@ -23,13 +30,16 @@ typedef enum {
 	PN_MSG_SET,
 	PN_MSG_GET,
 	PN_MSG_UPDATE,
+	PN_MSG_SCHEMA_GET,
+	PN_MSG_MANIFEST_GET,
 } pn_msg_type_t;
 
 typedef struct {
 	pn_msg_type_t type;
-	const char *path;
-	pn_value_t value;
-	pn_type_t value_type;
+	const char *path;      // Set, Get
+	pn_value_t value;      // Set
+	pn_type_t value_type;  // Set
+	const char *root;      // SchemaGet, ManifestGet
 } pn_msg_t;
 
 // --- Server ---
@@ -237,14 +247,46 @@ pb_decode_msg(const uint8_t *data, uint32_t len, pn_msg_t *msg, pn_Message *pb) 
 		msg->path = pb->msg.get.path;
 		return 0;
 
+	case pn_Message_schema_get_tag:
+		msg->type = PN_MSG_SCHEMA_GET;
+		msg->root = pb->msg.schema_get.root;
+		return 0;
+
+	case pn_Message_manifest_get_tag:
+		msg->type = PN_MSG_MANIFEST_GET;
+		msg->root = pb->msg.manifest_get.root;
+		return 0;
+
 	default:
 		return -1;
 	}
 }
 
+// --- Send (internal) ---
+
 static int
-pb_encode_update(const char *path, const pn_param_t *param, const pn_value_t *val,
-				 uint8_t *buf, uint32_t *len) {
+send_pb(pn_server_t *server, const pn_Message *pb) {
+	if (!server->send)
+		return -1;
+
+	// Protobuf encode
+	uint8_t pb_buf[pn_Message_size];
+	pb_ostream_t stream = pb_ostream_from_buffer(pb_buf, sizeof(pb_buf));
+	if (!pb_encode(&stream, pn_Message_fields, pb))
+		return -1;
+
+	// COBS encode
+	uint32_t out_len = server->encode_buf_size;
+	if (pn_cobs_encode(server->cobs, pb_buf, (uint32_t)stream.bytes_written,
+					   server->encode_buf, &out_len))
+		return -1;
+
+	return server->send(server->encode_buf, out_len, server->send_ctx);
+}
+
+static int
+send_update(pn_server_t *server, const char *path,
+			const pn_param_t *param, const pn_value_t *val) {
 	pn_Message pb = pn_Message_init_zero;
 	pb.which_msg = pn_Message_update_tag;
 	strncpy(pb.msg.update.path, path, sizeof(pb.msg.update.path) - 1);
@@ -263,35 +305,70 @@ pb_encode_update(const char *path, const pn_param_t *param, const pn_value_t *va
 	default: return -1;
 	}
 
-	pb_ostream_t stream = pb_ostream_from_buffer(buf, *len);
-	if (!pb_encode(&stream, pn_Message_fields, &pb))
-		return -1;
+	return send_pb(server, &pb);
+}
 
-	*len = (uint32_t)stream.bytes_written;
+static int
+send_schema(pn_server_t *server) {
+	pn_Message pb = pn_Message_init_zero;
+	pb.which_msg = pn_Message_schema_tag;
+	pb.msg.schema.hash = server->schema_hash;
+	strncpy(pb.msg.schema.root, server->root->node.name, sizeof(pb.msg.schema.root) - 1);
+	return send_pb(server, &pb);
+}
+
+// The manifest is streamed as ManifestChunk messages. A chunk is sent only
+// when the next byte would not fit, so the final chunk, sent with last set,
+// is never empty.
+
+typedef struct {
+	pn_server_t *server;
+	pn_Message pb;
+} chunk_sink_t;
+
+static int
+flush_chunk(chunk_sink_t *cs, bool last) {
+	cs->pb.msg.manifest_chunk.last = last;
+	int rc = send_pb(cs->server, &cs->pb);
+	cs->pb.msg.manifest_chunk.data.size = 0;
+	return rc;
+}
+
+static int
+chunk_sink(const uint8_t *buf, uint32_t len, void *ctx) {
+	chunk_sink_t *cs = ctx;
+	pn_ManifestChunk_data_t *data = &cs->pb.msg.manifest_chunk.data;
+
+	while (len > 0) {
+		if (data->size == sizeof(data->bytes)) {
+			int rc = flush_chunk(cs, false);
+			if (rc)
+				return rc;
+		}
+		uint32_t n = (uint32_t)sizeof(data->bytes) - data->size;
+		if (n > len)
+			n = len;
+		memcpy(data->bytes + data->size, buf, n);
+		data->size += (pb_size_t)n;
+		buf += n;
+		len -= n;
+	}
 	return 0;
 }
 
-// --- Dispatch ---
-
 static int
-send_update(pn_server_t *server, const char *path,
-			const pn_param_t *param, const pn_value_t *val) {
-	if (!server->send)
-		return -1;
+send_manifest(pn_server_t *server) {
+	chunk_sink_t cs = { .server = server };
+	cs.pb = (pn_Message)pn_Message_init_zero;
+	cs.pb.which_msg = pn_Message_manifest_chunk_tag;
 
-	// Protobuf encode
-	uint8_t pb_buf[pn_Message_size];
-	uint32_t pb_len = sizeof(pb_buf);
-	if (pb_encode_update(path, param, val, pb_buf, &pb_len))
-		return -1;
-
-	// COBS encode
-	uint32_t out_len = server->encode_buf_size;
-	if (pn_cobs_encode(server->cobs, pb_buf, pb_len, server->encode_buf, &out_len))
-		return -1;
-
-	return server->send(server->encode_buf, out_len, server->send_ctx);
+	int rc = pn_manifest_write(server->root, chunk_sink, &cs);
+	if (rc)
+		return rc;
+	return flush_chunk(&cs, true);
 }
+
+// --- Dispatch ---
 
 // Build full path from a param by walking bind.parent up to root.
 static int
@@ -381,7 +458,7 @@ send_subtree_visitor(const pn_param_t *param,
 }
 
 static void
-dispatch(pn_server_t *server, const pn_msg_t *msg) {
+dispatch_param(pn_server_t *server, const pn_msg_t *msg) {
 	const pn_param_t *param = pn_param_find(server->root, msg->path);
 	if (!param)
 		return;
@@ -425,6 +502,32 @@ dispatch(pn_server_t *server, const pn_msg_t *msg) {
 			if (pn_param_get(param, &val) == 0)
 				send_update(server, msg->path, param, &val);
 		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+static void
+dispatch(pn_server_t *server, const pn_msg_t *msg) {
+	const char *root_name = server->root->node.name;
+
+	switch (msg->type) {
+	case PN_MSG_SET:
+	case PN_MSG_GET:
+		dispatch_param(server, msg);
+		break;
+
+	case PN_MSG_SCHEMA_GET:
+		// An empty root addresses every server on the transport
+		if (msg->root[0] == '\0' || strcmp(msg->root, root_name) == 0)
+			send_schema(server);
+		break;
+
+	case PN_MSG_MANIFEST_GET:
+		if (strcmp(msg->root, root_name) == 0)
+			send_manifest(server);
 		break;
 
 	default:

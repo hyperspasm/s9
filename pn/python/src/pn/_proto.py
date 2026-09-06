@@ -35,7 +35,33 @@ class Update(betterproto.Message):
 
 
 @dataclass(eq=False, repr=False)
+class SchemaGet(betterproto.Message):
+    root: str = betterproto.string_field(1)
+
+
+@dataclass(eq=False, repr=False)
+class Schema(betterproto.Message):
+    hash: int = betterproto.fixed32_field(1)
+    root: str = betterproto.string_field(2)
+
+
+@dataclass(eq=False, repr=False)
+class ManifestGet(betterproto.Message):
+    root: str = betterproto.string_field(1)
+
+
+@dataclass(eq=False, repr=False)
+class ManifestChunk(betterproto.Message):
+    data: bytes = betterproto.bytes_field(1)
+    last: bool = betterproto.bool_field(2)
+
+
+@dataclass(eq=False, repr=False)
 class Message(betterproto.Message):
     set: "Set" = betterproto.message_field(1, group="msg")
     get: "Get" = betterproto.message_field(2, group="msg")
     update: "Update" = betterproto.message_field(3, group="msg")
+    schema_get: "SchemaGet" = betterproto.message_field(4, group="msg")
+    schema: "Schema" = betterproto.message_field(5, group="msg")
+    manifest_get: "ManifestGet" = betterproto.message_field(6, group="msg")
+    manifest_chunk: "ManifestChunk" = betterproto.message_field(7, group="msg")

@@ -3,5 +3,5 @@ Name: s9sd
 Version: 0.1.0
 Requires-Python: >=3.9
 Requires-Dist: pn
-Requires-Dist: streamdeck
+Requires-Dist: streamdeck<0.9.7
 Requires-Dist: pillow

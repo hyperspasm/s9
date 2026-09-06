@@ -10,6 +10,8 @@ dependencies = ["betterproto>=2.0.0b7"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio"]
+# Generators run by proto/generate.sh: nanopb (protobuf, protoc) and betterproto
+codegen = ["protobuf", "grpcio-tools", "betterproto[compiler]"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pn"]

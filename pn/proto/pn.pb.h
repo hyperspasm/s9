@@ -37,12 +37,35 @@ typedef struct _pn_Update {
     pn_Value value;
 } pn_Update;
 
+typedef struct _pn_SchemaGet {
+    char root[256]; /* empty: every server on the transport answers */
+} pn_SchemaGet;
+
+typedef struct _pn_Schema {
+    uint32_t hash;
+    char root[256];
+} pn_Schema;
+
+typedef struct _pn_ManifestGet {
+    char root[256]; /* only the server with this root answers */
+} pn_ManifestGet;
+
+typedef PB_BYTES_ARRAY_T(512) pn_ManifestChunk_data_t;
+typedef struct _pn_ManifestChunk {
+    pn_ManifestChunk_data_t data;
+    bool last;
+} pn_ManifestChunk;
+
 typedef struct _pn_Message {
     pb_size_t which_msg;
     union {
         pn_Set set;
         pn_Get get;
         pn_Update update;
+        pn_SchemaGet schema_get;
+        pn_Schema schema;
+        pn_ManifestGet manifest_get;
+        pn_ManifestChunk manifest_chunk;
     } msg;
 } pn_Message;
 
@@ -56,11 +79,19 @@ extern "C" {
 #define pn_Set_init_default                      {"", false, pn_Value_init_default}
 #define pn_Get_init_default                      {""}
 #define pn_Update_init_default                   {"", false, pn_Value_init_default}
+#define pn_SchemaGet_init_default                {""}
+#define pn_Schema_init_default                   {0, ""}
+#define pn_ManifestGet_init_default              {""}
+#define pn_ManifestChunk_init_default            {{0, {0}}, 0}
 #define pn_Message_init_default                  {0, {pn_Set_init_default}}
 #define pn_Value_init_zero                       {0, {0}}
 #define pn_Set_init_zero                         {"", false, pn_Value_init_zero}
 #define pn_Get_init_zero                         {""}
 #define pn_Update_init_zero                      {"", false, pn_Value_init_zero}
+#define pn_SchemaGet_init_zero                   {""}
+#define pn_Schema_init_zero                      {0, ""}
+#define pn_ManifestGet_init_zero                 {""}
+#define pn_ManifestChunk_init_zero               {{0, {0}}, 0}
 #define pn_Message_init_zero                     {0, {pn_Set_init_zero}}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -74,9 +105,19 @@ extern "C" {
 #define pn_Get_path_tag                          1
 #define pn_Update_path_tag                       1
 #define pn_Update_value_tag                      2
+#define pn_SchemaGet_root_tag                    1
+#define pn_Schema_hash_tag                       1
+#define pn_Schema_root_tag                       2
+#define pn_ManifestGet_root_tag                  1
+#define pn_ManifestChunk_data_tag                1
+#define pn_ManifestChunk_last_tag                2
 #define pn_Message_set_tag                       1
 #define pn_Message_get_tag                       2
 #define pn_Message_update_tag                    3
+#define pn_Message_schema_get_tag                4
+#define pn_Message_schema_tag                    5
+#define pn_Message_manifest_get_tag              6
+#define pn_Message_manifest_chunk_tag            7
 
 /* Struct field encoding specification for nanopb */
 #define pn_Value_FIELDLIST(X, a) \
@@ -107,20 +148,54 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  value,             2)
 #define pn_Update_DEFAULT NULL
 #define pn_Update_value_MSGTYPE pn_Value
 
+#define pn_SchemaGet_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, STRING,   root,              1)
+#define pn_SchemaGet_CALLBACK NULL
+#define pn_SchemaGet_DEFAULT NULL
+
+#define pn_Schema_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, FIXED32,  hash,              1) \
+X(a, STATIC,   SINGULAR, STRING,   root,              2)
+#define pn_Schema_CALLBACK NULL
+#define pn_Schema_DEFAULT NULL
+
+#define pn_ManifestGet_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, STRING,   root,              1)
+#define pn_ManifestGet_CALLBACK NULL
+#define pn_ManifestGet_DEFAULT NULL
+
+#define pn_ManifestChunk_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, BYTES,    data,              1) \
+X(a, STATIC,   SINGULAR, BOOL,     last,              2)
+#define pn_ManifestChunk_CALLBACK NULL
+#define pn_ManifestChunk_DEFAULT NULL
+
 #define pn_Message_FIELDLIST(X, a) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (msg,set,msg.set),   1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (msg,get,msg.get),   2) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (msg,update,msg.update),   3)
+X(a, STATIC,   ONEOF,    MESSAGE,  (msg,update,msg.update),   3) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (msg,schema_get,msg.schema_get),   4) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (msg,schema,msg.schema),   5) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (msg,manifest_get,msg.manifest_get),   6) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (msg,manifest_chunk,msg.manifest_chunk),   7)
 #define pn_Message_CALLBACK NULL
 #define pn_Message_DEFAULT NULL
 #define pn_Message_msg_set_MSGTYPE pn_Set
 #define pn_Message_msg_get_MSGTYPE pn_Get
 #define pn_Message_msg_update_MSGTYPE pn_Update
+#define pn_Message_msg_schema_get_MSGTYPE pn_SchemaGet
+#define pn_Message_msg_schema_MSGTYPE pn_Schema
+#define pn_Message_msg_manifest_get_MSGTYPE pn_ManifestGet
+#define pn_Message_msg_manifest_chunk_MSGTYPE pn_ManifestChunk
 
 extern const pb_msgdesc_t pn_Value_msg;
 extern const pb_msgdesc_t pn_Set_msg;
 extern const pb_msgdesc_t pn_Get_msg;
 extern const pb_msgdesc_t pn_Update_msg;
+extern const pb_msgdesc_t pn_SchemaGet_msg;
+extern const pb_msgdesc_t pn_Schema_msg;
+extern const pb_msgdesc_t pn_ManifestGet_msg;
+extern const pb_msgdesc_t pn_ManifestChunk_msg;
 extern const pb_msgdesc_t pn_Message_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
@@ -128,12 +203,20 @@ extern const pb_msgdesc_t pn_Message_msg;
 #define pn_Set_fields &pn_Set_msg
 #define pn_Get_fields &pn_Get_msg
 #define pn_Update_fields &pn_Update_msg
+#define pn_SchemaGet_fields &pn_SchemaGet_msg
+#define pn_Schema_fields &pn_Schema_msg
+#define pn_ManifestGet_fields &pn_ManifestGet_msg
+#define pn_ManifestChunk_fields &pn_ManifestChunk_msg
 #define pn_Message_fields &pn_Message_msg
 
 /* Maximum encoded size of messages (where known) */
 #define PN_PN_PB_H_MAX_SIZE                      pn_Message_size
 #define pn_Get_size                              258
+#define pn_ManifestChunk_size                    517
+#define pn_ManifestGet_size                      258
 #define pn_Message_size                          522
+#define pn_SchemaGet_size                        258
+#define pn_Schema_size                           263
 #define pn_Set_size                              519
 #define pn_Update_size                           519
 #define pn_Value_size                            258

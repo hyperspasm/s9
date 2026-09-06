@@ -15,6 +15,10 @@ struct pn_client {
 	void *send_ctx;
 	pn_on_update_t on_update;
 	void *on_update_ctx;
+	pn_on_schema_t on_schema;
+	void *on_schema_ctx;
+	pn_on_manifest_t on_manifest;
+	void *on_manifest_ctx;
 	pn_cobs_t *cobs;
 	uint8_t *encode_buf;
 	uint32_t encode_buf_size;
@@ -42,6 +46,10 @@ pn_client_init(pn_client_t *client, const pn_client_config_t *config) {
 	client->send_ctx = config->send_ctx;
 	client->on_update = config->on_update;
 	client->on_update_ctx = config->on_update_ctx;
+	client->on_schema = config->on_schema;
+	client->on_schema_ctx = config->on_schema_ctx;
+	client->on_manifest = config->on_manifest;
+	client->on_manifest_ctx = config->on_manifest_ctx;
 
 	// Partition trailing storage
 	uint8_t *trailing = (uint8_t *)client + sizeof(struct pn_client);
@@ -154,39 +162,81 @@ pn_client_action(pn_client_t *client, const char *path) {
 	return send_msg(client, &pb);
 }
 
+// --- Schema / Manifest ---
+
+int
+pn_client_get_schema(pn_client_t *client, const char *root) {
+	pn_Message pb = pn_Message_init_zero;
+	pb.which_msg = pn_Message_schema_get_tag;
+	if (root)
+		strncpy(pb.msg.schema_get.root, root, sizeof(pb.msg.schema_get.root) - 1);
+	return send_msg(client, &pb);
+}
+
+int
+pn_client_get_manifest(pn_client_t *client, const char *root) {
+	if (!root)
+		return -1;
+	pn_Message pb = pn_Message_init_zero;
+	pb.which_msg = pn_Message_manifest_get_tag;
+	strncpy(pb.msg.manifest_get.root, root, sizeof(pb.msg.manifest_get.root) - 1);
+	return send_msg(client, &pb);
+}
+
 // --- Receive ---
 
 static void
-on_packet(const uint8_t *data, uint32_t len, void *ctx) {
-	pn_client_t *client = (pn_client_t *)ctx;
-	if (!client->on_update)
-		return;
-
-	pn_Message pb = pn_Message_init_zero;
-	pb_istream_t stream = pb_istream_from_buffer(data, len);
-
-	if (!pb_decode(&stream, pn_Message_fields, &pb))
-		return;
-
-	if (pb.which_msg != pn_Message_update_tag)
-		return;
-
-	if (!pb.msg.update.has_value)
+deliver_update(pn_client_t *client, const pn_Update *update) {
+	if (!update->has_value)
 		return;
 
 	pn_value_t val = {0};
 	pn_type_t type;
 
-	switch (pb.msg.update.value.which_kind) {
-	case pn_Value_bool_val_tag:   val.b = pb.msg.update.value.kind.bool_val;   type = PN_BOOL;   break;
-	case pn_Value_int_val_tag:    val.i = pb.msg.update.value.kind.int_val;    type = PN_INT;    break;
-	case pn_Value_float_val_tag:  val.f = pb.msg.update.value.kind.float_val;  type = PN_FLOAT;  break;
-	case pn_Value_enum_val_tag:   val.e = pb.msg.update.value.kind.enum_val;   type = PN_ENUM;   break;
-	case pn_Value_string_val_tag: val.s = pb.msg.update.value.kind.string_val; type = PN_STRING; break;
+	switch (update->value.which_kind) {
+	case pn_Value_bool_val_tag:   val.b = update->value.kind.bool_val;   type = PN_BOOL;   break;
+	case pn_Value_int_val_tag:    val.i = update->value.kind.int_val;    type = PN_INT;    break;
+	case pn_Value_float_val_tag:  val.f = update->value.kind.float_val;  type = PN_FLOAT;  break;
+	case pn_Value_enum_val_tag:   val.e = update->value.kind.enum_val;   type = PN_ENUM;   break;
+	case pn_Value_string_val_tag: val.s = update->value.kind.string_val; type = PN_STRING; break;
 	default: return;
 	}
 
-	client->on_update(pb.msg.update.path, &val, type, client->on_update_ctx);
+	client->on_update(update->path, &val, type, client->on_update_ctx);
+}
+
+static void
+on_packet(const uint8_t *data, uint32_t len, void *ctx) {
+	pn_client_t *client = (pn_client_t *)ctx;
+
+	pn_Message pb = pn_Message_init_zero;
+	pb_istream_t stream = pb_istream_from_buffer(data, len);
+	if (!pb_decode(&stream, pn_Message_fields, &pb))
+		return;
+
+	switch (pb.which_msg) {
+	case pn_Message_update_tag:
+		if (client->on_update)
+			deliver_update(client, &pb.msg.update);
+		break;
+
+	case pn_Message_schema_tag:
+		if (client->on_schema)
+			client->on_schema(pb.msg.schema.hash, pb.msg.schema.root,
+							  client->on_schema_ctx);
+		break;
+
+	case pn_Message_manifest_chunk_tag:
+		if (client->on_manifest)
+			client->on_manifest(pb.msg.manifest_chunk.data.bytes,
+								pb.msg.manifest_chunk.data.size,
+								pb.msg.manifest_chunk.last,
+								client->on_manifest_ctx);
+		break;
+
+	default:
+		break;
+	}
 }
 
 // --- Feed ---

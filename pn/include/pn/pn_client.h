@@ -12,12 +12,22 @@ extern "C" {
 
 typedef struct pn_client pn_client_t;
 
-// --- Callback ---
-// Arguments are only valid for the duration of the call. Copy strings if needed.
+// --- Callbacks ---
+// Arguments are only valid for the duration of the call. Copy what you keep.
 
+// An Update: a parameter's current value.
 typedef void (*pn_on_update_t)(const char *path,
 							   const pn_value_t *val,
 							   pn_type_t type, void *ctx);
+
+// A server's reply to pn_client_get_schema(): its schema hash and root name.
+typedef void (*pn_on_schema_t)(uint32_t hash, const char *root, void *ctx);
+
+// One chunk of a server's reply to pn_client_get_manifest(). Chunks arrive in
+// order and last is set on the final one. Chunk boundaries carry no meaning:
+// the manifest is the concatenation of the data.
+typedef void (*pn_on_manifest_t)(const uint8_t *data, uint32_t len,
+								 bool last, void *ctx);
 
 // --- Config ---
 
@@ -26,6 +36,10 @@ typedef struct {
 	void *send_ctx;
 	pn_on_update_t on_update;
 	void *on_update_ctx;
+	pn_on_schema_t on_schema;
+	void *on_schema_ctx;
+	pn_on_manifest_t on_manifest;
+	void *on_manifest_ctx;
 } pn_client_config_t;
 
 // --- Lifecycle ---
@@ -46,6 +60,15 @@ int pn_client_set_string(pn_client_t *client, const char *path, const char *val)
 
 int pn_client_get(pn_client_t *client, const char *path);
 int pn_client_action(pn_client_t *client, const char *path);
+
+// --- Schema / Manifest ---
+
+// Ask for a schema hash. root names the server; NULL or "" asks every server
+// on the transport, and each replies with its own root.
+int pn_client_get_schema(pn_client_t *client, const char *root);
+
+// Ask the server with this root for its manifest, delivered through on_manifest.
+int pn_client_get_manifest(pn_client_t *client, const char *root);
 
 #ifdef __cplusplus
 }

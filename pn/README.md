@@ -76,6 +76,8 @@ The protocol is stateless. Clients are expected to know the parameter schema. Pa
 - **Set** — client sends a path and value to update a parameter
 - **Get** — client requests the current value of a parameter (or all leaf values under a group)
 - **Update** — server sends a path and value when a parameter changes
+- **SchemaGet / Schema** — client asks for a server's schema hash; the server replies with its hash and root name. An empty root addresses every server on the transport, and each replies with its own root, which also reveals which servers share the transport.
+- **ManifestGet / ManifestChunk** — client asks the server with the given root for its manifest; the server streams it in chunks and sets `last` on the final one. Chunk boundaries carry no meaning: the manifest is the concatenation of the chunks. See [Schema Manifest](#schema-manifest).
 
 ### Type coercion
 
@@ -239,6 +241,23 @@ pn_manifest_write(root, to_stdout, NULL);
 ```
 
 The writer reads only names, types, constraints, and children. It never calls a getter or setter and never dereferences a node's `ctx`, which is what makes schema-only builds possible.
+
+### Over the wire
+
+A running server answers two requests. `pn_client_get_schema()` asks for the schema hash, and the reply arrives through the client's `on_schema` callback with the server's hash and root name. A client that knows its schema's hash, for example from the header of a committed manifest, compares the two and decides for itself what a mismatch means; the server does not know or care what the client believes the schema to be. `pn_client_get_manifest()` asks for the manifest itself, delivered through `on_manifest` one chunk at a time with `last` set on the final chunk. This is the route to a manifest when the tree is only known to the running program, and it is the ground truth for what a device is running.
+
+```c
+static void on_schema(uint32_t hash, const char *root, void *ctx) {
+    if (hash != MY_SCHEMA_HASH)
+        fprintf(stderr, "warning: %s schema differs from mine\n", root);
+}
+
+pn_client_config_t config = {
+    /* ... */
+    .on_schema = on_schema,
+};
+pn_client_get_schema(client, "mixer");
+```
 
 ### Schema-only builds
 

@@ -770,9 +770,46 @@ static void capture_update(const char *path, const pn_value_t *val,
 }
 
 typedef struct {
+	uint32_t hash;
+	char root[PN_MAX_PATH];
+	int count;
+} schema_rx_t;
+
+static void capture_schema(uint32_t hash, const char *root, void *ctx) {
+	schema_rx_t *rx = ctx;
+	rx->hash = hash;
+	strncpy(rx->root, root, PN_MAX_PATH - 1);
+	rx->root[PN_MAX_PATH - 1] = '\0';
+	rx->count++;
+}
+
+typedef struct {
+	uint8_t buf[4096];
+	uint32_t len;
+	int chunks;
+	int last_count;  // chunks that had last set
+	int last_index;  // 1-based index of the chunk that had last set
+} manifest_rx_t;
+
+static void capture_manifest(const uint8_t *data, uint32_t len, bool last, void *ctx) {
+	manifest_rx_t *rx = ctx;
+	if (rx->len + len <= sizeof(rx->buf)) {
+		memcpy(rx->buf + rx->len, data, len);
+		rx->len += len;
+	}
+	rx->chunks++;
+	if (last) {
+		rx->last_count++;
+		rx->last_index = rx->chunks;
+	}
+}
+
+typedef struct {
 	test_tree_t tree;
 	capture_t srv_tx, cli_tx;
 	update_rx_t updates;
+	schema_rx_t schema;
+	manifest_rx_t manifest;
 	pn_server_t *server;
 	pn_client_t *client;
 } e2e_t;
@@ -785,12 +822,9 @@ static uint32_t e2e_cli_size(void) {
 	return pn_client_alloc_size(NULL);
 }
 
-static void e2e_init(e2e_t *e, uint8_t *srv_mem, uint8_t *cli_mem) {
-	memset(e, 0, sizeof(*e));
-	test_tree_init(&e->tree);
-
+static void e2e_init_root(e2e_t *e, uint8_t *srv_mem, uint8_t *cli_mem, pn_param_t *root) {
 	pn_server_config_t srv_cfg = {
-		.root = &e->tree.root,
+		.root = root,
 		.send = capture_send,
 		.send_ctx = &e->srv_tx,
 	};
@@ -803,9 +837,19 @@ static void e2e_init(e2e_t *e, uint8_t *srv_mem, uint8_t *cli_mem) {
 		.send_ctx = &e->cli_tx,
 		.on_update = capture_update,
 		.on_update_ctx = &e->updates,
+		.on_schema = capture_schema,
+		.on_schema_ctx = &e->schema,
+		.on_manifest = capture_manifest,
+		.on_manifest_ctx = &e->manifest,
 	};
 	e->client = (pn_client_t *)cli_mem;
 	pn_client_init(e->client, &cli_cfg);
+}
+
+static void e2e_init(e2e_t *e, uint8_t *srv_mem, uint8_t *cli_mem) {
+	memset(e, 0, sizeof(*e));
+	test_tree_init(&e->tree);
+	e2e_init_root(e, srv_mem, cli_mem, &e->tree.root);
 }
 
 // Client -> Server -> Client roundtrip
@@ -1470,6 +1514,105 @@ static int test_server_schema_hash(void) {
 	return 0;
 }
 
+// === Schema and manifest over the wire ===
+
+// A schema request addressed to the server's root is answered with the
+// server's schema hash and root name.
+static int test_e2e_schema_get(void) {
+	E2E_SETUP(e);
+	ASSERT_EQ(pn_client_get_schema(e.client, "root"), 0);
+	e2e_roundtrip(&e);
+	ASSERT_EQ(e.schema.count, 1);
+	ASSERT_EQ(e.schema.hash, pn_server_schema_hash(e.server));
+	ASSERT_STR(e.schema.root, "root");
+	return 0;
+}
+
+// A schema request with no root is answered by every server.
+static int test_e2e_schema_get_any(void) {
+	E2E_SETUP(e);
+	ASSERT_EQ(pn_client_get_schema(e.client, NULL), 0);
+	e2e_roundtrip(&e);
+	ASSERT_EQ(e.schema.count, 1);
+	ASSERT_STR(e.schema.root, "root");
+
+	ASSERT_EQ(pn_client_get_schema(e.client, ""), 0);
+	e2e_roundtrip(&e);
+	ASSERT_EQ(e.schema.count, 2);
+	return 0;
+}
+
+// A schema request addressed to another root is ignored.
+static int test_e2e_schema_get_other_root(void) {
+	E2E_SETUP(e);
+	ASSERT_EQ(pn_client_get_schema(e.client, "other"), 0);
+	e2e_roundtrip(&e);
+	ASSERT_EQ(e.schema.count, 0);
+	return 0;
+}
+
+// A manifest request is answered with the server's manifest, byte for byte,
+// in a single chunk when it fits, with last set.
+static int test_e2e_manifest_get(void) {
+	E2E_SETUP(e);
+	ASSERT_EQ(pn_client_get_manifest(e.client, "root"), 0);
+	e2e_roundtrip(&e);
+
+	manifest_sink_t direct = {0};
+	ASSERT_EQ(pn_manifest_write(&e.tree.root, manifest_sink, &direct), 0);
+
+	ASSERT_EQ(e.manifest.chunks, 1);
+	ASSERT_EQ(e.manifest.last_count, 1);
+	ASSERT_EQ(e.manifest.len, direct.len);
+	ASSERT_MEM(e.manifest.buf, direct.buf, direct.len);
+	return 0;
+}
+
+// A manifest request addressed to another root is ignored, and a request
+// without a root is refused by the client.
+static int test_e2e_manifest_get_other_root(void) {
+	E2E_SETUP(e);
+	ASSERT_EQ(pn_client_get_manifest(e.client, NULL), -1);
+	ASSERT_EQ(pn_client_get_manifest(e.client, "other"), 0);
+	e2e_roundtrip(&e);
+	ASSERT_EQ(e.manifest.chunks, 0);
+	return 0;
+}
+
+// A manifest longer than one chunk arrives in order across several full
+// chunks, with last set only on the final one, which is never empty.
+static int test_e2e_manifest_chunked(void) {
+	// 24 float entries of 47 bytes plus the header: three chunks
+	enum { N = 24 };
+	static char names[N][4];
+	static pn_param_t leaves[N];
+	for (int i = 0; i < N; i++) {
+		snprintf(names[i], sizeof(names[i]), "p%02d", i);
+		leaves[i] = pn_float(names[i], NULL, NULL, NULL, -1.0f, 1.0f, 0.0f);
+	}
+	pn_param_t root = pn_group("big", leaves, N);
+
+	e2e_t e;
+	memset(&e, 0, sizeof(e));
+	alignas(max_align_t) uint8_t sm[e2e_srv_size()];
+	alignas(max_align_t) uint8_t cm[e2e_cli_size()];
+	e2e_init_root(&e, sm, cm, &root);
+
+	ASSERT_EQ(pn_client_get_manifest(e.client, "big"), 0);
+	e2e_roundtrip(&e);
+
+	manifest_sink_t direct = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &direct), 0);
+	ASSERT(direct.len > 2 * 512);
+
+	ASSERT_EQ(e.manifest.chunks, 3);
+	ASSERT_EQ(e.manifest.last_count, 1);
+	ASSERT_EQ(e.manifest.last_index, 3);
+	ASSERT_EQ(e.manifest.len, direct.len);
+	ASSERT_MEM(e.manifest.buf, direct.buf, direct.len);
+	return 0;
+}
+
 // === Main ===
 
 int main(void) {
@@ -1579,6 +1722,14 @@ int main(void) {
 	printf("server start:\n");
 	TEST(test_server_start_rejects_invalid);
 	TEST(test_server_schema_hash);
+
+	printf("schema and manifest over the wire:\n");
+	TEST(test_e2e_schema_get);
+	TEST(test_e2e_schema_get_any);
+	TEST(test_e2e_schema_get_other_root);
+	TEST(test_e2e_manifest_get);
+	TEST(test_e2e_manifest_get_other_root);
+	TEST(test_e2e_manifest_chunked);
 
 	printf("\n%d/%d tests passed\n", tests_run - tests_failed, tests_run);
 	return tests_failed ? 1 : 0;

@@ -108,13 +108,13 @@ Envelope: schema_get = 4, schema = 5, manifest_get = 6, manifest_chunk = 7.
 - Fixtures pn/test/fixtures/amp.manifest and mixer.manifest, checked by CTest through pn_add_manifest_test() and pn/cmake/check_manifest.cmake (canonical-form diff plus declared-hash check). Phase 4 reuses the helper for s9.
 - README: component list, module pattern excerpt with PN_FN, Schema Manifest section (writer, schema-only builds, host schema tool, committed manifests).
 
-### Phase 2 — wire
+### Phase 2 — wire (done)
 
-- pn.proto and pn.options additions; regenerate C and Python.
-- Server handles SchemaGet and ManifestGet (compile option).
-- C client: pn_client_get_schema() and on_schema.
-- Tests: C client/server round trip for both requests.
-- Docs: README Protocol section gains the two message pairs and the addressing rules; pn.proto comments.
+- pn.proto: SchemaGet/Schema, ManifestGet/ManifestChunk; pn.options bounds roots at PN_MAX_PATH and the chunk payload at 512 so pn_Message_size stays 522 (asserted in pn_server.c). generate.sh regenerates C and Python; pn/make_venv.sh builds pn/venv with the [dev,codegen] extras.
+- Server answers both requests. No compile option for the manifest request after all: the writer is already present for the hash, and streaming reuses the Update buffers, so an option would save nothing measurable.
+- C client: pn_client_get_schema(), pn_client_get_manifest(), on_schema and on_manifest callbacks.
+- Tests: round trips for both requests, root addressing (named, any, other), and a three-chunk manifest.
+- README: Protocol message types, Schema Manifest "Over the wire".
 
 ### Phase 3 — Python
 
