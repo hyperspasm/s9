@@ -12,4 +12,5 @@ xc_build/
 # Python
 __pycache__/
 *.pyc
+*.egg-info/
 venv/
