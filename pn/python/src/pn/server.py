@@ -4,6 +4,10 @@ from ._types import ParamType
 from ._tree import _Param, Action, Group, _iter_params, _bind_tree, find_param, walk_tree
 from . import _proto as pb
 from . import _codec
+from . import manifest as _manifest
+
+# Largest ManifestChunk payload: ManifestChunk.data max_size in pn.options
+_MANIFEST_CHUNK = 512
 
 
 def _extract_value(value):
@@ -55,6 +59,13 @@ def _coerce(value, from_type, to_type):
 
 class Server:
     def __init__(self, root, *, name):
+        """Serve the tree rooted at root under the given root name.
+
+        The schema is fixed here: the tree is validated (SchemaError if it has
+        no manifest), and its manifest and schema hash are computed once.
+        """
+        self.manifest = _manifest.dump(root, name)
+        self.schema_hash = _manifest.schema_hash(self.manifest)
         self._root = root
         self._name = name
         self._send = None
@@ -67,7 +78,27 @@ class Server:
             return self._dispatch_set(payload)
         elif name == "get":
             return self._dispatch_get(payload)
+        elif name == "schema_get":
+            return self._dispatch_schema_get(payload)
+        elif name == "manifest_get":
+            return self._dispatch_manifest_get(payload)
         return []
+
+    def _dispatch_schema_get(self, msg):
+        # An empty root addresses every server on the transport
+        if msg.root and msg.root != self._name:
+            return []
+        return [pb.Message(schema=pb.Schema(hash=self.schema_hash, root=self._name))]
+
+    def _dispatch_manifest_get(self, msg):
+        if msg.root != self._name:
+            return []
+        data = self.manifest.encode("utf-8")
+        chunks = [data[i:i + _MANIFEST_CHUNK] for i in range(0, len(data), _MANIFEST_CHUNK)]
+        return [
+            pb.Message(manifest_chunk=pb.ManifestChunk(data=chunk, last=(i == len(chunks) - 1)))
+            for i, chunk in enumerate(chunks)
+        ]
 
     def _dispatch_set(self, set_msg):
         result = find_param(self._root, self._name, set_msg.path)

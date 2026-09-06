@@ -13,6 +13,9 @@ dev = ["pytest", "pytest-asyncio"]
 # Generators run by proto/generate.sh: nanopb (protobuf, protoc) and betterproto
 codegen = ["protobuf", "grpcio-tools", "betterproto[compiler]"]
 
+[project.scripts]
+pn-manifest = "pn.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pn"]
 

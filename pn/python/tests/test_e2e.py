@@ -25,22 +25,42 @@ class Root:
 # --- E2E helpers ---
 
 class E2E:
-    def __init__(self):
-        self.root = Root()
-        self.updates = []
+    def __init__(self, root=None, name="root", loopback=False):
+        """Wire a client to a server over in-memory buffers.
 
-        self.server = pn.Server(self.root, name="root")
-        self.client = pn.Client(on_update=self._on_update)
+        With loopback, bytes are delivered immediately in both directions
+        instead of waiting for roundtrip(), so coroutines that await a reply
+        resolve as soon as they send.
+        """
+        self.root = root if root is not None else Root()
+        self.updates = []
+        self.schemas = []
+        self.manifests = []
+
+        self.server = pn.Server(self.root, name=name)
+        self.client = pn.Client(on_update=self._on_update,
+                                on_schema=self._on_schema,
+                                on_manifest=self._on_manifest)
 
         # Wire them together: client sends → server receives, server sends → client receives
         self.srv_tx = bytearray()
         self.cli_tx = bytearray()
 
-        self.server.bind(lambda data: self.srv_tx.extend(data))
-        self.client.bind(lambda data: self.cli_tx.extend(data))
+        if loopback:
+            self.server.bind(lambda data: self.client.feed(data))
+            self.client.bind(lambda data: self.server.feed(data))
+        else:
+            self.server.bind(lambda data: self.srv_tx.extend(data))
+            self.client.bind(lambda data: self.cli_tx.extend(data))
 
     def _on_update(self, path, value, ptype):
         self.updates.append({"path": path, "value": value, "type": ptype})
+
+    def _on_schema(self, hash_, root):
+        self.schemas.append((hash_, root))
+
+    def _on_manifest(self, data):
+        self.manifests.append(data)
 
     def roundtrip(self):
         """Route client output to server, then server output to client."""
@@ -485,3 +505,128 @@ def test_set_path_through_leaf():
     e.client.set_float("root/gain/sub", 1.0)
     e.roundtrip()
     assert len(e.updates) == 0
+
+
+# --- Schema and manifest over the wire ---
+
+import asyncio
+import re
+import warnings
+
+import pytest
+
+from pn import _proto as pb
+
+
+def test_schema_get():
+    """A schema request addressed to the server's root is answered with its hash and root."""
+    e = E2E()
+    e.client.get_schema("root")
+    e.roundtrip()
+    assert e.schemas == [(e.server.schema_hash, "root")]
+
+
+def test_schema_get_any():
+    """A schema request with no root is answered by every server."""
+    e = E2E()
+    e.client.get_schema()
+    e.client.get_schema("")
+    e.roundtrip()
+    assert e.schemas == [(e.server.schema_hash, "root")] * 2
+
+
+def test_schema_get_other_root():
+    """A schema request addressed to another root is ignored."""
+    e = E2E()
+    e.client.get_schema("other")
+    e.roundtrip()
+    assert e.schemas == []
+
+
+def test_manifest_get():
+    """A manifest request is answered with the server's manifest, byte for byte."""
+    e = E2E()
+    e.client.get_manifest("root")
+    e.roundtrip()
+    assert e.manifests == [e.server.manifest.encode("utf-8")]
+
+
+def test_manifest_get_other_root():
+    """A manifest request addressed to another root is ignored."""
+    e = E2E()
+    e.client.get_manifest("other")
+    e.roundtrip()
+    assert e.manifests == []
+
+
+# Enough leaves for a manifest longer than two chunks
+Big = type("Big", (), {f"p{i:02d}": pn.Float(min=-1.0, max=1.0, step=0.0) for i in range(24)})
+
+
+def test_manifest_chunked():
+    """A long manifest is streamed in full chunks with last set only on the final one,
+    and the client reassembles it."""
+    e = E2E(Big(), name="big")
+    data = e.server.manifest.encode("utf-8")
+    assert len(data) > 2 * 512
+
+    responses = e.server._dispatch_message(pb.Message(manifest_get=pb.ManifestGet(root="big")))
+    chunks = [r.manifest_chunk for r in responses]
+    assert [len(c.data) for c in chunks] == [512, 512, len(data) - 1024]
+    assert [c.last for c in chunks] == [False, False, True]
+
+    e.client.get_manifest("big")
+    e.roundtrip()
+    assert e.manifests == [data]
+
+
+async def test_request_schema():
+    e = E2E(loopback=True)
+    assert await e.client.request_schema("root") == (e.server.schema_hash, "root")
+
+
+async def test_request_schema_times_out():
+    e = E2E(loopback=True)
+    with pytest.raises(asyncio.TimeoutError):
+        await e.client.request_schema("other", timeout=0.05)
+
+
+async def test_request_manifest():
+    e = E2E(loopback=True)
+    assert await e.client.request_manifest("root") == e.server.manifest.encode("utf-8")
+
+
+def _stale(text):
+    """The manifest with a wrong declared hash, as after a schema change."""
+    return re.sub(r"fnv1a32=[0-9a-f]{8}", "fnv1a32=00000000", text)
+
+
+async def test_check_schema_match():
+    e = E2E(loopback=True)
+    assert await e.client.check_schema(e.server.manifest) is True
+    assert await e.client.check_schema(pn.manifest.parse(e.server.manifest)) is True
+
+
+async def test_check_schema_without_header_uses_body_hash():
+    e = E2E(loopback=True)
+    body = e.server.manifest.split("\n", 1)[1]
+    assert await e.client.check_schema(body) is True
+
+
+async def test_check_schema_mismatch_warns():
+    e = E2E(loopback=True)
+    with pytest.warns(pn.SchemaMismatchWarning):
+        assert await e.client.check_schema(_stale(e.server.manifest)) is False
+
+
+async def test_check_schema_mismatch_raises():
+    e = E2E(loopback=True)
+    with pytest.raises(pn.SchemaMismatch):
+        await e.client.check_schema(_stale(e.server.manifest), on_mismatch="raise")
+
+
+async def test_check_schema_mismatch_ignore():
+    e = E2E(loopback=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert await e.client.check_schema(_stale(e.server.manifest), on_mismatch="ignore") is False

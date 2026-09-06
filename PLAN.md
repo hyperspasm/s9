@@ -116,13 +116,13 @@ Envelope: schema_get = 4, schema = 5, manifest_get = 6, manifest_chunk = 7.
 - Tests: round trips for both requests, root addressing (named, any, other), and a three-chunk manifest.
 - README: Protocol message types, Schema Manifest "Over the wire".
 
-### Phase 3 — Python
+### Phase 3 — Python (done)
 
-- pn/python/src/pn/manifest.py: dump, parse, canonicalize, hash.
-- Server answers SchemaGet and ManifestGet from the descriptor tree.
-- Client: get_schema() and check_manifest().
-- CLI pn-manifest: pull over UDS or serial, canonicalize, hash.
-- Tests: fixtures; end-to-end hash equality between C and Python in both directions; byte-identical dump against C for the same tree.
+- pn/python/src/pn/manifest.py: fnv1a32, canonicalize, schema_hash, validate, dump, parse, Entry, Manifest, SchemaError, ManifestError. Byte-wise canonicalization; validation mirrors C except depth, which is a C server limit.
+- Server validates at creation (SchemaError), caches manifest and schema_hash, answers SchemaGet and ManifestGet (512-byte chunks).
+- Client: get_schema/get_manifest with on_schema/on_manifest callbacks; request_schema/request_manifest coroutines; check_schema with on_mismatch warn/raise/ignore; SchemaMismatch, SchemaMismatchWarning.
+- CLI pn-manifest: pull, hash, check (UDS only: pn has no serial transport).
+- Tests: dump of the amp and mixer descriptor trees is byte-identical to the C-generated fixtures; parser and validation cases; wire tests including chunking and the coroutines.
 - Docs: pn/python/README.md.
 
 ### Phase 4 — s9

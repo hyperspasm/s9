@@ -5,9 +5,9 @@ Python implementation of the pn parameter node library. Protocol-compatible with
 ## Install
 
 ```bash
-# From the pn/ directory
+# From the pn/ directory: the package, its test extras, and the code generators
+./make_venv.sh
 source venv/bin/activate
-pip install -e python/
 ```
 
 ## Server
@@ -113,6 +113,42 @@ client.get("mixer/ch1")          # group — returns all leaves
 client.action("mixer/ch1/reset")
 
 close()
+```
+
+## Schema manifest
+
+A server's **schema** is the shape of its tree: every parameter's name, type, and constraints. `pn.manifest` renders it as a **manifest**, the canonical text form specified in [MANIFEST.md](../MANIFEST.md), and computes the **schema hash**, a fingerprint of the manifest. The C and Python implementations produce byte-identical manifests for the same schema.
+
+```python
+from pn import manifest
+
+text = manifest.dump(Mixer(), "mixer")          # header line and one entry per leaf
+m = manifest.parse(open("mixer.manifest", "rb").read())
+m.root, m.declared_hash, m.schema_hash          # root name, hash from the header, hash of the body
+m.by_path["mixer/ch1/gain"].min                 # constraints per entry
+manifest.schema_hash(text)                      # hash of any manifest text
+```
+
+A server validates its tree when it is created and raises `SchemaError` if the tree has no manifest: names and enum labels must follow the name rules in MANIFEST.md, an enum needs at least one label, int constraints must fit an int32, and paths must fit the wire. The schema is fixed at creation; `server.manifest` is the text and `server.schema_hash` the hash.
+
+Over the wire, a server answers two requests. `client.get_schema(root)` asks for the hash, delivered to `on_schema(hash, root)`; an empty root asks every server on the transport, and each replies with its own root. `client.get_manifest(root)` asks for the manifest, delivered complete to `on_manifest(data)`. The coroutines `request_schema()` and `request_manifest()` return the reply instead, and `check_schema()` compares a manifest with what its server reports:
+
+```python
+m = manifest.parse(open("mixer.manifest", "rb").read())
+if not await client.check_schema(m):    # warns by default; on_mismatch="raise" or "ignore"
+    ...
+```
+
+How a client responds to a mismatch is its own decision. The server does not know or care what a client believes the schema to be: it enforces its own constraints and ignores paths it does not have. A client that only touches parameters it knows usually keeps working after parameters are added, so the default is a `SchemaMismatchWarning` rather than an error.
+
+### pn-manifest
+
+The `pn-manifest` command works with manifests from the shell:
+
+```bash
+pn-manifest pull /tmp/pn.sock > mixer.manifest   # the manifest of a running server
+pn-manifest hash mixer.manifest                  # the schema hash of a file
+pn-manifest check mixer.manifest /tmp/pn.sock    # compare a file with a running server
 ```
 
 ## Wire protocol
