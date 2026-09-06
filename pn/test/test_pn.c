@@ -3,6 +3,7 @@
 #include "pn_cobs.h"
 #include "pn_param.h"
 #include "pn_fnv.h"
+#include "amp_tree.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdalign.h>
@@ -1124,29 +1125,7 @@ static const char *manifest_body(const manifest_sink_t *s) {
 	return nl ? nl + 1 : s->buf;
 }
 
-// The example schema from MANIFEST.md: root "amp", every type, one nested group.
-// Bindings are NULL: the manifest never touches them.
-
-static const char *amp_input_labels[] = { "mic", "line", "aux" };
-
-typedef struct {
-	pn_param_t eq[2];
-	pn_param_t nodes[6];
-	pn_param_t root;
-} amp_tree_t;
-
-static void amp_tree_init(amp_tree_t *t) {
-	t->eq[0]    = pn_float("bass",   NULL, NULL, NULL, -12.0f, 12.0f, 0.5f);
-	t->eq[1]    = pn_float("treble", NULL, NULL, NULL, -12.0f, 12.0f, 0.5f);
-	t->nodes[0] = pn_bool("power",   NULL, NULL, NULL);
-	t->nodes[1] = pn_int("volume",   NULL, NULL, NULL, 0, 100, 1);
-	t->nodes[2] = pn_group("eq", t->eq, 2);
-	t->nodes[3] = pn_enum("input",   NULL, NULL, NULL, amp_input_labels, 3);
-	t->nodes[4] = pn_string("name",  NULL, NULL, NULL, 32);
-	t->nodes[5] = pn_action("reset", NULL, NULL);
-	t->root     = pn_group("amp", t->nodes, 6);
-}
-
+// The manifest of the amp schema (amp_tree.h), as MANIFEST.md shows it.
 static const char amp_manifest[] =
 	"# pn manifest v1 amp fnv1a32=09decefb\n"
 	"amp/power bool\n"
@@ -1183,7 +1162,7 @@ static int test_fnv1a32_incremental(void) {
 // shown there, and its schema hash is the declared hash.
 static int test_manifest_example(void) {
 	amp_tree_t t;
-	amp_tree_init(&t);
+	amp_tree_build(&t);
 
 	manifest_sink_t s = {0};
 	ASSERT_EQ(pn_manifest_write(&t.root, manifest_sink, &s), 0);
@@ -1298,7 +1277,7 @@ static int test_manifest_utf8(void) {
 // called again.
 static int test_manifest_sink_error(void) {
 	amp_tree_t t;
-	amp_tree_init(&t);
+	amp_tree_build(&t);
 	manifest_sink_t s = { .fail_at_call = 5, .fail_rc = 7 };
 	ASSERT_EQ(pn_manifest_write(&t.root, manifest_sink, &s), 7);
 	ASSERT_EQ(s.calls, 5);
@@ -1325,7 +1304,7 @@ static int test_manifest_rejects_invalid(void) {
 // A valid schema validates, reporting no offender.
 static int test_validate_ok(void) {
 	amp_tree_t t;
-	amp_tree_init(&t);
+	amp_tree_build(&t);
 	const pn_param_t *bad = &t.root;
 	ASSERT_EQ(pn_schema_validate(&t.root, &bad), PN_SCHEMA_OK);
 	ASSERT(bad == NULL);
@@ -1481,7 +1460,7 @@ static int test_server_start_rejects_invalid(void) {
 // A started server reports the schema hash of its tree.
 static int test_server_schema_hash(void) {
 	amp_tree_t t;
-	amp_tree_init(&t);
+	amp_tree_build(&t);
 	pn_server_config_t cfg = { .root = &t.root };
 	alignas(max_align_t) uint8_t mem[e2e_srv_size()];
 	pn_server_t *server = (pn_server_t *)mem;

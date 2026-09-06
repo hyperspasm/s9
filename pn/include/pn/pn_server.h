@@ -43,6 +43,19 @@ typedef struct pn_param {
 	} bind; // populated by pn_server_start()
 } pn_param_t;
 
+// --- Schema-only builds ---
+// Tree-building code that wraps each callback reference in PN_FN() and keeps
+// the callbacks themselves behind #ifndef PN_SCHEMA_ONLY compiles without its
+// bindings when PN_SCHEMA_ONLY is defined: PN_FN() expands to NULL, so the
+// modules that implement the callbacks need not be present. Such a tree can
+// still be validated, hashed, and written as a manifest (see pn_manifest.h).
+
+#ifdef PN_SCHEMA_ONLY
+#define PN_FN(fn) NULL
+#else
+#define PN_FN(fn) (fn)
+#endif
+
 // --- Constructors ---
 
 static inline pn_param_t pn_float(const char *name, void *ctx,

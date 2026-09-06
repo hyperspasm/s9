@@ -1,0 +1,8 @@
+# pn manifest v1 amp fnv1a32=09decefb
+amp/power bool
+amp/volume int 0 100 1
+amp/eq/bass float 0xc1400000 0x41400000 0x3f000000
+amp/eq/treble float 0xc1400000 0x41400000 0x3f000000
+amp/input enum mic|line|aux
+amp/name string 32
+amp/reset action

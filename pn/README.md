@@ -6,11 +6,12 @@ A lightweight C library for exposing application parameters over a bidirectional
 
 `pn` provides a hierarchical tree of typed parameter nodes. Each node has a name, a type, and getter/setter function pointers that bind to application state. A remote client connects over a byte stream and can read and write values by path.
 
-The library has three components:
+The library has four components:
 
 - **`pn_node`** — the node type (`pn_node_t`). Defines value types, type metadata, and the node structure (name, type, meta).
 - **`pn_server`** — the server. Defines `pn_param_t` (the node with getter/setter callbacks), owns the parameter tree, and dispatches incoming requests.
 - **`pn_client`** — the client. Sends Set/Get messages and receives Update messages via a callback.
+- **`pn_manifest`** — the schema manifest. Validates a tree, computes its schema hash, and writes its manifest (see [Schema Manifest](#schema-manifest)).
 
 The server host provides:
 
@@ -116,15 +117,17 @@ void mixer_init(mixer_t *m);
 pn_param_t *mixer_build_tree(mixer_t *m);
 
 // mixer.c
+#ifndef PN_SCHEMA_ONLY
 static void  set_gain(void *ctx, float val) { ((channel_t *)ctx)->gain = val; }
 static float get_gain(void *ctx)            { return ((channel_t *)ctx)->gain; }
+#endif
 
 pn_param_t *mixer_build_tree(mixer_t *m) {
     for (int i = 0; i < NUM_CHANNELS; i++) {
         channel_t *ch = &m->channels[i];
         uint32_t c = 0;
         ch->nodes[c++] = pn_float("gain", ch,
-            set_gain, get_gain, -72.0f, 6.0f, 0.1f);
+            PN_FN(set_gain), PN_FN(get_gain), -72.0f, 6.0f, 0.1f);
         // ... more params ...
         snprintf(ch->name, sizeof(ch->name), "ch%d", i + 1);
         ch->group = pn_group(ch->name, ch->nodes, c);
@@ -139,6 +142,8 @@ pn_param_t *mixer_build_tree(mixer_t *m) {
     return &m->root;
 }
 ```
+
+The `PN_FN()` wrappers and the `PN_SCHEMA_ONLY` guard around the callbacks let the tree be compiled without its bindings; see [Schema-only builds](#schema-only-builds).
 
 ## Server Setup
 
@@ -217,3 +222,57 @@ The host is responsible for getting bytes off the wire — however that works (b
 ## Wire Format
 
 Messages are serialized with protobuf (nanopb), framed with COBS, and protected with CRC-16-CCITT. This is an internal implementation detail — the application only sees raw bytes.
+
+## Schema Manifest
+
+The schema is the shape of a server's tree: every node's name, type, and constraints. `pn_manifest_write()` renders it as a **manifest**, a canonical text form specified in [MANIFEST.md](MANIFEST.md), and `pn_schema_hash()` computes the **schema hash**, a fingerprint of the manifest. A started server reports the same value through `pn_server_schema_hash()`. Two parties that hold the same hash hold the same schema.
+
+Writing a manifest streams bytes to a sink. The sink has the same signature as the send callbacks, so a transport's send function can serve as one:
+
+```c
+static int to_stdout(const uint8_t *buf, uint32_t len, void *ctx) {
+    (void)ctx;
+    return fwrite(buf, 1, len, stdout) == len ? 0 : -1;
+}
+
+pn_manifest_write(root, to_stdout, NULL);
+```
+
+The writer reads only names, types, constraints, and children. It never calls a getter or setter and never dereferences a node's `ctx`, which is what makes schema-only builds possible.
+
+### Schema-only builds
+
+A `pn_param_t` carries both the schema and the binding (`ctx`, `set`, `get`). Tree-building code that wraps each callback reference in `PN_FN()` and keeps the callbacks themselves behind `#ifndef PN_SCHEMA_ONLY` can be compiled without its bindings: with `PN_SCHEMA_ONLY` defined, `PN_FN()` expands to `NULL`, and the modules that implement the callbacks need not exist.
+
+```c
+#ifndef PN_SCHEMA_ONLY
+static void  set_gain(void *ctx, float val) { ((channel_t *)ctx)->gain = val; }
+static float get_gain(void *ctx)            { return ((channel_t *)ctx)->gain; }
+#endif
+
+ch->nodes[c++] = pn_float("gain", ch, PN_FN(set_gain), PN_FN(get_gain), -72.0f, 6.0f, 0.1f);
+```
+
+Since `ctx` is a `void *`, a schema-only caller passes `NULL` and needs none of the module's types.
+
+### Host schema tool
+
+A schema tool is a small executable, built for the development host, that compiles a project's tree-building code with `PN_SCHEMA_ONLY` and writes the manifest to stdout. It links only pn, so it builds without the project's other dependencies and costs the target nothing. [example/mixer_schema.c](example/mixer_schema.c) is the one for the example mixer:
+
+```cmake
+add_executable(mixer_schema mixer_schema.c mixer.c)
+target_compile_definitions(mixer_schema PRIVATE PN_SCHEMA_ONLY)
+target_link_libraries(mixer_schema pn)
+```
+
+The same source file is compiled twice: once into the application with its bindings, once into the tool without them.
+
+### Committed manifests
+
+A project can commit its manifest and let a test keep it current. `pn_add_manifest_test()` adds a CTest case that runs a schema tool and compares its output with a committed file:
+
+```cmake
+pn_add_manifest_test(NAME mixer_manifest TOOL mixer_schema EXPECTED ${CMAKE_SOURCE_DIR}/mixer.manifest)
+```
+
+The comparison is made in canonical form, so the committed file may carry comments and its own whitespace, and the hash it declares must match the tool's. When the test fails, the schema changed: regenerate the file with the tool, and the diff shows the change in review. pn's own example manifests live in [test/fixtures/](test/fixtures/).

@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef PN_SCHEMA_ONLY
+
 // --- EQ getters/setters ---
 
 static void  set_eq_bass(void *ctx, float val)    { eq_t *eq = ctx; printf("eq bass = %.1f dB\n", val); eq->bass = val; }
@@ -35,15 +37,17 @@ static float get_master_gain(void *ctx)            { return ((mixer_t *)ctx)->ma
 static void set_master_mute(void *ctx, bool val)   { mixer_t *m = ctx; printf("master mute = %d\n", val); m->master_mute = val; }
 static bool get_master_mute(void *ctx)             { return ((mixer_t *)ctx)->master_mute; }
 
-// --- Init ---
+#endif /* PN_SCHEMA_ONLY */
 
-static const char *const input_labels[] = { "mic", "line" };
+// --- Init ---
 
 void mixer_init(mixer_t *m) {
 	memset(m, 0, sizeof(*m));
 }
 
 // --- Tree ---
+
+static const char *const input_labels[] = { "mic", "line" };
 
 pn_param_t *mixer_build_tree(mixer_t *m) {
 	for (int i = 0; i < NUM_CHANNELS; i++) {
@@ -52,16 +56,16 @@ pn_param_t *mixer_build_tree(mixer_t *m) {
 
 		// EQ nodes
 		uint32_t e = 0;
-		eq->nodes[e++] = pn_bool("enabled", eq, set_eq_enabled, get_eq_enabled);
-		eq->nodes[e++] = pn_float("bass",   eq, set_eq_bass,    get_eq_bass,   -12.0f, 12.0f, 0.1f);
-		eq->nodes[e++] = pn_float("mid",    eq, set_eq_mid,     get_eq_mid,    -12.0f, 12.0f, 0.1f);
-		eq->nodes[e++] = pn_float("treble", eq, set_eq_treble,  get_eq_treble, -12.0f, 12.0f, 0.1f);
+		eq->nodes[e++] = pn_bool("enabled", eq, PN_FN(set_eq_enabled), PN_FN(get_eq_enabled));
+		eq->nodes[e++] = pn_float("bass",   eq, PN_FN(set_eq_bass),    PN_FN(get_eq_bass),   -12.0f, 12.0f, 0.1f);
+		eq->nodes[e++] = pn_float("mid",    eq, PN_FN(set_eq_mid),     PN_FN(get_eq_mid),    -12.0f, 12.0f, 0.1f);
+		eq->nodes[e++] = pn_float("treble", eq, PN_FN(set_eq_treble),  PN_FN(get_eq_treble), -12.0f, 12.0f, 0.1f);
 
 		// Channel nodes
 		uint32_t c = 0;
-		ch->nodes[c++] = pn_float("gain",  ch, set_gain,  get_gain,  -72.0f, 6.0f, 0.1f);
-		ch->nodes[c++] = pn_float("pan",   ch, set_pan,   get_pan,   -1.0f,  1.0f, 0.01f);
-		ch->nodes[c++] = pn_enum("input",  ch, set_input, get_input, input_labels, 2);
+		ch->nodes[c++] = pn_float("gain",  ch, PN_FN(set_gain),  PN_FN(get_gain),  -72.0f, 6.0f, 0.1f);
+		ch->nodes[c++] = pn_float("pan",   ch, PN_FN(set_pan),   PN_FN(get_pan),   -1.0f,  1.0f, 0.01f);
+		ch->nodes[c++] = pn_enum("input",  ch, PN_FN(set_input), PN_FN(get_input), input_labels, 2);
 		ch->nodes[c++] = pn_group("eq", eq->nodes, e);
 
 		// Channel group
@@ -71,8 +75,8 @@ pn_param_t *mixer_build_tree(mixer_t *m) {
 
 	// Mixer root children
 	uint32_t n = 0;
-	m->children[n++] = pn_float("master_gain", m, set_master_gain, get_master_gain, -72.0f, 6.0f, 0.1f);
-	m->children[n++] = pn_bool("master_mute",  m, set_master_mute, get_master_mute);
+	m->children[n++] = pn_float("master_gain", m, PN_FN(set_master_gain), PN_FN(get_master_gain), -72.0f, 6.0f, 0.1f);
+	m->children[n++] = pn_bool("master_mute",  m, PN_FN(set_master_mute), PN_FN(get_master_mute));
 	for (int i = 0; i < NUM_CHANNELS; i++)
 		m->children[n++] = m->channels[i].group;
 
