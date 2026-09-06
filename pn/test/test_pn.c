@@ -1455,6 +1455,42 @@ static int test_validate_path_too_long(void) {
 	return 0;
 }
 
+// Every validation result has a short description.
+static int test_schema_result_name(void) {
+	ASSERT_STR(pn_schema_result_name(PN_SCHEMA_OK), "ok");
+	ASSERT_STR(pn_schema_result_name(PN_SCHEMA_DUPLICATE_NAME), "duplicate name");
+	ASSERT_STR(pn_schema_result_name(PN_SCHEMA_PATH_TOO_LONG), "path too long");
+	ASSERT_STR(pn_schema_result_name((pn_schema_result_t)99), "unknown");
+	return 0;
+}
+
+// === Server start tests ===
+
+// A server refuses to start over a schema that does not validate.
+static int test_server_start_rejects_invalid(void) {
+	pn_param_t leaf = pn_bool("bad name", NULL, NULL, NULL);
+	pn_param_t root = pn_group("r", &leaf, 1);
+	pn_server_config_t cfg = { .root = &root };
+	alignas(max_align_t) uint8_t mem[e2e_srv_size()];
+	pn_server_t *server = (pn_server_t *)mem;
+	pn_server_init(server, &cfg);
+	ASSERT_EQ(pn_server_start(server), -1);
+	return 0;
+}
+
+// A started server reports the schema hash of its tree.
+static int test_server_schema_hash(void) {
+	amp_tree_t t;
+	amp_tree_init(&t);
+	pn_server_config_t cfg = { .root = &t.root };
+	alignas(max_align_t) uint8_t mem[e2e_srv_size()];
+	pn_server_t *server = (pn_server_t *)mem;
+	pn_server_init(server, &cfg);
+	ASSERT_EQ(pn_server_start(server), 0);
+	ASSERT_EQ(pn_server_schema_hash(server), AMP_HASH);
+	return 0;
+}
+
 // === Main ===
 
 int main(void) {
@@ -1559,6 +1595,11 @@ int main(void) {
 	TEST(test_validate_bad_type);
 	TEST(test_validate_too_deep);
 	TEST(test_validate_path_too_long);
+	TEST(test_schema_result_name);
+
+	printf("server start:\n");
+	TEST(test_server_start_rejects_invalid);
+	TEST(test_server_schema_hash);
 
 	printf("\n%d/%d tests passed\n", tests_run - tests_failed, tests_run);
 	return tests_failed ? 1 : 0;

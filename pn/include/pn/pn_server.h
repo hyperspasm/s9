@@ -131,9 +131,15 @@ typedef struct {
 
 uint32_t pn_server_alloc_size(const pn_server_config_t *config);
 void   pn_server_init(pn_server_t *server, const pn_server_config_t *config);
+
+// Validate the tree and bind it to the server. Returns 0, or -1 if the tree
+// does not validate; pn_schema_validate() reports which rule failed and where.
 int    pn_server_start(pn_server_t *server);
+
+// The schema hash of the tree. Valid once pn_server_start() has returned 0.
+uint32_t pn_server_schema_hash(const pn_server_t *server);
+
 int    pn_server_feed(pn_server_t *server, const uint8_t *data, uint32_t len);
-void   pn_server_print_tree(const pn_server_t *server);
 
 // --- Param API ---
 

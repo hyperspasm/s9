@@ -29,6 +29,12 @@ static void on_recv(const uint8_t *data, uint32_t len, void *ctx) {
 	pn_server_feed(server, data, len);
 }
 
+// Manifest sink: write bytes to stdout
+static int write_stdout(const uint8_t *buf, uint32_t len, void *ctx) {
+	(void)ctx;
+	return fwrite(buf, 1, len, stdout) == len ? 0 : -1;
+}
+
 int main(void) {
 	signal(SIGINT, on_signal);
 	signal(SIGTERM, on_signal);
@@ -62,13 +68,20 @@ int main(void) {
 	// Init and start the server
 	server_config.send_ctx = uds;
 	pn_server_init(server, &server_config);
-	pn_server_start(server);
+	if (pn_server_start(server) != 0) {
+		const pn_param_t *offender = NULL;
+		pn_schema_result_t result = pn_schema_validate(root, &offender);
+		fprintf(stderr, "parameter tree rejected: %s (%s)\n",
+				pn_schema_result_name(result),
+				offender && offender->node.name ? offender->node.name : "-");
+		return 1;
+	}
 
 	printf("server allocated %u bytes\n", server_size);
 	printf("mixer initialized with %d channels\n", NUM_CHANNELS);
 
-	// Print the parameter tree
-	pn_server_print_tree(server);
+	// Print the manifest
+	pn_manifest_write(root, write_stdout, NULL);
 
 	// Listen for connections
 	if (pn_uds_listen(uds) != 0) {

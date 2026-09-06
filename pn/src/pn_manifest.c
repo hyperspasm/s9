@@ -252,6 +252,29 @@ pn_schema_validate(const pn_param_t *root, const pn_param_t **offender) {
 	return v.result;
 }
 
+static const char *const result_names[] = {
+	[PN_SCHEMA_OK]             = "ok",
+	[PN_SCHEMA_NO_ROOT]        = "no root",
+	[PN_SCHEMA_BAD_TYPE]       = "bad type",
+	[PN_SCHEMA_BAD_NAME]       = "bad name",
+	[PN_SCHEMA_BAD_LABEL]      = "bad label",
+	[PN_SCHEMA_DUPLICATE_NAME] = "duplicate name",
+	[PN_SCHEMA_EMPTY_ENUM]     = "empty enum",
+	[PN_SCHEMA_NOT_GROUP]      = "not a group",
+	[PN_SCHEMA_TOO_DEEP]       = "too deep",
+	[PN_SCHEMA_PATH_TOO_LONG]  = "path too long",
+};
+
+_Static_assert(sizeof(result_names) / sizeof(result_names[0]) == PN_SCHEMA_PATH_TOO_LONG + 1,
+	"result_names out of sync with pn_schema_result_t");
+
+const char *
+pn_schema_result_name(pn_schema_result_t result) {
+	if ((unsigned)result > PN_SCHEMA_PATH_TOO_LONG)
+		return "unknown";
+	return result_names[result];
+}
+
 int
 pn_schema_hash(const pn_param_t *root, uint32_t *hash) {
 	if (pn_schema_validate(root, NULL) != PN_SCHEMA_OK)

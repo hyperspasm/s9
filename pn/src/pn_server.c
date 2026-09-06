@@ -1,11 +1,11 @@
 #include <pn/pn_server.h>
+#include <pn/pn_manifest.h>
 #include "pn_param.h"
 #include "pn_cobs.h"
 #include <pb_encode.h>
 #include <pb_decode.h>
 #include <pn.pb.h>
 #include <string.h>
-#include <stdio.h>
 
 // Verify protocol limits match the generated protobuf structs (from pn.options)
 _Static_assert(sizeof(((pn_Set *)0)->path) == PN_MAX_PATH,
@@ -41,6 +41,7 @@ struct pn_server {
 	pn_cobs_t *cobs;
 	uint8_t *encode_buf;
 	uint32_t encode_buf_size;
+	uint32_t schema_hash;
 };
 
 static void on_packet(const uint8_t *data, uint32_t len, void *ctx);
@@ -77,23 +78,26 @@ pn_server_init(pn_server_t *server, const pn_server_config_t *config) {
 	server->encode_buf_size = encode_size;
 }
 
-static int
+static void
 bind_tree(pn_server_t *server, pn_param_t *param, pn_param_t *parent) {
-	if (param->num_children > 0 && param->node.type != PN_NONE)
-		return -1;
-
 	param->bind.server = server;
 	param->bind.parent = parent;
-	for (uint32_t i = 0; i < param->num_children; i++) {
-		if (bind_tree(server, &param->children[i], param))
-			return -1;
-	}
-	return 0;
+	for (uint32_t i = 0; i < param->num_children; i++)
+		bind_tree(server, &param->children[i], param);
 }
 
 int
 pn_server_start(pn_server_t *server) {
-	return bind_tree(server, server->root, NULL);
+	// pn_schema_hash() validates the tree; a tree it accepts is safe to bind.
+	if (pn_schema_hash(server->root, &server->schema_hash) != 0)
+		return -1;
+	bind_tree(server, server->root, NULL);
+	return 0;
+}
+
+uint32_t
+pn_server_schema_hash(const pn_server_t *server) {
+	return server->schema_hash;
 }
 
 // --- Set/Get ---
@@ -442,32 +446,4 @@ on_packet(const uint8_t *data, uint32_t len, void *ctx) {
 
 int pn_server_feed(pn_server_t *server, const uint8_t *data, uint32_t len) {
 	return pn_cobs_feed(server->cobs, data, len);
-}
-
-// --- Print tree ---
-
-static const char *type_names[] = {
-	[PN_NONE]   = "group",
-	[PN_ACTION] = "action",
-	[PN_BOOL]   = "bool",
-	[PN_INT]    = "int",
-	[PN_FLOAT]  = "float",
-	[PN_ENUM]   = "enum",
-	[PN_STRING] = "string",
-};
-
-static int
-print_tree_visitor(const pn_param_t *param,
-				   const pn_param_t **path,
-				   uint32_t depth, void *ctx) {
-	(void)path; (void)ctx;
-	for (uint32_t i = 0; i < depth; i++)
-		printf("  ");
-	printf("%s [%s]\n", param->node.name, type_names[param->node.type]);
-	return 0;
-}
-
-void pn_server_print_tree(const pn_server_t *server) {
-	const pn_param_t *path[PN_MAX_DEPTH];
-	pn_param_walk(server->root, print_tree_visitor, NULL, path, PN_MAX_DEPTH);
 }

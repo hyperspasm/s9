@@ -30,6 +30,9 @@ typedef enum {
 // the offender cannot be identified (PN_SCHEMA_NO_ROOT, PN_SCHEMA_TOO_DEEP).
 pn_schema_result_t pn_schema_validate(const pn_param_t *root, const pn_param_t **offender);
 
+// Short description of a validation result, for diagnostics.
+const char *pn_schema_result_name(pn_schema_result_t result);
+
 // --- Schema hash ---
 
 // The schema hash: FNV-1a 32-bit over the canonical manifest body.

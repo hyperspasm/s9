@@ -156,8 +156,12 @@ uint32_t size = pn_server_alloc_size(&config);
 alignas(max_align_t) uint8_t mem[size];
 pn_server_t *server = (pn_server_t *)mem;
 pn_server_init(server, &config);
-pn_server_start(server);
+if (pn_server_start(server) != 0) {
+    // the tree does not validate; pn_schema_validate() reports why
+}
 ```
+
+`pn_server_start` validates the tree before binding it: names and enum labels must follow the name rules in [MANIFEST.md](MANIFEST.md), sibling names must be unique, every enum needs at least one label, and the tree must fit within `PN_MAX_DEPTH` and `PN_MAX_PATH`. It returns nonzero for a tree that fails, and `pn_schema_validate` reports which rule failed and on which node.
 
 ### Notify
 
