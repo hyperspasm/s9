@@ -8,3 +8,8 @@
 build/
 xc_build/
 .claude/
+
+# Python
+__pycache__/
+*.pyc
+venv/
