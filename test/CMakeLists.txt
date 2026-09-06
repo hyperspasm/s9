@@ -68,3 +68,6 @@ target_link_libraries(test_resampler
 )
 
 add_test(NAME resampler COMMAND test_resampler)
+
+# The committed manifest must match what the schema tool produces
+pn_add_manifest_test(NAME s9_manifest TOOL s9_schema EXPECTED ${CMAKE_SOURCE_DIR}/s9.manifest)

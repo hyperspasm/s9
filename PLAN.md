@@ -125,15 +125,18 @@ Envelope: schema_get = 4, schema = 5, manifest_get = 6, manifest_chunk = 7.
 - Tests: dump of the amp and mixer descriptor trees is byte-identical to the C-generated fixtures; parser and validation cases; wire tests including chunking and the coroutines.
 - Docs: pn/python/README.md.
 
-### Phase 4 — s9
+### Phase 4 — s9 (done)
 
-- src/s9_params.h and src/s9_params.c: public s9_params_t (osc_params[], osc_group, root), s9_params_build(p, void *osc), shims behind PN_SCHEMA_ONLY, PN_FN.
-- src/s9_pn.c embeds s9_params_t and calls build with the real oscilloscope from the component registry.
-- tools/s9_schema.c and a CMake target s9_schema that links only pn.
-- s9.manifest committed at the repo root.
-- CTest: run s9_schema, canonicalize both sides with a CMake -P script, diff. No Python dependency in the C test path.
-- python/s9sd: load the manifest, get_schema() on connect, warn on mismatch, take ranges from the manifest instead of the hardcoded table.
-- Docs: s9 README (tool, manifest, test).
+- src/s9_params.h and src/s9_params.c: public s9_params_t, s9_params_build(p, void *osc), shims behind PN_SCHEMA_ONLY, PN_FN.
+- src/s9_pn.c embeds s9_params_t, builds with the oscilloscope from the component registry, fails creation when the server refuses to start, logs the schema hash.
+- tools/s9_schema.c and the s9_schema target (links only pn); s9.manifest at the repo root; test/CMakeLists.txt registers pn_add_manifest_test.
+- python/s9sd: ranges from the manifest (path given on the command line, default the checkout's s9.manifest), check_schema on every connect with a warning, then the initial gets.
+- Docs: s9 README "Parameters".
+
+## Before merging to develop
+
+- Delete this file.
+- Decide whether the two s9sd egg-info files belong in git at all.
 
 ### Phase 5 — later
 

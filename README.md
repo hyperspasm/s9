@@ -19,6 +19,16 @@ s9 [options]
 
 Settings can also be specified in `~/.s9rc` as key-value pairs (e.g. `sample_rate=48000`). Command-line arguments override the config file.
 
+## Parameters
+
+While running, s9 serves its parameters over [pn](pn/README.md) on the Unix socket `/tmp/s9.sock`. The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:
+
+```bash
+./build/s9_schema > s9.manifest
+```
+
+[python/s9sd](python/s9sd) is a Stream Deck dial controller built on this: it takes its ranges from the manifest and warns when the server's schema differs.
+
 ## Build
 
 ### Dependencies

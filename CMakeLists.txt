@@ -59,4 +59,11 @@ target_link_libraries(s9
     m
 )
 
+# Schema tool: the parameter tree compiled without its bindings, linking only pn.
+# Writes the manifest that s9.manifest holds; test/ checks the two agree.
+add_executable(s9_schema tools/s9_schema.c src/s9_params.c)
+target_compile_definitions(s9_schema PRIVATE PN_SCHEMA_ONLY)
+target_include_directories(s9_schema PRIVATE src)
+target_link_libraries(s9_schema pn)
+
 add_subdirectory(test)
