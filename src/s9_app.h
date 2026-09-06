@@ -2,6 +2,7 @@
 #define s9_app_h
 
 #include "s9.h"
+#include "s9_modes.h"
 
 typedef struct {
 	// function that prints a line to logs (CR/LF automatically appended)
@@ -28,5 +29,9 @@ void s9_app_destroy(void);
 
 // call this function repeatedly until it returns non-zero
 int s9_app_run(void);
+
+// display mode. Setting the current mode again is a no-op; an invalid id fails.
+int s9_app_set_mode(s9_mode_id_t mode);
+s9_mode_id_t s9_app_get_mode(void);
 
 #endif /* s9_app_h */

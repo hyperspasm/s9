@@ -31,7 +31,8 @@ typedef struct s9_app {
 
 	s9_components_t *components;
 	s9_component_slot_t slots[S9_MAX_COMPONENTS]; // NULL-terminated (component == NULL)
-	const s9_mode_slot_t *current_mode;
+	const s9_mode_slot_t *current_mode; // NULL until the first mode is applied
+	s9_mode_id_t mode;
 	s9_pn_t *pn;
 
 	SDL_AudioDeviceID audio_device_id;
@@ -85,7 +86,8 @@ static void apply_mode(const s9_mode_slot_t *mode) {
 	slot->component = NULL; // sentinel
 }
 
-static void switch_mode(const s9_mode_slot_t *new_mode) {
+static void switch_mode(s9_mode_id_t mode) {
+	const s9_mode_slot_t *new_mode = s9_mode_slots(mode);
 	SDL_LockAudioDevice(g_app->audio_device_id);
 
 	int incoming[COMP_COUNT] = {0};
@@ -119,6 +121,7 @@ static void switch_mode(const s9_mode_slot_t *new_mode) {
 	}
 
 	g_app->current_mode = new_mode;
+	g_app->mode = mode;
 	SDL_UnlockAudioDevice(g_app->audio_device_id);
 }
 
@@ -302,7 +305,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	};
 
 	// apply initial mode (prepares components for streaming)
-	switch_mode(s9_mode_full);
+	switch_mode(S9_MODE_FULL);
 
 	// start streaming audio
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
@@ -346,9 +349,9 @@ int s9_app_run(void) {
 		} else if (e.type == SDL_KEYDOWN) {
 			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
 			switch (e.key.keysym.sym) {
-			case SDLK_1: switch_mode(s9_mode_full);     break;
-			case SDLK_2: switch_mode(s9_mode_scope);    break;
-			case SDLK_3: switch_mode(s9_mode_spectrum);  break;
+			case SDLK_1: s9_app_set_mode(S9_MODE_FULL);     break;
+			case SDLK_2: s9_app_set_mode(S9_MODE_SCOPE);    break;
+			case SDLK_3: s9_app_set_mode(S9_MODE_SPECTRUM); break;
 			default: break;
 			}
 		}
@@ -372,6 +375,18 @@ int s9_app_run(void) {
 	
 	// present renderer
 	SDL_RenderPresent(g_app->renderer);
-	
+
 	return 0;
+}
+
+int s9_app_set_mode(s9_mode_id_t mode) {
+	CHECK_ERROR(g_app != NULL, return -1, "app not created");
+	CHECK_PARAMETER(s9_mode_slots(mode) != NULL, return -1);
+	if (g_app->current_mode && mode == g_app->mode) return 0;
+	switch_mode(mode);
+	return 0;
+}
+
+s9_mode_id_t s9_app_get_mode(void) {
+	return g_app ? g_app->mode : S9_MODE_FULL;
 }

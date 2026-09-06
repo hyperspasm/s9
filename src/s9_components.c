@@ -97,7 +97,7 @@ s9_component_t *s9_components_get(s9_components_t *comps, s9_component_id_t id) 
 
 // -- modes
 
-const s9_mode_slot_t s9_mode_full[] = {
+static const s9_mode_slot_t mode_full[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
 	{ COMP_SPECTROGRAM,   { .margin_left = 60,  .fixed_width = 860 } },
@@ -106,16 +106,27 @@ const s9_mode_slot_t s9_mode_full[] = {
 	{ COMP_NONE, {0} },
 };
 
-const s9_mode_slot_t s9_mode_scope[] = {
+static const s9_mode_slot_t mode_scope[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
 	{ COMP_OSCILLOSCOPE,  { .margin_left = 60 } },
 	{ COMP_NONE, {0} },
 };
 
-const s9_mode_slot_t s9_mode_spectrum[] = {
+static const s9_mode_slot_t mode_spectrum[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
 	{ COMP_SPECTROGRAM,   { .margin_left = 60 } },
 	{ COMP_NONE, {0} },
 };
+
+static const s9_mode_slot_t *const mode_slots[S9_MODE_COUNT] = {
+	[S9_MODE_FULL]     = mode_full,
+	[S9_MODE_SCOPE]    = mode_scope,
+	[S9_MODE_SPECTRUM] = mode_spectrum,
+};
+
+const s9_mode_slot_t *s9_mode_slots(s9_mode_id_t mode) {
+	if ((unsigned)mode >= S9_MODE_COUNT) return NULL;
+	return mode_slots[mode];
+}

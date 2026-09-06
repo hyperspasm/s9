@@ -3,6 +3,7 @@
 
 #include "s9.h"
 #include "s9_dsp.h"
+#include "s9_modes.h"
 
 #include <SDL2/SDL_render.h>
 
@@ -54,8 +55,7 @@ typedef struct s9_mode_slot {
 	s9_layout_t layout;
 } s9_mode_slot_t;
 
-extern const s9_mode_slot_t s9_mode_full[];
-extern const s9_mode_slot_t s9_mode_scope[];
-extern const s9_mode_slot_t s9_mode_spectrum[];
+// the components and layout of a mode, or NULL for an invalid id
+const s9_mode_slot_t *s9_mode_slots(s9_mode_id_t mode);
 
 #endif /* s9_components_h */
