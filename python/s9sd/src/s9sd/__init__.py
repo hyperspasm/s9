@@ -24,15 +24,6 @@ DIALS = [
     {"path": "s9/osc/channel",      "mode": "int",    "step": 1},
 ]
 
-# Values assumed until the server reports its own
-DEFAULTS = {
-    "s9/osc/time_per_div": 0.002,
-    "s9/osc/amp_per_div": 0.1,
-    "s9/osc/trig_thresh": 0.1,
-    "s9/osc/channel": -1,
-}
-
-
 def load_dials(manifest_path):
     """Read the manifest and return the dials with their ranges filled in."""
     try:
@@ -53,7 +44,9 @@ def load_dials(manifest_path):
 async def _main(manifest_path):
     loop = asyncio.get_event_loop()
     m, dials = load_dials(manifest_path)
-    state = dict(DEFAULTS)
+    # The server's value of each dial's parameter, or None until it has reported one.
+    # A dial does nothing while its value is unknown, so it never moves from a guess.
+    state = {d["path"]: None for d in dials}
 
     # A mismatch is reported on every reconnect, not only the first
     warnings.simplefilter("always", SchemaMismatchWarning)
@@ -79,6 +72,8 @@ async def _main(manifest_path):
 
     def on_disconnect():
         print("pn: disconnected, will retry...")
+        for path in state:
+            state[path] = None
 
     client = Client(on_update=on_update)
     task, close = await connect_uds_persistent(
@@ -94,6 +89,8 @@ async def _main(manifest_path):
         dial = dials[dial_index]
         path = dial["path"]
         current = state[path]
+        if current is None:
+            return
 
         if dial["mode"] == "log":
             new_val = current * (dial["factor"] ** value)
