@@ -19,6 +19,8 @@ s9 [options]
 
 Settings can also be specified in `~/.s9rc` as key-value pairs (e.g. `sample_rate=48000`). Command-line arguments override the config file.
 
+Keys `1`, `2`, and `3` select the full, scope, and spectrum display modes. The mode is also the `s9/mode` parameter below.
+
 ## Parameters
 
 While running, s9 serves its parameters over [pn](pn/README.md) on the Unix socket `/tmp/s9.sock`. The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:

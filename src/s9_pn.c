@@ -94,3 +94,7 @@ void s9_pn_free(s9_pn_t **pn) {
 void s9_pn_update(s9_pn_t *pn) {
 	if (pn && pn->uds) pn_uds_poll(pn->uds);
 }
+
+void s9_pn_notify_mode(s9_pn_t *pn) {
+	if (pn) pn_param_notify(&pn->params.root_children[S9_ROOT_MODE]);
+}

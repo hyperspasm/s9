@@ -125,6 +125,12 @@ static void switch_mode(s9_mode_id_t mode) {
 	SDL_UnlockAudioDevice(g_app->audio_device_id);
 }
 
+// a mode change made here, rather than requested by a client, is pushed to the client
+static void key_set_mode(s9_mode_id_t mode) {
+	if (s9_app_set_mode(mode) == 0)
+		s9_pn_notify_mode(g_app->pn);
+}
+
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	(void)userdata;
 
@@ -349,9 +355,9 @@ int s9_app_run(void) {
 		} else if (e.type == SDL_KEYDOWN) {
 			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
 			switch (e.key.keysym.sym) {
-			case SDLK_1: s9_app_set_mode(S9_MODE_FULL);     break;
-			case SDLK_2: s9_app_set_mode(S9_MODE_SCOPE);    break;
-			case SDLK_3: s9_app_set_mode(S9_MODE_SPECTRUM); break;
+			case SDLK_1: key_set_mode(S9_MODE_FULL);     break;
+			case SDLK_2: key_set_mode(S9_MODE_SCOPE);    break;
+			case SDLK_3: key_set_mode(S9_MODE_SPECTRUM); break;
 			default: break;
 			}
 		}
