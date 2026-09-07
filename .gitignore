@@ -14,3 +14,6 @@ __pycache__/
 *.pyc
 *.egg-info/
 venv/
+
+# Temporary files and references
+temp/
