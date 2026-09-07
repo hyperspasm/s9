@@ -74,7 +74,6 @@ target_link_libraries(s9
     PkgConfig::FFTW3F
     PkgConfig::LWS
     pn
-    pn_uds
     s9_www
     m
 )

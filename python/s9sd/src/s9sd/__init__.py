@@ -10,9 +10,10 @@ from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.Devices.StreamDeck import DialEventType
 from pn import manifest, SchemaMismatchWarning
 from pn.client import Client
-from pn.transport import connect_uds_persistent
+from pn.transport import connect_ws_persistent
 
-SOCKET_PATH = "/tmp/s9.sock"
+# s9's websocket server on this machine, at s9's default port
+DEFAULT_URL = "ws://127.0.0.1:8080"
 
 # The committed s9 manifest, located relative to this file in a source checkout
 MANIFEST_PATH = Path(__file__).resolve().parents[4] / "s9.manifest"
@@ -63,7 +64,7 @@ def load_manifest(manifest_path):
     return m, dials, modes
 
 
-async def _main(manifest_path):
+async def _main(url, manifest_path):
     loop = asyncio.get_event_loop()
     m, dials, modes = load_manifest(manifest_path)
     # The server's value of each parameter, or None until it has reported one.
@@ -92,7 +93,7 @@ async def _main(manifest_path):
             client.get(path)
 
     def on_connect():
-        print(f"pn: connected to {SOCKET_PATH}")
+        print(f"pn: connected to {url}")
         asyncio.ensure_future(on_connected())
 
     def on_disconnect():
@@ -101,8 +102,8 @@ async def _main(manifest_path):
             state[path] = None
 
     client = Client(on_update=on_update)
-    task, close = await connect_uds_persistent(
-        client, SOCKET_PATH,
+    task, close = await connect_ws_persistent(
+        client, url,
         on_connect=on_connect,
         on_disconnect=on_disconnect,
     )
@@ -174,8 +175,10 @@ def main():
     parser.add_argument("manifest", nargs="?", default=MANIFEST_PATH,
                         help="manifest to take the parameter ranges and mode names from "
                              "(default: the s9.manifest of this checkout)")
+    parser.add_argument("--url", default=DEFAULT_URL,
+                        help=f"websocket URL of s9 (default: {DEFAULT_URL})")
     args = parser.parse_args()
     try:
-        asyncio.run(_main(args.manifest))
+        asyncio.run(_main(args.url, args.manifest))
     except KeyboardInterrupt:
         pass

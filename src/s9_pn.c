@@ -4,18 +4,13 @@
 #include "s9.h"
 
 #include <pn/pn.h>
-#include <pn_uds.h>
 
 #include <stdlib.h>
-
-#define SOCKET_PATH    "/tmp/s9.sock"
-#define UDS_READ_BUF   1024
 
 struct s9_pn {
 	s9_pn_config_t config;
 	s9_params_t params;
 	pn_server_t *server;
-	pn_uds_t *uds;
 	s9_ws_t *ws;
 	char *manifest;
 	uint32_t manifest_len;
@@ -51,20 +46,18 @@ static char *manifest_text(const pn_param_t *root, uint32_t *len) {
 	return text;
 }
 
-// -- transports
+// -- transport
 
 static void on_recv(const uint8_t *data, uint32_t len, void *ctx) {
 	pn_server_feed((pn_server_t *)ctx, data, len);
 }
 
-// Everything the server sends goes to every websocket client and to the
-// socket client. A transport with nobody connected is not a failure.
+// Everything the server sends goes to every websocket client. Nobody being
+// connected is not a failure.
 static int send_all(const uint8_t *data, uint32_t len, void *ctx) {
 	s9_pn_t *pn = ctx;
-	int rc = 0;
-	if (pn->ws && s9_ws_send(data, len, pn->ws) != 0) rc = -1;
-	if (pn->uds) pn_uds_send(data, len, pn->uds);
-	return rc;
+	if (pn->ws) return s9_ws_send(data, len, pn->ws);
+	return 0;
 }
 
 // -- public
@@ -88,18 +81,6 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	pn->server = malloc(server_size);
 	CHECK_ALLOC(pn->server, free(pn); return NULL);
 
-	// allocate and init UDS transport
-	pn_uds_config_t uds_config = {
-		.path = SOCKET_PATH,
-		.read_buf_size = UDS_READ_BUF,
-		.on_recv = on_recv,
-		.on_recv_ctx = pn->server,
-	};
-	uint32_t uds_size = pn_uds_alloc_size(&uds_config);
-	pn->uds = malloc(uds_size);
-	CHECK_ALLOC(pn->uds, free(pn->server); free(pn); return NULL);
-	pn_uds_init(pn->uds, &uds_config);
-
 	// init and start server
 	pn_server_init(pn->server, &server_config);
 	if (pn_server_start(pn->server) != 0) {
@@ -108,7 +89,6 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 		S9_LOG_ERROR("pn: parameter tree rejected: %s (%s)",
 					 pn_schema_result_name(result),
 					 offender && offender->node.name ? offender->node.name : "-");
-		free(pn->uds);
 		free(pn->server);
 		free(pn);
 		return NULL;
@@ -117,7 +97,7 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 
 	// the manifest, for serving to clients
 	pn->manifest = manifest_text(root, &pn->manifest_len);
-	CHECK_ALLOC(pn->manifest, free(pn->uds); free(pn->server); free(pn); return NULL);
+	CHECK_ALLOC(pn->manifest, free(pn->server); free(pn); return NULL);
 
 	// websocket hub and web interface
 	pn->ws = s9_ws_new(&(s9_ws_config_t){
@@ -129,16 +109,9 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 		.on_recv_ctx = pn->server,
 	});
 	if (pn->ws) {
-		S9_LOG_INFO("pn: web interface on port %u", (unsigned)pn->config.port);
+		S9_LOG_INFO("pn: serving on port %u", (unsigned)pn->config.port);
 	} else {
-		S9_LOG_WARNING("pn: web interface unavailable");
-	}
-
-	// listen
-	if (pn_uds_listen(pn->uds) != 0) {
-		S9_LOG_WARNING("pn: failed to listen on %s", SOCKET_PATH);
-	} else {
-		S9_LOG_INFO("pn: listening on %s", SOCKET_PATH);
+		S9_LOG_WARNING("pn: parameters and web interface unavailable");
 	}
 
 	return pn;
@@ -147,8 +120,6 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 void s9_pn_free(s9_pn_t **pn) {
 	if (pn && *pn) {
 		s9_ws_free(&(*pn)->ws);
-		if ((*pn)->uds) pn_uds_close((*pn)->uds);
-		free((*pn)->uds);
 		free((*pn)->server);
 		free((*pn)->manifest);
 		free(*pn);
@@ -157,9 +128,7 @@ void s9_pn_free(s9_pn_t **pn) {
 }
 
 void s9_pn_update(s9_pn_t *pn) {
-	if (!pn) return;
-	if (pn->ws) s9_ws_update(pn->ws);
-	if (pn->uds) pn_uds_poll(pn->uds);
+	if (pn && pn->ws) s9_ws_update(pn->ws);
 }
 
 void s9_pn_notify_mode(s9_pn_t *pn) {

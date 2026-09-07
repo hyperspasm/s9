@@ -25,7 +25,7 @@ Keys `1`, `2`, and `3` select the full, scope, and spectrum display modes. The m
 
 ## Parameters
 
-While running, s9 serves its parameters over [pn](pn/README.md) in two ways: as a websocket hub on the port given by `--port`, where every connected client sends packets and receives everything the server sends, and on the Unix socket `/tmp/s9.sock`. A websocket client requests the subprotocol `pn` and sends one pn packet per binary message. The same port serves the web interface at `/` and the running program's manifest at `/s9.manifest`.
+While running, s9 serves its parameters over [pn](pn/README.md) as a websocket hub on the port given by `--port`: every connected client sends packets and receives everything the server sends, so clients see each other's changes. A client requests the subprotocol `pn` and sends one pn packet per binary message. The same port serves the web interface at `/` and the running program's manifest at `/s9.manifest`.
 
 The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:
 
@@ -33,7 +33,7 @@ The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is com
 ./build/s9_schema > s9.manifest
 ```
 
-[python/s9sd](python/s9sd) is a Stream Deck dial controller built on this: it takes its ranges from the manifest and warns when the server's schema differs.
+[python/s9sd](python/s9sd) is a Stream Deck controller built on this: its dials drive the oscilloscope, its top corner keys step the display mode, it takes its ranges and the mode names from the manifest, and it warns when the server's schema differs. It connects to s9 on this machine at the default port; `--url` points it elsewhere.
 
 ## Build
 
