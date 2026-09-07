@@ -1,6 +1,6 @@
 # pn — Parameter Node Library
 
-A lightweight C library for exposing application parameters over a bidirectional byte stream. Designed to be transport-agnostic (TCP, UART, unix socket, stdio) and suitable for embedded targets.
+A lightweight C library for exposing application parameters over a bidirectional byte stream. Designed to be transport-agnostic (TCP, UART, unix socket, stdio) and suitable for embedded targets. The same wire format has a [Python](python/README.md) implementation, server and client, and a [JavaScript](js/README.md) client for browsers and Node.
 
 ## Overview
 
