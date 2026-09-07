@@ -9,7 +9,7 @@ requires-python = ">=3.9"
 dependencies = ["betterproto>=2.0.0b7"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio"]
+dev = ["pytest", "pytest-asyncio", "websockets"]
 # Generators run by proto/generate.sh: nanopb (protobuf, protoc) and betterproto
 codegen = ["protobuf", "grpcio-tools", "betterproto[compiler]"]
 

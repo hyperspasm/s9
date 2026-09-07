@@ -253,6 +253,8 @@ int s9_app_create(const s9_app_config_t *config) {
 	// create pn
 	g_app->pn = s9_pn_new(&(s9_pn_config_t){
 		.components = g_app->components,
+		.port = g_app->config.port,
+		.www_dir = g_app->config.www_dir,
 	});
 	CHECK_ALLOC(g_app->pn, s9_app_destroy(); return -1);
 

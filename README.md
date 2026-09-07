@@ -25,7 +25,9 @@ Keys `1`, `2`, and `3` select the full, scope, and spectrum display modes. The m
 
 ## Parameters
 
-While running, s9 serves its parameters over [pn](pn/README.md) on the Unix socket `/tmp/s9.sock`. The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:
+While running, s9 serves its parameters over [pn](pn/README.md) in two ways: as a websocket hub on the port given by `--port`, where every connected client sends packets and receives everything the server sends, and on the Unix socket `/tmp/s9.sock`. A websocket client requests the subprotocol `pn` and sends one pn packet per binary message. The same port serves the web interface at `/` and the running program's manifest at `/s9.manifest`.
+
+The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:
 
 ```bash
 ./build/s9_schema > s9.manifest
@@ -39,12 +41,12 @@ While running, s9 serves its parameters over [pn](pn/README.md) on the Unix sock
 
 **macOS:**
 ```bash
-brew install sdl2 sdl2_ttf fftw
+brew install sdl2 sdl2_ttf fftw libwebsockets
 ```
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt install libsdl2-dev libsdl2-ttf-dev libfftw3-dev
+sudo apt install libsdl2-dev libsdl2-ttf-dev libfftw3-dev libwebsockets-dev
 ```
 
 ### Compile
