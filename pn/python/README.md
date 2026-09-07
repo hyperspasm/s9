@@ -36,7 +36,9 @@ class Mixer:
 
 server = pn.Server(Mixer(), name="mixer")
 
-# async
+# async: over websockets (a hub: every client's packets feed the server, and
+# everything it sends goes to every client), or over a Unix socket
+await transport.serve_ws(server, "0.0.0.0", 8080)
 await transport.serve_uds(server, "/tmp/pn.sock")
 ```
 
@@ -93,7 +95,7 @@ client = pn.Client()
 def on_update(path, value, ptype):
     print(f"{path} = {value}")
 
-read_task, close = await transport.connect_uds(client, "/tmp/pn.sock")
+read_task, close = await transport.connect_ws(client, "ws://localhost:8080")   # or connect_uds(client, path)
 
 # Typed setters
 client.set_float("mixer/ch1/gain", -6.0)
@@ -114,6 +116,8 @@ client.action("mixer/ch1/reset")
 
 close()
 ```
+
+`connect_ws_persistent` and `connect_uds_persistent` keep reconnecting instead, calling `on_connect` and `on_disconnect` as the connection comes and goes, and drop sends while disconnected. A websocket carries one pn packet per binary message under the subprotocol `pn`.
 
 ## Schema manifest
 
@@ -146,10 +150,12 @@ How a client responds to a mismatch is its own decision. The server does not kno
 The `pn-manifest` command works with manifests from the shell:
 
 ```bash
-pn-manifest pull /tmp/pn.sock > mixer.manifest   # the manifest of a running server
-pn-manifest hash mixer.manifest                  # the schema hash of a file
-pn-manifest check mixer.manifest /tmp/pn.sock    # compare a file with a running server
+pn-manifest pull ws://localhost:8080 > mixer.manifest   # the manifest of a running server
+pn-manifest hash mixer.manifest                         # the schema hash of a file
+pn-manifest check mixer.manifest ws://localhost:8080    # compare a file with a running server
 ```
+
+The server is a `ws://` URL or the path of a Unix socket.
 
 ## Wire protocol
 
