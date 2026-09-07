@@ -69,5 +69,10 @@ target_link_libraries(test_resampler
 
 add_test(NAME resampler COMMAND test_resampler)
 
+add_executable(test_www test_www.c)
+target_link_libraries(test_www s9_www)
+target_compile_definitions(test_www PRIVATE S9_WWW_SRC="${CMAKE_SOURCE_DIR}/www")
+add_test(NAME www COMMAND test_www)
+
 # The committed manifest must match what the schema tool produces
 pn_add_manifest_test(NAME s9_manifest TOOL s9_schema EXPECTED ${CMAKE_SOURCE_DIR}/s9.manifest)

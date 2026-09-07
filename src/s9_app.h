@@ -23,7 +23,13 @@ typedef struct {
 	
 	// sample rate
 	int sample_rate;
-	
+
+	// TCP port for the parameter server and the web interface
+	uint16_t port;
+
+	// directory of the web interface's files
+	char *www_dir;
+
 } s9_app_config_t;
 
 int s9_app_create(const s9_app_config_t *config);

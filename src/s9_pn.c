@@ -15,7 +15,39 @@ struct s9_pn {
 	s9_params_t params;
 	pn_server_t *server;
 	pn_uds_t *uds;
+	char *manifest;
+	uint32_t manifest_len;
 };
+
+// -- manifest text
+
+// Sink that counts bytes, then one that copies them: the manifest is written
+// twice, once to size the buffer and once to fill it.
+static int count_sink(const uint8_t *buf, uint32_t len, void *ctx) {
+	(void)buf;
+	*(uint32_t *)ctx += len;
+	return 0;
+}
+
+typedef struct { char *buf; uint32_t pos; } copy_sink_t;
+
+static int copy_sink(const uint8_t *buf, uint32_t len, void *ctx) {
+	copy_sink_t *s = ctx;
+	memcpy(s->buf + s->pos, buf, len);
+	s->pos += len;
+	return 0;
+}
+
+static char *manifest_text(const pn_param_t *root, uint32_t *len) {
+	uint32_t size = 0;
+	if (pn_manifest_write(root, count_sink, &size) != 0) return NULL;
+	char *text = malloc(size);
+	CHECK_ALLOC(text, return NULL);
+	copy_sink_t s = { text, 0 };
+	if (pn_manifest_write(root, copy_sink, &s) != 0) { free(text); return NULL; }
+	*len = size;
+	return text;
+}
 
 // -- transport
 
@@ -71,6 +103,10 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	}
 	S9_LOG_INFO("pn: schema hash %08x", (unsigned)pn_server_schema_hash(pn->server));
 
+	// the manifest, for serving to clients
+	pn->manifest = manifest_text(root, &pn->manifest_len);
+	CHECK_ALLOC(pn->manifest, free(pn->uds); free(pn->server); free(pn); return NULL);
+
 	// listen
 	if (pn_uds_listen(pn->uds) != 0) {
 		S9_LOG_WARNING("pn: failed to listen on %s", SOCKET_PATH);
@@ -86,6 +122,7 @@ void s9_pn_free(s9_pn_t **pn) {
 		if ((*pn)->uds) pn_uds_close((*pn)->uds);
 		free((*pn)->uds);
 		free((*pn)->server);
+		free((*pn)->manifest);
 		free(*pn);
 		*pn = NULL;
 	}
@@ -97,4 +134,9 @@ void s9_pn_update(s9_pn_t *pn) {
 
 void s9_pn_notify_mode(s9_pn_t *pn) {
 	if (pn) pn_param_notify(&pn->params.root_children[S9_ROOT_MODE]);
+}
+
+const char *s9_pn_manifest(const s9_pn_t *pn, uint32_t *len) {
+	*len = pn->manifest_len;
+	return pn->manifest;
 }

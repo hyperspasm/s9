@@ -15,6 +15,8 @@ s9 [options]
 | `-a, --audio_device` | Audio input device name | System default |
 | `-r, --sample_rate` | Sample rate in Hz | 44100 |
 | `-l, --log_level` | Log verbosity (0-3) | 1 |
+| `-p, --port` | Port of the parameter server and the web interface | 8080 |
+| `--www_dir` | Serve the web interface from a directory instead of the files built into the binary | built-in |
 | `--version` | Print version and git hash, then exit | |
 
 Settings can also be specified in `~/.s9rc` as key-value pairs (e.g. `sample_rate=48000`). Command-line arguments override the config file.

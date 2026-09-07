@@ -17,4 +17,8 @@ void s9_pn_update(s9_pn_t *pn);
 // itself; a change requested by the client is echoed without this.
 void s9_pn_notify_mode(s9_pn_t *pn);
 
+// The manifest of the served tree, as text without a terminator, and its
+// length. Generated once at creation; valid for the lifetime of pn.
+const char *s9_pn_manifest(const s9_pn_t *pn, uint32_t *len);
+
 #endif /* s9_pn_h */

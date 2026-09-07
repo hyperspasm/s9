@@ -20,6 +20,7 @@
 #define DEFAULT_WINDOW_HEIGHT 720
 #define DEFAULT_LOG_LEVEL LOG_LEVEL_INFO
 #define DEFAULT_SAMPLE_RATE 44100
+#define DEFAULT_PORT 8080
 
 // function to load configuration from ~/.s9rc
 void load_config_file(s9_app_config_t *config) {
@@ -57,11 +58,21 @@ void load_config_file(s9_app_config_t *config) {
 		if (sscanf(line, "sample_rate=%d", &config->sample_rate) == 1) {
 			continue;
 		}
-		// Parse audio device name
+		if (sscanf(line, "port=%hu", &config->port) == 1) {
+			continue;
+		}
+		// Parse string values
 		if (strncmp(line, "audio_device=", 13) == 0) {
+			free(config->audio_device);
 			config->audio_device = strdup(line + 13);
 			// Remove newline character if present
 			config->audio_device[strcspn(config->audio_device, "\n")] = '\0';
+			continue;
+		}
+		if (strncmp(line, "www_dir=", 8) == 0) {
+			free(config->www_dir);
+			config->www_dir = strdup(line + 8);
+			config->www_dir[strcspn(config->www_dir, "\n")] = '\0';
 		}
 	}
 	
@@ -80,6 +91,8 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "  -l, --log_level <log_level>      Set log level (default: %d)\n", DEFAULT_LOG_LEVEL);
 	fprintf(stdout, "  -a, --audio_device <device name> Set audio device\n");
 	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
+	fprintf(stdout, "  -p, --port <port>                Set the parameter server and web interface port (default: %d)\n", DEFAULT_PORT);
+	fprintf(stdout, "  --www_dir <dir>                  Serve the web interface from a directory instead of the built-in files\n");
 	fprintf(stdout, "  --help                           Display this help message\n");
 	fprintf(stdout, "  --version                        Display version information\n");
 	fprintf(stdout, "\nConfiguration File:\n");
@@ -90,6 +103,8 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "    log_level=<log_level>\n");
 	fprintf(stdout, "    sample_rate=<rate>\n");
 	fprintf(stdout, "    audio_device=<device name>\n");
+	fprintf(stdout, "    port=<port>\n");
+	fprintf(stdout, "    www_dir=<dir>\n");
 }
 
 void log_config_options(const s9_app_config_t *config) {
@@ -104,6 +119,8 @@ void log_config_options(const s9_app_config_t *config) {
 	} else {
 		S9_LOG_INFO("  audio_device: (default)");
 	}
+	S9_LOG_INFO("  port: %hu", config->port);
+	S9_LOG_INFO("  www_dir: %s", config->www_dir ? config->www_dir : "(built-in)");
 }
 
 int main(int argc, const char * argv[]) {
@@ -117,27 +134,31 @@ int main(int argc, const char * argv[]) {
 		.window_height = DEFAULT_WINDOW_HEIGHT,
 		.audio_device = NULL,
 		.sample_rate = DEFAULT_SAMPLE_RATE,
+		.port = DEFAULT_PORT,
+		.www_dir = NULL, // built-in files
 	};
-	
+
 	// load configuration from file
 	load_config_file(&config);
-	
+
 	// define long options
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 0},
 		{"version", no_argument, 0, 0},
+		{"www_dir", required_argument, 0, 0},
 		{"window_width", required_argument, 0, 'w'},
 		{"window_height", required_argument, 0, 'h'},
 		{"log_level", required_argument, 0, 'l'},
 		{"audio_device", required_argument, 0, 'a'},
 		{"sample_rate", required_argument, 0, 'r'},
+		{"port", required_argument, 0, 'p'},
 		{0, 0, 0, 0}
 	};
-	
+
 	// parse command line arguments
 	int opt;
 	int long_index = 0;
-	while ((opt = getopt_long(argc, (char * const *)argv, "w:h:l:a:r:", long_options, &long_index)) != -1) {
+	while ((opt = getopt_long(argc, (char * const *)argv, "w:h:l:a:r:p:", long_options, &long_index)) != -1) {
 		switch (opt) {
 			case 0:
 				if (strcmp("help", long_options[long_index].name) == 0) {
@@ -148,6 +169,13 @@ int main(int argc, const char * argv[]) {
 					print_version();
 					exit(EXIT_SUCCESS);
 				}
+				if (strcmp("www_dir", long_options[long_index].name) == 0) {
+					free(config.www_dir);
+					config.www_dir = strdup(optarg);
+				}
+				break;
+			case 'p':
+				config.port = (uint16_t)atoi(optarg);
 				break;
 			case 'w':
 				config.window_width = (uint16_t)atoi(optarg);
@@ -179,8 +207,9 @@ int main(int argc, const char * argv[]) {
 	}
 	
 	s9_app_destroy();
-	
-	if(config.audio_device) free(config.audio_device);
-	
+
+	free(config.audio_device);
+	free(config.www_dir);
+
 	return ret >= 0 ? 0 : ret;
 }

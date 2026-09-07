@@ -28,8 +28,25 @@ include(CTest)
 # pn library (parameter network)
 add_subdirectory(pn)
 
-# Collect source files
+# Collect source files (s9_www.c belongs to the s9_www library below)
 file(GLOB SOURCES src/*.c)
+list(REMOVE_ITEM SOURCES ${CMAKE_SOURCE_DIR}/src/s9_www.c)
+
+# Web interface files, embedded as C arrays; regenerated when a file under www/ changes
+file(GLOB_RECURSE WWW_FILES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/www/*)
+set(WWW_EMBEDDED ${CMAKE_BINARY_DIR}/generated/s9_www_files.c)
+add_custom_command(
+    OUTPUT ${WWW_EMBEDDED}
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC_DIR=${CMAKE_SOURCE_DIR}/www
+        -DOUT=${WWW_EMBEDDED}
+        -P ${CMAKE_SOURCE_DIR}/cmake/embed_www.cmake
+    DEPENDS ${WWW_FILES} ${CMAKE_SOURCE_DIR}/cmake/embed_www.cmake
+    COMMENT "Embedding www/"
+    VERBATIM
+)
+add_library(s9_www STATIC src/s9_www.c ${WWW_EMBEDDED})
+target_include_directories(s9_www PUBLIC src)
 
 # Main executable
 add_executable(s9 ${SOURCES})
@@ -56,6 +73,7 @@ target_link_libraries(s9
     PkgConfig::FFTW3F
     pn
     pn_uds
+    s9_www
     m
 )
 
