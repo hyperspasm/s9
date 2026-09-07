@@ -7,24 +7,27 @@
 // them. Callbacks are referenced through PN_FN(), so compiled with
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
-#define S9_OSC_NUM_PARAMS 7
+#define S9_OSC_NUM_PARAMS   7
+#define S9_DEBUG_NUM_PARAMS 1
 
 // The root's children, in declared order
 typedef enum {
 	S9_ROOT_MODE,
 	S9_ROOT_OSC,
+	S9_ROOT_DEBUG,
 	S9_ROOT_COUNT,
 } s9_root_child_t;
 
 typedef struct {
 	pn_param_t osc_params[S9_OSC_NUM_PARAMS];
+	pn_param_t debug_params[S9_DEBUG_NUM_PARAMS];
 	pn_param_t root_children[S9_ROOT_COUNT];  // indexed by s9_root_child_t
 	pn_param_t root;
 } s9_params_t;
 
 // Build the tree into p and return its root. osc is the oscilloscope the
 // "osc" parameters read and write, or NULL in a schema-only build. The mode
-// parameter reads and writes the app's display mode.
+// and debug parameters read and write the app.
 pn_param_t *s9_params_build(s9_params_t *p, void *osc);
 
 #endif /* s9_params_h */

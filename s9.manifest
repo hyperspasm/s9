@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=4a0e0dba
+# pn manifest v1 s9 fnv1a32=9c513894
 s9/mode enum full|scope|spectrum
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -7,3 +7,4 @@ s9/osc/trig_slope int -1 1 2
 s9/osc/trig_thresh float 0xbf800000 0x3f800000 0x00000000
 s9/osc/trig_holdoff float 0x00000000 0x3f800000 0x00000000
 s9/osc/channel int -1 31 1
+s9/debug/fps bool

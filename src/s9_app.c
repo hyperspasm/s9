@@ -33,6 +33,7 @@ typedef struct s9_app {
 	s9_component_slot_t slots[S9_MAX_COMPONENTS]; // NULL-terminated (component == NULL)
 	const s9_mode_slot_t *current_mode; // NULL until the first mode is applied
 	s9_mode_id_t mode;
+	bool show_fps;
 	s9_pn_t *pn;
 
 	SDL_AudioDeviceID audio_device_id;
@@ -63,8 +64,10 @@ static void print_renderer_info(void) {
 static void render(SDL_Renderer *renderer) {
 	SDL_Rect default_viewport;
 	SDL_RenderGetViewport(renderer, &default_viewport);
+	const s9_component_t *fps = s9_components_get(g_app->components, COMP_FPS);
 
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
+		if (s->component == fps && !g_app->show_fps) continue;
 		if (s->component->render) {
 			SDL_Rect viewport = compute_viewport(&s->layout, &default_viewport);
 			SDL_RenderSetViewport(renderer, &viewport);
@@ -203,6 +206,9 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"SDL_CreateRenderer failed: %s", SDL_GetError());
 	
+	// s9 has no pointer interaction; this also keeps the pointer off a display that has no mouse
+	SDL_ShowCursor(SDL_DISABLE);
+
 	// get renderer info
 	CHECK_ERROR(SDL_GetRendererInfo(g_app->renderer, &g_app->renderer_info) == 0,
 				SDL_DestroyWindow(g_app->window);
@@ -395,4 +401,12 @@ int s9_app_set_mode(s9_mode_id_t mode) {
 
 s9_mode_id_t s9_app_get_mode(void) {
 	return g_app ? g_app->mode : S9_MODE_FULL;
+}
+
+void s9_app_set_show_fps(bool show) {
+	if (g_app) g_app->show_fps = show;
+}
+
+bool s9_app_get_show_fps(void) {
+	return g_app ? g_app->show_fps : false;
 }

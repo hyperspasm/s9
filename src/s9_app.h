@@ -4,6 +4,8 @@
 #include "s9.h"
 #include "s9_modes.h"
 
+#include <stdbool.h>
+
 typedef struct {
 	// function that prints a line to logs (CR/LF automatically appended)
 	void (*log_line)(const char *text);
@@ -33,5 +35,9 @@ int s9_app_run(void);
 // display mode. Setting the current mode again is a no-op; an invalid id fails.
 int s9_app_set_mode(s9_mode_id_t mode);
 s9_mode_id_t s9_app_get_mode(void);
+
+// frame rate counter, off until shown
+void s9_app_set_show_fps(bool show);
+bool s9_app_get_show_fps(void);
 
 #endif /* s9_app_h */

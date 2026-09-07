@@ -5,10 +5,13 @@
 #include "s9_app.h"
 #include "oscilloscope.h"
 
-// -- mode callbacks
+// -- app callbacks
 
 static void set_mode(void *ctx, uint32_t val) { (void)ctx; s9_app_set_mode((s9_mode_id_t)val); }
 static uint32_t get_mode(void *ctx) { (void)ctx; return (uint32_t)s9_app_get_mode(); }
+
+static void set_fps(void *ctx, bool val) { (void)ctx; s9_app_set_show_fps(val); }
+static bool get_fps(void *ctx) { (void)ctx; return s9_app_get_show_fps(); }
 
 // -- oscilloscope callbacks
 
@@ -46,8 +49,11 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc) {
 	p->osc_params[5] = pn_float("trig_holdoff", osc, PN_FN(set_trig_holdoff), PN_FN(get_trig_holdoff), 0.0f, 1.0f, 0);
 	p->osc_params[6] = pn_int("channel",        osc, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
 
-	p->root_children[S9_ROOT_MODE] = pn_enum("mode", NULL, PN_FN(set_mode), PN_FN(get_mode), s9_mode_names, S9_MODE_COUNT);
-	p->root_children[S9_ROOT_OSC]  = pn_group("osc", p->osc_params, S9_OSC_NUM_PARAMS);
+	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
+
+	p->root_children[S9_ROOT_MODE]  = pn_enum("mode", NULL, PN_FN(set_mode), PN_FN(get_mode), s9_mode_names, S9_MODE_COUNT);
+	p->root_children[S9_ROOT_OSC]   = pn_group("osc", p->osc_params, S9_OSC_NUM_PARAMS);
+	p->root_children[S9_ROOT_DEBUG] = pn_group("debug", p->debug_params, S9_DEBUG_NUM_PARAMS);
 	p->root = pn_group("s9", p->root_children, S9_ROOT_COUNT);
 	return &p->root;
 }
