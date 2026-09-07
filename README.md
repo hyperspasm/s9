@@ -33,6 +33,8 @@ The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is com
 ./build/s9_schema > s9.manifest
 ```
 
+The web interface at `/` is [www/app.js](www/app.js): a control for every parameter, generated from the served manifest, live over the websocket through the JavaScript pn client, which is linked into `www/pn/` from [pn/js](pn/js). It warns when the running program's schema differs from the manifest it was generated from.
+
 [python/s9sd](python/s9sd) is a Stream Deck controller built on this: its dials drive the oscilloscope, its top corner keys step the display mode, it takes its ranges and the mode names from the manifest, and it warns when the server's schema differs. It connects to s9 on this machine at the default port; `--url` points it elsewhere.
 
 ## Build

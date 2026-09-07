@@ -4,13 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>s9</title>
-<style>
-  body { margin: 0; padding: 2rem; background: #000; color: #ddd; font: 16px/1.5 system-ui, sans-serif; }
-  a { color: #7cf; }
-</style>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<h1>s9</h1>
-<p>The parameter manifest is at <a href="/s9.manifest">/s9.manifest</a>.</p>
+<header>
+  <h1>s9</h1>
+  <span id="status">connecting</span>
+</header>
+<p id="banner" hidden></p>
+<main id="params"></main>
+<script type="module" src="/app.js"></script>
 </body>
 </html>
