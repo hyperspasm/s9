@@ -93,6 +93,13 @@ TEST holds_then_drops_on_silence(void) {
 	}
 	ASSERT(dropped_at >= (int)hold);
 	ASSERT_EQ_FMT(held, harmonics_get_pitch_frequency(h), "%g");
+
+	// no readings without the lock
+	uint32_t count;
+	harmonics_readings(h, &count);
+	ASSERT_EQ(0u, count);
+	float thd;
+	ASSERT_EQ(-1, harmonics_get_thd(h, &thd));
 	harmonics_free(&h);
 	PASS();
 }
@@ -123,14 +130,18 @@ TEST reconfigures_while_streaming(void) {
 	PASS();
 }
 
-// Noise never becomes a pitch, and the display copes with none.
+// Noise never becomes a pitch; the spectrum is still drawn, on the
+// configured axis, with no readings.
 TEST noise_has_no_pitch(void) {
 	harmonics_t *h = streaming(NULL);
 	test_signal_t noise = { SIGNAL_NOISE, 0, 0, 0.5, 0, 0, 12345, 0 };
 	unsigned offset = 0;
+	uint32_t count;
 	for (int i = 0; i < 60; i++) {
 		frame(h, &noise, &offset);
 		ASSERT(!harmonics_get_pitch_valid(h));
+		harmonics_readings(h, &count);
+		ASSERT_EQ(0u, count);
 	}
 	ASSERT_EQ_FMT(0.0f, harmonics_get_pitch_frequency(h), "%g");
 	ASSERT(lit_pixels() > 10000);

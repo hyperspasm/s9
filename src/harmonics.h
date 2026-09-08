@@ -10,11 +10,13 @@
 #include <stdbool.h>
 
 // The harmonic analyzer: the latest spectrum on a linear axis scaled to the
-// tracked fundamental, with a marker at each harmonic and, for those that
-// stand out from the floor, its level relative to the fundamental's; the
-// fundamental's own level and the distortion the harmonics add up to above.
-// The curve is live; the readings come from the spectrum averaged over a
-// short time, so they settle rather than jitter.
+// fundamental, with a marker at each harmonic. While the tracker is locked,
+// each harmonic that stands out from the floor carries its level relative
+// to the fundamental's, and the fundamental's own level and the distortion
+// the harmonics add up to sit above. The axis keeps the last locked
+// fundamental, or a configured one before there is any, so the spectrum is
+// always on a scale. The curve is live; the readings come from the
+// spectrum averaged over a short time, so they settle rather than jitter.
 
 #define HARMONICS_CHANNEL_ALL UINT32_MAX
 
@@ -43,12 +45,12 @@ typedef struct {
 
 	// display
 	uint32_t harmonics;               // markers across the graph
+	float initial_f0;                 // the axis' fundamental before the tracker has locked, Hz
 	int32_t min_db, max_db;
 	uint32_t major_db_interval, minor_db_interval;
 	SDL_Color major_color, minor_color, plot_color;
-	SDL_Color marker_color;           // markers while the fundamental is valid
-	SDL_Color held_color;             // markers while it is held
-	SDL_Color readout_color;
+	SDL_Color readout_color;          // readings and the header while locked
+	SDL_Color held_color;             // the header while not
 } harmonics_config_t;
 
 static const harmonics_config_t default_harmonics_config = {
@@ -69,6 +71,7 @@ static const harmonics_config_t default_harmonics_config = {
 	.hysteresis_db = 3.0f,
 	.readout_hold_s = 0.5f,
 	.harmonics = 10,
+	.initial_f0 = 1000.0f,
 	.min_db = -90,
 	.max_db = 0,
 	.major_db_interval = 10,
@@ -76,9 +79,8 @@ static const harmonics_config_t default_harmonics_config = {
 	.major_color = S9_WHITE,
 	.minor_color = S9_WHITE,
 	.plot_color = S9_ELECTRIC,
-	.marker_color = S9_AMBER,
-	.held_color = S9_SLATE,
 	.readout_color = S9_WHITE,
+	.held_color = S9_SLATE,
 };
 
 // create harmonics; NULL takes the default configuration
@@ -101,7 +103,7 @@ float harmonics_get_pitch_frequency(const harmonics_t *h);
 
 // The last frame's readings of harmonics 1..*count: the readout, levels in
 // dB relative to a full-scale sine, and whether its label is shown, which
-// is what the distortion counts. None before a fundamental is known. Valid
+// is what the distortion counts. None unless the tracker is locked. Valid
 // until the next frame.
 typedef struct {
 	harmonic_readout_t readout;

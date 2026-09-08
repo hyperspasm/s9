@@ -222,9 +222,14 @@ void harmonics_enqueue_audio_data(harmonics_t *h, const void *data, uint32_t siz
 
 // -- analysis
 
-// the axis' right edge: the harmonics across, or the whole band before a fundamental is known
+// the axis' fundamental: the tracker's, or the configured one before it has locked
+static double axis_f0(const harmonics_t *h) {
+	return h->pitch_frequency > 0.0f ? h->pitch_frequency : h->config.initial_f0;
+}
+
+// the axis' right edge: the harmonics across, within the band
 static double axis_end(const harmonics_t *h, double f0, double fs) {
-	double f_end = f0 > 0.0 ? (h->config.harmonics + AXIS_HEADROOM) * f0 : fs / 2.0;
+	double f_end = (h->config.harmonics + AXIS_HEADROOM) * f0;
 	return f_end > fs / 2.0 ? fs / 2.0 : f_end;
 }
 
@@ -276,7 +281,9 @@ static int analyze(harmonics_t *h) {
 	double f_end = axis_end(h, f0, fs);
 	float dt = fft_analyzer_hop_seconds(fa);
 	h->read_count = 0;
-	if (f0 > 0.0) {
+	if (!h->pitch_valid) {
+		memset(h->gates, 0, sizeof(h->gates));   // the labels return through their gates with the lock
+	} else {
 		// the floor beside a harmonic is read short of the next harmonic's lobe
 		long fit = (long)(f0 / delta_f / 2.0) - (long)h->window.reach;
 		uint32_t shoulder = fit < 1 ? 1 : fit < SHOULDER_BINS ? (uint32_t)fit : SHOULDER_BINS;
@@ -409,7 +416,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	uint32_t n = fft_analyzer_fft_len(fa), bins = n / 2 + 1;
 	double fs = fft_analyzer_sample_rate(fa);
 	double delta_f = fs / n;
-	double f0 = h->pitch_frequency;
+	double f0 = axis_f0(h);
 	double f_end = axis_end(h, f0, fs);
 
 	SDL_Rect save_viewport;
@@ -433,36 +440,35 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	SDL_Rect dst = { 0, 0, h->viewport.w, h->viewport.h };
 	SDL_RenderCopy(renderer, h->graticule, NULL, &dst);
 
-	// markers and numbers at the harmonics, and the levels relative to the fundamental's
-	SDL_Color marker = h->pitch_valid ? h->config.marker_color : h->config.held_color;
-	const harmonics_reading_t *h1 = h->read_count ? &h->reads[0] : NULL;
+	// markers and numbers at the harmonics on the axis
+	uint32_t count = h->config.harmonics;
 	char text[LABEL_TEXT];
-	for (uint32_t k = 1; k <= h->read_count; k++) {
-		float x = plot->x + (float)(plot->w * k * f0 / f_end);
-
-		SDL_SET_RENDER_DRAW_COLOR(renderer, &marker);
+	SDL_SET_RENDER_DRAW_COLOR(renderer, &h->config.major_color);
+	for (uint32_t k = 1; k <= count; k++) {
+		double fk = k * f0;
+		if (fk > f_end) break;
+		float x = plot->x + (float)(plot->w * fk / f_end);
 		SDL_RenderDrawLineF(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
-
 		snprintf(text, sizeof(text), "%u", (unsigned)k);
 		label_set(&h->numbers[k - 1], renderer, h->font, h->config.major_color, text);
 		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
+	}
 
-		const harmonics_reading_t *r = &h->reads[k - 1];
-		if (h1->shown && r->shown) snprintf(text, sizeof(text), "%.1f", r->readout.db - h1->readout.db);
+	// the levels relative to the fundamental's, while locked and the fundamental read
+	const harmonics_reading_t *h1 = h->read_count && h->reads[0].shown ? &h->reads[0] : NULL;
+	for (uint32_t k = 1; k <= count; k++) {
+		const harmonics_reading_t *r = k <= h->read_count ? &h->reads[k - 1] : NULL;
+		if (h1 && r && r->shown) snprintf(text, sizeof(text), "%.1f", r->readout.db - h1->readout.db);
 		else text[0] = '\0';
 		label_set(&h->readouts[k - 1], renderer, h->font, h->config.readout_color, text);
-		label_blit(&h->readouts[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
+		if (k * f0 <= f_end)
+			label_blit(&h->readouts[k - 1], renderer, plot->x + (float)(plot->w * k * f0 / f_end), (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
 	}
 
-	// the fundamental, its level, and the distortion
-	if (f0 <= 0.0) {
-		snprintf(text, sizeof(text), "no pitch");
-	} else if (!h1 || !h1->shown) {
-		snprintf(text, sizeof(text), "%.1f Hz%s   H1 not found", f0, h->pitch_valid ? "" : " (held)");
-	} else {
-		snprintf(text, sizeof(text), "%.1f Hz%s   H1 %.1f dB   THD %.3g %%", f0, h->pitch_valid ? "" : " (held)",
-				 h1->readout.db, 100.0 * h->thd);
-	}
+	// the fundamental: its level and the distortion while locked and read
+	if (!h->pitch_valid) snprintf(text, sizeof(text), "%.1f Hz   H1 not found", f0);
+	else if (!h1) snprintf(text, sizeof(text), "%.1f Hz", f0);
+	else snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3g %%", f0, h1->readout.db, 100.0 * h->thd);
 	label_set(&h->header, renderer, h->font, h->pitch_valid ? h->config.readout_color : h->config.held_color, text);
 	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);
 }
