@@ -69,6 +69,25 @@ target_link_libraries(test_resampler
 
 add_test(NAME resampler COMMAND test_resampler)
 
+# DSP tests use the greatest harness and the golden tables from validation/
+set(DSP_TEST_INCLUDES
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/greatest
+    ${CMAKE_CURRENT_SOURCE_DIR}/golden
+)
+
+add_executable(test_fft_analyzer test_fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/window_function.c
+    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
+    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_fft_analyzer PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_fft_analyzer PkgConfig::SDL2 PkgConfig::FFTW3F m)
+add_test(NAME fft_analyzer COMMAND test_fft_analyzer)
+
 add_executable(test_www test_www.c)
 target_link_libraries(test_www s9_www)
 target_compile_definitions(test_www PRIVATE S9_WWW_SRC="${CMAKE_SOURCE_DIR}/www")
