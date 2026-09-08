@@ -35,6 +35,13 @@ def magnitude_db(bins, n):
         return 20.0 * np.log10(mag)
 
 
+def power_db(power, n):
+    """The same scale from per-bin power, |X|^2, as an average over time holds it."""
+    scale = (2.0 / n) ** 2
+    with np.errstate(divide="ignore"):
+        return 10.0 * np.log10(power * scale)
+
+
 def parabola(y0, y1, y2):
     """(offset from the centre sample, peak value) of the parabola through three samples."""
     denom = y0 - 2.0 * y1 + y2
@@ -104,11 +111,17 @@ def corrected(d, peak_db, table):
 
 
 def readouts(bins, n, fs, f0, harmonics, search, table, reach, shoulder, prominence):
-    """A list of (found, frequency, db) for harmonics 1..harmonics. A harmonic
-    is found when the loudest bin within `search` bins of it is a local
-    maximum `prominence` dB above the floor. The shoulder the floor is taken
+    """readouts_db of a spectrum's magnitudes."""
+    return readouts_db(magnitude_db(bins, n), n, fs, f0, harmonics, search, table, reach, shoulder, prominence)
+
+
+def readouts_db(db, n, fs, f0, harmonics, search, table, reach, shoulder, prominence):
+    """A list of (found, frequency, db, prominence) for harmonics 1..harmonics
+    from per-bin levels. A harmonic is found when the loudest bin within
+    `search` bins of it is a local maximum `prominence` dB above the floor;
+    the prominence is reported for any local maximum, -inf without one, so
+    a caller may apply its own thresholds. The shoulder the floor is taken
     from is shortened so it ends before the neighbouring harmonic's lobe."""
-    db = magnitude_db(bins, n)
     last = n // 2 - 1          # the highest bin a parabola can be centred on
     delta_f = fs / n
     spacing = f0 / delta_f     # bins between harmonics
@@ -118,24 +131,25 @@ def readouts(bins, n, fs, f0, harmonics, search, table, reach, shoulder, promine
     for k in range(1, harmonics + 1):
         centre = int(round(k * f0 / delta_f))
         if centre > last or centre < 1:
-            out.append((False, 0.0, 0.0))
+            out.append((False, 0.0, 0.0, -math.inf))
             continue
         lo = max(1, centre - search)
         hi = min(last, centre + search)
         p = lo + int(np.argmax(db[lo:hi + 1]))
         y0, y1, y2 = float(db[p - 1]), float(db[p]), float(db[p + 1])
         if not (y1 > y0 and y1 >= y2):
-            out.append((False, 0.0, 0.0))
+            out.append((False, 0.0, 0.0, -math.inf))
             continue
-        if y1 - floor_db(db, p, reach, shoulder) < prominence:
-            out.append((False, 0.0, 0.0))
+        stands = y1 - floor_db(db, p, reach, shoulder)
+        if stands < prominence:
+            out.append((False, 0.0, 0.0, stands))
             continue
         if not all(math.isfinite(v) for v in (y0, y1, y2)):
-            out.append((True, p * delta_f, y1))
+            out.append((True, p * delta_f, y1, stands))
             continue
         d, peak = parabola(y0, y1, y2)
         off, value = corrected(d, peak, table)
-        out.append((True, (p + off) * delta_f, value))
+        out.append((True, (p + off) * delta_f, value, stands))
     return out
 
 
@@ -145,5 +159,5 @@ def thd(reads):
     if not reads or not reads[0][0]:
         return None
     a1 = 10.0 ** (reads[0][2] / 20.0)
-    power = sum((10.0 ** (db / 20.0)) ** 2 for found, _, db in reads[1:] if found)
+    power = sum((10.0 ** (db / 20.0)) ** 2 for found, _, db, _ in reads[1:] if found)
     return math.sqrt(power) / a1

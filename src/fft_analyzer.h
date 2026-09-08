@@ -30,6 +30,7 @@ typedef struct {
 	float window_skew;
 	fft_analyzer_mode_t mode;
 	uint32_t channel;                  // FFT_ANALYZER_MIX: the channel transformed, or FFT_ANALYZER_CHANNEL_ALL
+	float averaging_s;                 // time constant of the per-bin power average, in seconds of audio; 0 keeps the latest transform's
 } fft_analyzer_config_t;
 
 fft_analyzer_t *fft_analyzer_new(const fft_analyzer_config_t *config);
@@ -62,6 +63,18 @@ uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa);   // spectra per upd
 // the latest transform: fft_len/2 + 1 bins, unscaled. A sine of amplitude a
 // under the normalized window has magnitude a * fft_len / 2 at its bin.
 const fftwf_complex *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index);
+
+// The per-bin power, |X|^2, averaged over the configured time: each update
+// moves it toward the latest transform's by a fraction set by the audio
+// time the update consumed, so the average follows audio time whatever the
+// update rate. fft_len/2 + 1 bins.
+const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index);
+
+// restart the average from the next transform
+void fft_analyzer_reset_power(fft_analyzer_t *fa);
+
+// the audio the last update consumed, in seconds
+float fft_analyzer_hop_seconds(const fft_analyzer_t *fa);
 
 // the window, fft_len values summing to fft_len
 const float *fft_analyzer_window(const fft_analyzer_t *fa);

@@ -30,7 +30,9 @@ typedef struct {
 void harmonic_window_compute(harmonic_window_t *w, const float *window, uint32_t n);
 
 typedef struct {
-	int found;         // a harmonic stands there
+	int peak;          // a local maximum lies there: frequency, db, and prominence are read
+	int found;         // and it stands the prominence asked for above the floor
+	float prominence;  // dB above the floor; -inf without a peak
 	float frequency;   // Hz
 	float db;
 } harmonic_readout_t;
@@ -54,5 +56,16 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 // the harmonics found over the fundamental's, as a ratio. Returns 0, or -1
 // when the fundamental was not found.
 int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd);
+
+// The gate behind one harmonic's label: it opens when the readout's
+// prominence reaches on_db, stays open while the prominence holds off_db,
+// and closes once it has been below that for hold_s seconds. dt_s is the
+// audio time since the last update. Zero-initialize; returns whether open.
+typedef struct {
+	int open;
+	float below_s;   // time spent under off_db while open
+} harmonic_gate_t;
+
+int harmonic_gate_update(harmonic_gate_t *g, const harmonic_readout_t *r, float on_db, float off_db, float hold_s, float dt_s);
 
 #endif /* harmonic_readout_h */

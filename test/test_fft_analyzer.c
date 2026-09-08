@@ -164,6 +164,43 @@ TEST reconfigure_at_next_update(void) {
 	PASS();
 }
 
+// The power average follows audio time: after one time constant of
+// silence it has fallen to 1/e of a steady tone's power, whatever the
+// update rate, and a reset restarts it from the next transform.
+TEST power_average_follows_audio_time(void) {
+	enum { N = 1024, BIN = 100, HOPS = 4 };
+	uint32_t hops[2] = { N, 2 * N };   // two update rates, each update a whole new frame
+	float tau = (float)(HOPS * N) / FS;
+	float *x = malloc(sizeof(float) * N * 2), *silence = calloc(N * 2, sizeof(float));
+	test_signal_t s = { SIGNAL_SINE, (double)BIN * FS / N, 0, 0.5, 0, 0, 0, 0 };
+	test_signal_generate(&s, x, N * 2, FS);
+
+	for (int h = 0; h < 2; h++) {
+		fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){
+			.fft_len = N, .window_function = WINDOW_FUNCTION_HANN, .mode = FFT_ANALYZER_MIX, .averaging_s = tau,
+		});
+		fft_analyzer_prepare_to_stream(fa, &(s9_audio_stream_config_t){
+			.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 1, .buffer_frames = 256, .samples_per_display_frame = hops[h],
+		});
+		for (int i = 0; i < 40; i++) feed(fa, x, hops[h], 1);   // long enough to settle
+		float steady = fft_analyzer_power(fa, 0)[BIN];
+		const fftwf_complex *sp = fft_analyzer_spectrum(fa, 0);
+		ASSERT_IN_RANGE(sp[BIN][0] * sp[BIN][0] + sp[BIN][1] * sp[BIN][1], steady, steady * 1e-4f);
+
+		uint32_t updates = HOPS * N / hops[h];   // one time constant of silence
+		for (uint32_t i = 0; i < updates; i++) feed(fa, silence, hops[h], 1);
+		ASSERT_IN_RANGE(steady * expf(-1.0f), fft_analyzer_power(fa, 0)[BIN], steady * 1e-3f);
+
+		fft_analyzer_reset_power(fa);
+		feed(fa, silence, hops[h], 1);
+		ASSERT_EQ_FMT(0.0f, fft_analyzer_power(fa, 0)[BIN], "%g");
+		fft_analyzer_free(&fa);
+	}
+	free(x);
+	free(silence);
+	PASS();
+}
+
 // The transform length is the power of two at or above sample_rate / resolution.
 TEST fft_len_from_resolution(void) {
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .resolution_hz = 2.0f, .window_function = WINDOW_FUNCTION_HANN });
@@ -188,6 +225,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(mix_selects_a_channel_or_averages);
 	RUN_TEST(history_slides_by_whole_display_frames);
 	RUN_TEST(reconfigure_at_next_update);
+	RUN_TEST(power_average_follows_audio_time);
 	RUN_TEST(fft_len_from_resolution);
 	GREATEST_MAIN_END();
 }

@@ -29,9 +29,12 @@ struct fft_analyzer {
 	uint32_t transforms;
 	fftwf_complex **spectra;      // transforms x (fft_len/2 + 1)
 	fftwf_plan plan;              // frame -> spectrum
+	float **power;                // transforms x (fft_len/2 + 1): the averaged power
+	int power_primed;             // the average holds a transform
+	float hop_s;                  // audio the last update consumed, seconds
 
-	fftwf_plan inverse;           // power -> acf
-	fftwf_complex *power;         // fft_len/2 + 1
+	fftwf_plan inverse;           // product -> acf
+	fftwf_complex *product;       // fft_len/2 + 1: the spectrum times its conjugate
 	float *acf;                   // fft_len
 	float *window_acf;            // fft_len: the window's own autocorrelation, same scaling as acf
 };
@@ -76,8 +79,14 @@ static void free_transform(fft_analyzer_t *fa) {
 		free(fa->spectra);
 		fa->spectra = NULL;
 	}
+	if (fa->power) {
+		for (uint32_t i = 0; i < fa->transforms; i++) free(fa->power[i]);
+		free(fa->power);
+		fa->power = NULL;
+	}
+	fa->power_primed = 0;
 	fa->transforms = 0;
-	if (fa->power) { fftwf_free(fa->power); fa->power = NULL; }
+	if (fa->product) { fftwf_free(fa->product); fa->product = NULL; }
 	if (fa->acf) { fftwf_free(fa->acf); fa->acf = NULL; }
 	if (fa->plan) { fftwf_destroy_plan(fa->plan); fa->plan = NULL; }
 	if (fa->inverse) { fftwf_destroy_plan(fa->inverse); fa->inverse = NULL; }
@@ -87,10 +96,10 @@ static void free_transform(fft_analyzer_t *fa) {
 static void compute_window_acf(fft_analyzer_t *fa) {
 	uint32_t bins = fa->fft_len / 2 + 1;
 	memcpy(fa->frame, fa->window, sizeof(float) * fa->fft_len);
-	fftwf_execute_dft_r2c(fa->plan, fa->frame, fa->power);
+	fftwf_execute_dft_r2c(fa->plan, fa->frame, fa->product);
 	for (uint32_t k = 0; k < bins; k++) {
-		fa->power[k][0] = fa->power[k][0] * fa->power[k][0] + fa->power[k][1] * fa->power[k][1];
-		fa->power[k][1] = 0.0f;
+		fa->product[k][0] = fa->product[k][0] * fa->product[k][0] + fa->product[k][1] * fa->product[k][1];
+		fa->product[k][1] = 0.0f;
 	}
 	fftwf_execute(fa->inverse);
 	memcpy(fa->window_acf, fa->acf, sizeof(float) * fa->fft_len);
@@ -128,13 +137,21 @@ static int alloc_transform(fft_analyzer_t *fa) {
 	fa->plan = fftwf_plan_dft_r2c_1d((int)fa->fft_len, fa->frame, fa->spectra[0], FFTW_ESTIMATE);
 	CHECK_ERROR(fa->plan != NULL, return -1, "fftwf_plan_dft_r2c_1d() failed");
 
-	fa->power = fftwf_malloc(sizeof(fftwf_complex) * bins);
+	fa->power = calloc(transforms, sizeof(*fa->power));
 	CHECK_ALLOC(fa->power, return -1);
+	for (uint32_t i = 0; i < transforms; i++) {
+		fa->power[i] = calloc(bins, sizeof(float));
+		CHECK_ALLOC(fa->power[i], return -1);
+	}
+	fa->power_primed = 0;
+
+	fa->product = fftwf_malloc(sizeof(fftwf_complex) * bins);
+	CHECK_ALLOC(fa->product, return -1);
 	fa->acf = fftwf_malloc(sizeof(float) * fa->fft_len);
 	CHECK_ALLOC(fa->acf, return -1);
 	fa->window_acf = malloc(sizeof(float) * fa->fft_len);
 	CHECK_ALLOC(fa->window_acf, return -1);
-	fa->inverse = fftwf_plan_dft_c2r_1d((int)fa->fft_len, fa->power, fa->acf, FFTW_ESTIMATE);
+	fa->inverse = fftwf_plan_dft_c2r_1d((int)fa->fft_len, fa->product, fa->acf, FFTW_ESTIMATE);
 	CHECK_ERROR(fa->inverse != NULL, return -1, "fftwf_plan_dft_c2r_1d() failed");
 	compute_window_acf(fa);
 	return 0;
@@ -255,6 +272,7 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 		consume = (frames_avail / fa->stream.samples_per_display_frame) * fa->stream.samples_per_display_frame;
 	uint32_t dequeued = ring_buffer_read(fa->rb, (uint8_t *)fa->input, consume * bytes_per_frame);
 	S9_ASSERT(dequeued == consume * bytes_per_frame);
+	fa->hop_s = (float)consume / (float)fa->stream.sample_rate;
 
 	// slide the history: keep what still fits, append the new frames; drop
 	// what cannot be caught up with
@@ -270,11 +288,24 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 	if (kept) memcpy(next, last + consume * channels, kept * bytes_per_frame);
 	if (consume) memcpy(next + kept * channels, fa->input + dropped * channels, consume * bytes_per_frame);
 
+	// the fraction of the way the average moves toward this transform's power
+	float alpha = 1.0f;
+	if (fa->power_primed && fa->config.averaging_s > 0.0f) alpha = 1.0f - expf(-fa->hop_s / fa->config.averaging_s);
+
+	uint32_t bins = fa->fft_len / 2 + 1;
 	for (uint32_t i = 0; i < fa->transforms; i++) {
 		mono_frame(fa, i, fa->frame);
 		for (uint32_t j = 0; j < fa->fft_len; j++) fa->frame[j] *= fa->window[j];
 		fftwf_execute_dft_r2c(fa->plan, fa->frame, fa->spectra[i]);
+
+		const fftwf_complex *s = fa->spectra[i];
+		float *avg = fa->power[i];
+		for (uint32_t k = 0; k < bins; k++) {
+			float p = s[k][0] * s[k][0] + s[k][1] * s[k][1];
+			avg[k] += alpha * (p - avg[k]);
+		}
 	}
+	fa->power_primed = 1;
 }
 
 uint32_t fft_analyzer_fft_len(const fft_analyzer_t *fa) { return fa->fft_len; }
@@ -284,6 +315,16 @@ uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa) { return fa->transfor
 const fftwf_complex *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index) {
 	return index < fa->transforms ? fa->spectra[index] : NULL;
 }
+
+const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index) {
+	return index < fa->transforms ? fa->power[index] : NULL;
+}
+
+void fft_analyzer_reset_power(fft_analyzer_t *fa) {
+	fa->power_primed = 0;
+}
+
+float fft_analyzer_hop_seconds(const fft_analyzer_t *fa) { return fa->hop_s; }
 
 const float *fft_analyzer_window(const fft_analyzer_t *fa) { return fa->window; }
 
@@ -301,8 +342,8 @@ int fft_analyzer_nacf(fft_analyzer_t *fa, uint32_t index, float *nacf, uint32_t 
 	uint32_t bins = fa->fft_len / 2 + 1;
 	const fftwf_complex *spectrum = fa->spectra[index];
 	for (uint32_t k = 0; k < bins; k++) {
-		fa->power[k][0] = spectrum[k][0] * spectrum[k][0] + spectrum[k][1] * spectrum[k][1];
-		fa->power[k][1] = 0.0f;
+		fa->product[k][0] = spectrum[k][0] * spectrum[k][0] + spectrum[k][1] * spectrum[k][1];
+		fa->product[k][1] = 0.0f;
 	}
 	fftwf_execute(fa->inverse);
 

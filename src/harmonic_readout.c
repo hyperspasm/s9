@@ -128,7 +128,7 @@ static double floor_db(const float *db, uint32_t bins, long p, uint32_t reach, u
 
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
 									uint32_t shoulder, float prominence, const harmonic_window_t *w) {
-	harmonic_readout_t r = { 0, 0.0f, 0.0f };
+	harmonic_readout_t r = { 0, 0, -INFINITY, 0.0f, 0.0f };
 	if (bins < 3) return r;
 	long last = (long)bins - 2;   // the highest bin a parabola can be centred on
 	long centre = lrint(centre_hz / delta_f);
@@ -144,8 +144,9 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 
 	double y0 = db[p - 1], y1 = db[p], y2 = db[p + 1];
 	if (!(y1 > y0 && y1 >= y2)) return r;
-	if (y1 - floor_db(db, bins, p, w->reach, shoulder) < prominence) return r;
-	r.found = 1;
+	r.peak = 1;
+	r.prominence = (float)(y1 - floor_db(db, bins, p, w->reach, shoulder));
+	r.found = r.prominence >= prominence;
 	if (!isfinite(y0) || !isfinite(y1) || !isfinite(y2)) {
 		r.frequency = (float)(p * delta_f);
 		r.db = (float)y1;
@@ -159,6 +160,21 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 	r.frequency = (float)((p + off) * delta_f);
 	r.db = (float)(peak - table_at(w->db_bias, a));
 	return r;
+}
+
+int harmonic_gate_update(harmonic_gate_t *g, const harmonic_readout_t *r, float on_db, float off_db, float hold_s, float dt_s) {
+	if (r->peak && r->prominence >= on_db) {
+		g->open = 1;
+		g->below_s = 0.0f;
+	} else if (g->open) {
+		if (r->peak && r->prominence >= off_db) {
+			g->below_s = 0.0f;
+		} else {
+			g->below_s += dt_s;
+			if (g->below_s > hold_s) g->open = 0;
+		}
+	}
+	return g->open;
 }
 
 int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd) {

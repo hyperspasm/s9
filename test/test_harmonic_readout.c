@@ -73,6 +73,7 @@ TEST readouts_match_golden(void) {
 											(float)HARMONICS_GOLDEN_PROMINENCE, &model);
 			ASSERT_EQm(g->label, g->found[k - 1], reads[k - 1].found);
 			if (reads[k - 1].found) {
+				ASSERTm(g->label, reads[k - 1].peak && reads[k - 1].prominence >= HARMONICS_GOLDEN_PROMINENCE);
 				ASSERT_IN_RANGEm(g->label, g->frequency[k - 1], (double)reads[k - 1].frequency, 2e-3);
 				ASSERT_IN_RANGEm(g->label, g->db[k - 1], (double)reads[k - 1].db, 1e-4);
 			}
@@ -125,12 +126,40 @@ TEST calibration_and_range(void) {
 // readouts found: two harmonics at -20 dB give 14.1%, and none without a
 // fundamental.
 TEST thd_from_readouts(void) {
-	harmonic_readout_t reads[4] = { { 1, 100, -6 }, { 1, 200, -26 }, { 0, 0, 0 }, { 1, 400, -26 } };
+	harmonic_readout_t reads[4] = { { 1, 1, 40, 100, -6 }, { 1, 1, 40, 200, -26 }, { 0, 0, 0, 0, 0 }, { 1, 1, 40, 400, -26 } };
 	float thd;
 	ASSERT_EQ(0, harmonic_thd(reads, 4, &thd));
 	ASSERT_IN_RANGE(0.1f * sqrtf(2.0f), thd, 1e-6f);
 	reads[0].found = 0;
 	ASSERT_EQ(-1, harmonic_thd(reads, 4, &thd));
+	PASS();
+}
+
+// The gate opens at the on threshold, holds through dips down to the off
+// threshold, and closes only after the hold time below that.
+TEST gate_has_hysteresis_and_hold(void) {
+	harmonic_gate_t g = { 0 };
+	harmonic_readout_t r = { 1, 0, 0.0f, 0.0f, 0.0f };
+	float on = 10.0f, off = 7.0f, hold = 0.5f, dt = 0.1f;
+
+	r.prominence = 9.0f;
+	ASSERT_FALSE(harmonic_gate_update(&g, &r, on, off, hold, dt));   // never reached on
+	r.prominence = 10.0f;
+	ASSERT(harmonic_gate_update(&g, &r, on, off, hold, dt));
+	r.prominence = 7.0f;
+	ASSERT(harmonic_gate_update(&g, &r, on, off, hold, dt));         // a dip within hysteresis
+	r.prominence = 2.0f;
+	for (int i = 0; i < 5; i++) ASSERT(harmonic_gate_update(&g, &r, on, off, hold, dt));   // held for 0.5 s
+	ASSERT_FALSE(harmonic_gate_update(&g, &r, on, off, hold, dt));   // then closed
+	r.prominence = 8.0f;
+	ASSERT_FALSE(harmonic_gate_update(&g, &r, on, off, hold, dt));   // off is not enough to reopen
+
+	r.prominence = 12.0f;
+	ASSERT(harmonic_gate_update(&g, &r, on, off, hold, dt));
+	r.peak = 0;
+	r.prominence = -INFINITY;
+	ASSERT(harmonic_gate_update(&g, &r, on, off, hold, 0.4f));       // no peak at all counts as below
+	ASSERT_FALSE(harmonic_gate_update(&g, &r, on, off, hold, 0.2f));
 	PASS();
 }
 
@@ -142,5 +171,6 @@ int main(int argc, char **argv) {
 	RUN_TEST(readouts_match_golden);
 	RUN_TEST(calibration_and_range);
 	RUN_TEST(thd_from_readouts);
+	RUN_TEST(gate_has_hysteresis_and_hold);
 	GREATEST_MAIN_END();
 }

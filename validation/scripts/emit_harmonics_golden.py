@@ -63,7 +63,7 @@ def main():
                        c_double(spec.get("amp", 1.0)), c_double(spec.get("phase", 0.0)), spec.get("harmonics", 10), spec.get("seed", 1),
                        c_double(spec.get("noise_amp", 0.0)), fn, c_double(skew), c_double(f0), count, label, label, label,
                        c_double(-1.0 if thd is None else thd)))
-        for k, (found, freq, db) in enumerate(reads, 1):
+        for k, (found, freq, db, _) in enumerate(reads, 1):
             print(f"  {label:<12} H{k:<2} {'found' if found else 'none ':5} {freq:10.3f} Hz {db:8.3f} dB", file=sys.stderr)
         print(f"  {label:<12} THD {'-' if thd is None else '%.4f %%' % (100 * thd)}", file=sys.stderr)
     parts.append("static const harmonics_golden_case_t harmonics_golden_cases[] = {\n" + "\n".join(rows) + "\n};")
