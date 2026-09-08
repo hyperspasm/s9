@@ -140,6 +140,30 @@ TEST history_slides_by_whole_display_frames(void) {
 	PASS();
 }
 
+// A new configuration takes effect at the next update, at its own length.
+TEST reconfigure_at_next_update(void) {
+	enum { N = 1024 };
+	float *x = malloc(sizeof(float) * N * 2);
+	test_signal_t s = { SIGNAL_SINE, 100.0 * FS / N, 0, 0.5, 0, 0, 0 };
+	test_signal_generate(&s, x, N * 2, FS);
+
+	fft_analyzer_t *fa = make(N, FFT_ANALYZER_MIX, 0, WINDOW_FUNCTION_HANN, 0.0f, 1);
+	feed(fa, x, N, 1);
+	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, 100), 1e-3f);
+
+	fft_analyzer_config_t config = *fft_analyzer_config(fa);
+	config.fft_len = N * 2;
+	fft_analyzer_set_config(fa, &config);
+	ASSERT_EQ(N, fft_analyzer_fft_len(fa));
+	feed(fa, x, N * 2, 1);
+	ASSERT_EQ(N * 2, fft_analyzer_fft_len(fa));
+	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, 200), 1e-3f);
+
+	free(x);
+	fft_analyzer_free(&fa);
+	PASS();
+}
+
 // The transform length is the power of two at or above sample_rate / resolution.
 TEST fft_len_from_resolution(void) {
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .resolution_hz = 2.0f, .window_function = WINDOW_FUNCTION_HANN });
@@ -163,6 +187,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(spectrum_is_calibrated);
 	RUN_TEST(mix_selects_a_channel_or_averages);
 	RUN_TEST(history_slides_by_whole_display_frames);
+	RUN_TEST(reconfigure_at_next_update);
 	RUN_TEST(fft_len_from_resolution);
 	GREATEST_MAIN_END();
 }

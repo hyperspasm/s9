@@ -1,0 +1,34 @@
+#ifndef graph_axis_h
+#define graph_axis_h
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+
+#include <stddef.h>
+#include <stdint.h>
+
+// The parts of a graph that do not depend on its frequency axis: the dB axis
+// up the left edge of a plot rectangle, and the labels' formats.
+
+typedef struct {
+	int32_t min_db, max_db;
+	uint32_t major_interval;   // labelled lines across the plot, in dB
+	uint32_t minor_interval;   // ticks at the left edge, in dB
+	SDL_Color major_color;     // labels
+	SDL_Color minor_color;     // lines and ticks
+} graph_db_axis_t;
+
+// "20 Hz", "1 KHz", "1.500 KHz": a frequency with its unit, into buf
+void graph_format_hz(char *buf, size_t size, double hz);
+void graph_format_db(char *buf, size_t size, int db);
+
+// the room the labels need: the widest label and the label height
+void graph_db_axis_measure(const graph_db_axis_t *axis, TTF_Font *font, int *width, int *height);
+
+// the y of a dB value within a plot rectangle: max_db at the top
+float graph_db_axis_y(const graph_db_axis_t *axis, const SDL_Rect *plot, float db);
+
+// lines, ticks, and labels; labels end label_margin left of the plot
+void graph_db_axis_draw(const graph_db_axis_t *axis, SDL_Renderer *renderer, TTF_Font *font, const SDL_Rect *plot, int label_margin);
+
+#endif /* graph_axis_h */

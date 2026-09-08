@@ -56,48 +56,48 @@ static const double harmonics_golden_blackman_harris_offset_bias[33] = {
 /* kind: 0 sine, 1 sawtooth, 2 square, 3 twin, 4 noise, 5 silence */
 typedef struct { const char *label; int kind; double freq, freq2, amp, phase; unsigned harmonics, seed; int window; double skew; double f0; unsigned count; const int *found; const double *frequency; const double *db; } harmonics_golden_case_t;
 static const int harmonics_golden_saw_220_found[12] = {
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
 };
 static const double harmonics_golden_saw_220_frequency[12] = {
 	219.98194324523948, 439.99971785557386, 660.00722979856425, 880.00372421671057,
 	1100.006868117933, 1320.0178479861866, 1540.0012305191974, 1760.045142635988,
-	1979.9956523579808, 2200.0360037665264, 2556.7428793174518, 3029.6513680081716,
+	1979.9956523579808, 2200.0360037665264, 0, 0,
 };
 static const double harmonics_golden_saw_220_db[12] = {
 	-9.9213509677492606, -15.965498880091911, -19.499116993570773, -21.978517415377322,
 	-23.945359415325434, -25.484891507531248, -26.870208081228714, -28.052165834199471,
-	-29.048309000929851, -29.996627396896116, -75.868127720684328, -78.830426862569865,
+	-29.048309000929851, -29.996627396896116, 0, 0,
 };
 static const int harmonics_golden_square_300_found[8] = {
-	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 0, 1, 0, 1, 0, 1, 0,
 };
 static const double harmonics_golden_square_300_frequency[8] = {
-	300.00055811308374, 357.68441195382331, 900.0155212513265, 64474.328448944441,
-	1500.0227064408641, 2050.4147629767913, 2100.0030913926935, 2404.5677321989328,
+	300.00055811308374, 0, 900.0155212513265, 0,
+	1500.0227064408641, 0, 2100.0030913926935, 0,
 };
 static const double harmonics_golden_square_300_db[8] = {
-	-3.9208254369334568, -61.661057459106068, -13.446159858728365, -1153.994614119717,
-	-17.937639454666048, -68.3001718311274, -20.860688061111127, -68.836655833254753,
+	-3.9208254369334568, 0, -13.446159858728365, 0,
+	-17.937639454666048, 0, -20.860688061111127, 0,
 };
 static const int harmonics_golden_sine_5000_found[6] = {
-	1, 1, 1, 1, 0, 0,
+	1, 0, 0, 0, 0, 0,
 };
 static const double harmonics_golden_sine_5000_frequency[6] = {
-	5000.0001917557802, 15472.343556974778, 15521.660663137893, 19906.712379856737,
+	5000.0001917557802, 0, 0, 0,
 	0, 0,
 };
 static const double harmonics_golden_sine_5000_db[6] = {
-	4.3363865967482873e-05, -84.907679678573615, -85.533141843794112, -87.041373391517183,
+	4.3363865967482873e-05, 0, 0, 0,
 	0, 0,
 };
 static const int harmonics_golden_sine_offbin_found[3] = {
-	1, 1, 1,
+	1, 0, 0,
 };
 static const double harmonics_golden_sine_offbin_frequency[3] = {
-	440.7000126011306, 1243.7472928420248, 2113.5064868409145,
+	440.7000126011306, 0, 0,
 };
 static const double harmonics_golden_sine_offbin_db[3] = {
-	-12.041011406927526, -86.796959894536585, -92.318833224541478,
+	-12.041011406927526, 0, 0,
 };
 static const int harmonics_golden_saw_110_bh_found[16] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,

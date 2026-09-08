@@ -2,6 +2,7 @@
 #include "s9.h"
 #include "s9_font.h"
 #include "draw_sdl.h"
+#include "graph_axis.h"
 
 typedef struct fresp_graph {
 	SDL_Renderer *renderer;
@@ -64,68 +65,15 @@ void fresp_graph_free(fresp_graph_t **frg) {
 	}
 }
 
-// asprintf implementation, for portability
-static int fresp_graph_asprintf(char **strp, const char *fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-	int size = vsnprintf(NULL, 0, fmt, args);
-	va_end(args);
-	
-	if (size < 0) return -1;
-	
-	*strp = (char *)malloc(size + 1);
-	if (!*strp) return -1;
-	
-	va_start(args, fmt);
-	int result = vsnprintf(*strp, size + 1, fmt, args);
-	va_end(args);
-	
-	if (result < 0) {
-		free(*strp);
-		*strp = NULL;
-	}
-	
-	return result;
-}
-
-// allocates and returns a Hz/KHz/MHz/GHz string
-static char* create_hz_string(long int freq) {
-	char *ret = NULL;
-	
-	if(freq >= 1000000000) {
-		if(fmodf(freq, 1000000000.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f GHz", freq / 1000000000.f);
-		} else {
-			fresp_graph_asprintf(&ret, "%d GHz", freq / 1000000000);
-		}
-	} else if(freq >= 1000000) {
-		if(fmodf(freq, 1000000.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f MHz", freq / 1000000.f);
-		} else {
-			fresp_graph_asprintf(&ret, "%d MHz", freq / 1000000);
-		}
-	} else if(freq >= 1000) {
-		if(fmodf(freq, 1000.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f KHz", freq / 1000.f);
-		} else {
-			fresp_graph_asprintf(&ret, "%d KHz", freq / 1000);
-		}
-	} else {
-		if(fmodf(freq, 1.f) != 0.f) {
-			fresp_graph_asprintf(&ret, "%0.3f Hz", freq);
-		} else {
-			fresp_graph_asprintf(&ret, "%d Hz", freq);
-		}
-	}
-	
-	return ret;
-}
-
-static char* create_db_string(int db) {
-	char *ret = NULL;
-	fresp_graph_asprintf(&ret, "%d dB", db);
-	
-	return ret;
+static graph_db_axis_t db_axis(const fresp_graph_t *frg) {
+	return (graph_db_axis_t){
+		.min_db = frg->config.min_db,
+		.max_db = frg->config.max_db,
+		.major_interval = frg->config.major_db_interval,
+		.minor_interval = frg->config.minor_db_interval,
+		.major_color = frg->config.major_color,
+		.minor_color = frg->config.minor_color,
+	};
 }
 
 // measures unit labels and sets plot_rect member accordingly
@@ -144,20 +92,16 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 			
 			if(freq == step) {
 				// major tick
-				int ret = -1;
-				char *str = create_hz_string(freq);
-				if(str) {
-					int width, height;
-					ret = TTF_SizeUTF8(font, str, &width, &height);
-					if(ret == 0) {
-						if(bottom_margin < height) {
-							bottom_margin = height;
-						}
+				char label[32];
+				graph_format_hz(label, sizeof(label), freq);
+				int width, height;
+				int ret = TTF_SizeUTF8(font, label, &width, &height);
+				if(ret == 0) {
+					if(bottom_margin < height) {
+						bottom_margin = height;
 					}
-					free(str);
-					str = NULL;
 				}
-				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
+				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", label);
 			}
 			
 			freq = step * (1.f + floorf(freq / step));
@@ -166,58 +110,38 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 		// handle max_freq
 		if(powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq) {
 			// major tick
-			int ret = -1;
-			char *str = create_hz_string(frg->config.max_freq);
-			if(str) {
-				int width, height;
-				ret = TTF_SizeUTF8(font, str, &width, &height);
-				if(ret == 0) {
-					if(bottom_margin < height) {
-						bottom_margin = height;
-					}
-					
-					if(right_margin < width / 2) {
-						right_margin = width / 2;
-					}
+			char label[32];
+			graph_format_hz(label, sizeof(label), frg->config.max_freq);
+			int width, height;
+			int ret = TTF_SizeUTF8(font, label, &width, &height);
+			if(ret == 0) {
+				if(bottom_margin < height) {
+					bottom_margin = height;
 				}
-				free(str);
-				str = NULL;
+				
+				if(right_margin < width / 2) {
+					right_margin = width / 2;
+				}
 			}
-			CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
+			CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", label);
 		}
 	}
 	
 	// set margins to make room for db labels
 	{
-		int db = frg->config.max_db;
-		while (db >= frg->config.min_db) {
-			if(db % (int)frg->config.major_db_interval == 0) {
-				// major tick
-				int ret = -1;
-				char *str = create_db_string((int)db);
-				if(str) {
-					int width, height;
-					ret = TTF_SizeUTF8(font, str, &width, &height);
-					if(ret == 0) {
-						if(left_margin < width) {
-							left_margin = width;
-						}
-						
-						if(top_margin < height / 2) {
-							top_margin = height / 2;
-						}
-						
-						if(bottom_margin < height / 2) {
-							bottom_margin = height / 2;
-						}
-					}
-					free(str);
-					str = NULL;
-				}
-				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", str);
-			}
-			
-			db--;
+		graph_db_axis_t axis = db_axis(frg);
+		int width, height;
+		graph_db_axis_measure(&axis, font, &width, &height);
+		if(left_margin < width) {
+			left_margin = width;
+		}
+		
+		if(top_margin < height / 2) {
+			top_margin = height / 2;
+		}
+		
+		if(bottom_margin < height / 2) {
+			bottom_margin = height / 2;
 		}
 	}
 	
@@ -261,18 +185,15 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 					sdl_polygon_free(&line);
 				}
 				
-				char *label = create_hz_string(freq);
-				if(label) {
-					draw_sdl_render_text_at_position(renderer,
-											font,
-											label,
-											ANCHOR_TOP_MIDDLE,
-											frg->config.major_color,
-											frg->plot_rect.x + x,
-											frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
-					free(label);
-					label = NULL;
-				}
+				char label[32];
+				graph_format_hz(label, sizeof(label), freq);
+				draw_sdl_render_text_at_position(renderer,
+										font,
+										label,
+										ANCHOR_TOP_MIDDLE,
+										frg->config.major_color,
+										frg->plot_rect.x + x,
+										frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
 				
 			} else {
 				float x1, x2, y1, y2;
@@ -301,18 +222,15 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 				sdl_polygon_free(&line);
 			}
 
-			char *label = create_hz_string(frg->config.max_freq);
-			if(label) {
-				draw_sdl_render_text_at_position(renderer,
-										font,
-										label,
-										ANCHOR_TOP_MIDDLE,
-										frg->config.major_color,
-										frg->plot_rect.x + frg->plot_rect.w,
-										frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
-				free(label);
-				label = NULL;
-			}
+			char label[32];
+			graph_format_hz(label, sizeof(label), frg->config.max_freq);
+			draw_sdl_render_text_at_position(renderer,
+									font,
+									label,
+									ANCHOR_TOP_MIDDLE,
+									frg->config.major_color,
+									frg->plot_rect.x + frg->plot_rect.w,
+									frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
 			
 		} else {
 			float x1, x2, y1, y2;
@@ -327,45 +245,8 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	
 	// draw db graticule
 	{
-		float db_scale = (float)frg->plot_rect.h / (frg->config.max_db - frg->config.min_db);
-		
-		int db = frg->config.max_db;
-		while (db >= frg->config.min_db) {
-			float x1, x2, y1, y2;
-			
-			float y = (frg->config.max_db - db) * db_scale;
-			
-			if(db % (int)frg->config.major_db_interval == 0) {
-				// major tick
-				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
-				x1 = frg->plot_rect.x;
-				x2 = frg->plot_rect.x + frg->plot_rect.w;
-				y1 = y2 = frg->plot_rect.y + y;
-				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
-				
-				char *label = create_db_string(db);
-				if(label) {
-					draw_sdl_render_text_at_position(renderer,
-											font,
-											label,
-											ANCHOR_MIDDLE_RIGHT,
-											frg->config.major_color,
-											frg->plot_rect.x - LABEL_MARGIN,
-											frg->plot_rect.y + y);
-					free(label);
-					label = NULL;
-				}
-			} else if(db % (int)frg->config.minor_db_interval == 0) {
-				// minor tick
-				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
-				x1 = frg->plot_rect.x;
-				x2 = frg->plot_rect.x + 6.;
-             	y1 = y2 = frg->plot_rect.y + y;
-				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
-			}
-			
-			db--;
-		}
+		graph_db_axis_t axis = db_axis(frg);
+		graph_db_axis_draw(&axis, renderer, font, &frg->plot_rect, LABEL_MARGIN);
 	}
 	
 	// draw frame

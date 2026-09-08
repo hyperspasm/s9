@@ -70,7 +70,10 @@ def corrected(d, peak_db, table):
 
 
 def readouts(bins, n, fs, f0, harmonics, search, table):
-    """A list of (found, frequency, db) for harmonics 1..harmonics."""
+    """A list of (found, frequency, db) for harmonics 1..harmonics. A harmonic
+    is found when the loudest bin within `search` bins of it is a local
+    maximum; on a slope, the skirt of something louder nearby, there is no
+    peak to read."""
     db = magnitude_db(bins, n)
     last = n // 2 - 1          # the highest bin a parabola can be centred on
     delta_f = fs / n
@@ -84,6 +87,9 @@ def readouts(bins, n, fs, f0, harmonics, search, table):
         hi = min(last, centre + search)
         p = lo + int(np.argmax(db[lo:hi + 1]))
         y0, y1, y2 = float(db[p - 1]), float(db[p]), float(db[p + 1])
+        if not (y1 > y0 and y1 >= y2):
+            out.append((False, 0.0, 0.0))
+            continue
         if not all(math.isfinite(v) for v in (y0, y1, y2)):
             out.append((True, p * delta_f, y1))
             continue

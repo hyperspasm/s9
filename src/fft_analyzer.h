@@ -35,6 +35,12 @@ typedef struct {
 fft_analyzer_t *fft_analyzer_new(const fft_analyzer_config_t *config);
 void fft_analyzer_free(fft_analyzer_t **fa);
 
+// Replace the whole configuration; the next update applies it, restarting
+// the history at the new length. The audio queue is untouched, so the audio
+// thread may keep enqueueing meanwhile.
+void fft_analyzer_set_config(fft_analyzer_t *fa, const fft_analyzer_config_t *config);
+const fft_analyzer_config_t *fft_analyzer_config(const fft_analyzer_t *fa);
+
 // FFT_ANALYZER_MIX: the channel transformed from the next update on
 void fft_analyzer_set_channel(fft_analyzer_t *fa, uint32_t channel);
 uint32_t fft_analyzer_channel(const fft_analyzer_t *fa);

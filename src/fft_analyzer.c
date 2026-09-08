@@ -10,12 +10,17 @@
 
 struct fft_analyzer {
 	fft_analyzer_config_t config;
-	uint32_t channel;             // FFT_ANALYZER_MIX: the channel transformed
+	fft_analyzer_config_t pending;   // applied at the next update
+	int reconfigure;
 
 	int streaming;
 	s9_audio_stream_config_t stream;
+
+	// the queue, shared with the audio thread
 	ring_buffer_t *rb;            // interleaved frames from the audio thread
 	float *input;                 // frames dequeued by one update
+
+	// the transform, the render thread's alone
 	uint32_t fft_len;
 	float *history[2];            // the last fft_len frames, interleaved; two so one can be shifted into the other
 	int current;                  // the history holding the latest frames
@@ -42,23 +47,24 @@ static uint32_t next_power_of_2(uint32_t n) {
 	return n + 1;
 }
 
-// -- lifecycle
+// -- allocation
 
-fft_analyzer_t *fft_analyzer_new(const fft_analyzer_config_t *config) {
-	fft_analyzer_t *fa = malloc(sizeof(fft_analyzer_t));
-	CHECK_ALLOC(fa, return NULL);
-	memset(fa, 0, sizeof(*fa));
-	fa->config = *config;
-	fa->channel = config->channel;
-	return fa;
-}
-
-static void free_dsp_allocations(fft_analyzer_t *fa) {
-	fa->streaming = 0;
-	fa->stream.audio_format.sample_type = S9_SAMPLE_NONE;
-
+static void free_queue(fft_analyzer_t *fa) {
 	if (fa->rb) ring_buffer_free(&fa->rb);
 	free(fa->input); fa->input = NULL;
+}
+
+static int alloc_queue(fft_analyzer_t *fa) {
+	uint32_t bytes_per_frame = fa->stream.audio_format.bytes_per_sample * fa->stream.channels;
+	uint32_t queue_bytes = QUEUE_DISPLAY_FRAMES * bytes_per_frame * fa->stream.samples_per_display_frame;
+	fa->rb = ring_buffer_new(queue_bytes);
+	CHECK_ALLOC(fa->rb, return -1);
+	fa->input = malloc(queue_bytes);
+	CHECK_ALLOC(fa->input, return -1);
+	return 0;
+}
+
+static void free_transform(fft_analyzer_t *fa) {
 	free(fa->history[0]); fa->history[0] = NULL;
 	free(fa->history[1]); fa->history[1] = NULL;
 	free(fa->window); fa->window = NULL;
@@ -77,24 +83,6 @@ static void free_dsp_allocations(fft_analyzer_t *fa) {
 	if (fa->inverse) { fftwf_destroy_plan(fa->inverse); fa->inverse = NULL; }
 }
 
-void fft_analyzer_free(fft_analyzer_t **fa) {
-	if (fa && *fa) {
-		free_dsp_allocations(*fa);
-		free(*fa);
-		*fa = NULL;
-	}
-}
-
-void fft_analyzer_set_channel(fft_analyzer_t *fa, uint32_t channel) {
-	fa->channel = channel;
-}
-
-uint32_t fft_analyzer_channel(const fft_analyzer_t *fa) {
-	return fa->channel;
-}
-
-// -- streaming
-
 // the window's autocorrelation, through the same transforms the frames use
 static void compute_window_acf(fft_analyzer_t *fa) {
 	uint32_t bins = fa->fft_len / 2 + 1;
@@ -108,60 +96,105 @@ static void compute_window_acf(fft_analyzer_t *fa) {
 	memcpy(fa->window_acf, fa->acf, sizeof(float) * fa->fft_len);
 }
 
-void fft_analyzer_prepare_to_stream(fft_analyzer_t *fa, const s9_audio_stream_config_t *stream_config) {
-	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
-	if (fa->streaming && S9_AUDIO_STREAM_CONFIG_EQUALS(fa->stream, *stream_config)) return;
-
-	free_dsp_allocations(fa);
-
-	uint32_t channels = stream_config->channels;
+static int alloc_transform(fft_analyzer_t *fa) {
+	uint32_t channels = fa->stream.channels;
 	fa->fft_len = fa->config.fft_len ? fa->config.fft_len
-	                                 : next_power_of_2((uint32_t)((float)stream_config->sample_rate / fa->config.resolution_hz));
+	                                 : next_power_of_2((uint32_t)((float)fa->stream.sample_rate / fa->config.resolution_hz));
 	S9_LOG_DEBUG("fft_analyzer: %u point transform", fa->fft_len);
-
-	uint32_t bytes_per_frame = stream_config->audio_format.bytes_per_sample * channels;
-	uint32_t queue_bytes = QUEUE_DISPLAY_FRAMES * bytes_per_frame * stream_config->samples_per_display_frame;
-	fa->rb = ring_buffer_new(queue_bytes);
-	CHECK_ALLOC(fa->rb, return);
-	fa->input = malloc(queue_bytes);
-	CHECK_ALLOC(fa->input, return);
 
 	for (int i = 0; i < 2; i++) {
 		fa->history[i] = calloc(fa->fft_len * channels, sizeof(float));
-		CHECK_ALLOC(fa->history[i], return);
+		CHECK_ALLOC(fa->history[i], return -1);
 	}
 	fa->current = 0;
 
 	fa->window = malloc(sizeof(float) * fa->fft_len);
-	CHECK_ALLOC(fa->window, return);
+	CHECK_ALLOC(fa->window, return -1);
 	create_window_function(fa->config.window_function, fa->fft_len, 1, fa->config.window_skew, fa->window);
 
 	fa->frame = fftwf_malloc(sizeof(float) * fa->fft_len);
-	CHECK_ALLOC(fa->frame, return);
+	CHECK_ALLOC(fa->frame, return -1);
 
-	fa->transforms = fa->config.mode == FFT_ANALYZER_MIX ? 1 : channels;
-	fa->spectra = calloc(fa->transforms, sizeof(*fa->spectra));
-	CHECK_ALLOC(fa->spectra, return);
+	uint32_t transforms = fa->config.mode == FFT_ANALYZER_MIX ? 1 : channels;
+	fa->spectra = calloc(transforms, sizeof(*fa->spectra));
+	CHECK_ALLOC(fa->spectra, return -1);
+	fa->transforms = transforms;
 	uint32_t bins = fa->fft_len / 2 + 1;
-	for (uint32_t i = 0; i < fa->transforms; i++) {
+	for (uint32_t i = 0; i < transforms; i++) {
 		fa->spectra[i] = fftwf_malloc(sizeof(fftwf_complex) * bins);
-		CHECK_ALLOC(fa->spectra[i], return);
+		CHECK_ALLOC(fa->spectra[i], return -1);
 		memset(fa->spectra[i], 0, sizeof(fftwf_complex) * bins);
 	}
 	fa->plan = fftwf_plan_dft_r2c_1d((int)fa->fft_len, fa->frame, fa->spectra[0], FFTW_ESTIMATE);
-	CHECK_ERROR(fa->plan != NULL, return, "fftwf_plan_dft_r2c_1d() failed");
+	CHECK_ERROR(fa->plan != NULL, return -1, "fftwf_plan_dft_r2c_1d() failed");
 
 	fa->power = fftwf_malloc(sizeof(fftwf_complex) * bins);
-	CHECK_ALLOC(fa->power, return);
+	CHECK_ALLOC(fa->power, return -1);
 	fa->acf = fftwf_malloc(sizeof(float) * fa->fft_len);
-	CHECK_ALLOC(fa->acf, return);
+	CHECK_ALLOC(fa->acf, return -1);
 	fa->window_acf = malloc(sizeof(float) * fa->fft_len);
-	CHECK_ALLOC(fa->window_acf, return);
+	CHECK_ALLOC(fa->window_acf, return -1);
 	fa->inverse = fftwf_plan_dft_c2r_1d((int)fa->fft_len, fa->power, fa->acf, FFTW_ESTIMATE);
-	CHECK_ERROR(fa->inverse != NULL, return, "fftwf_plan_dft_c2r_1d() failed");
+	CHECK_ERROR(fa->inverse != NULL, return -1, "fftwf_plan_dft_c2r_1d() failed");
 	compute_window_acf(fa);
+	return 0;
+}
 
+// -- lifecycle
+
+fft_analyzer_t *fft_analyzer_new(const fft_analyzer_config_t *config) {
+	fft_analyzer_t *fa = malloc(sizeof(fft_analyzer_t));
+	CHECK_ALLOC(fa, return NULL);
+	memset(fa, 0, sizeof(*fa));
+	fa->config = *config;
+	return fa;
+}
+
+void fft_analyzer_free(fft_analyzer_t **fa) {
+	if (fa && *fa) {
+		free_transform(*fa);
+		free_queue(*fa);
+		free(*fa);
+		*fa = NULL;
+	}
+}
+
+void fft_analyzer_set_config(fft_analyzer_t *fa, const fft_analyzer_config_t *config) {
+	fa->pending = *config;
+	fa->reconfigure = 1;
+}
+
+const fft_analyzer_config_t *fft_analyzer_config(const fft_analyzer_t *fa) {
+	return &fa->config;
+}
+
+void fft_analyzer_set_channel(fft_analyzer_t *fa, uint32_t channel) {
+	fa->config.channel = channel;
+}
+
+uint32_t fft_analyzer_channel(const fft_analyzer_t *fa) {
+	return fa->config.channel;
+}
+
+// -- streaming
+
+void fft_analyzer_prepare_to_stream(fft_analyzer_t *fa, const s9_audio_stream_config_t *stream_config) {
+	CHECK_PARAMETER(stream_config->audio_format.sample_type == S9_SAMPLE_FLOAT32, return);
+	if (fa->streaming && S9_AUDIO_STREAM_CONFIG_EQUALS(fa->stream, *stream_config)) return;
+
+	fa->streaming = 0;
+	free_transform(fa);
+	free_queue(fa);
 	fa->stream = *stream_config;
+	if (fa->reconfigure) {
+		fa->config = fa->pending;
+		fa->reconfigure = 0;
+	}
+	if (alloc_queue(fa) != 0 || alloc_transform(fa) != 0) {
+		free_transform(fa);
+		free_queue(fa);
+		return;
+	}
 	fa->streaming = 1;
 }
 
@@ -183,7 +216,7 @@ void fft_analyzer_enqueue_audio_data(fft_analyzer_t *fa, const void *data, uint3
 static void mono_frame(const fft_analyzer_t *fa, uint32_t index, float *dst) {
 	uint32_t channels = fa->stream.channels;
 	const float *src = fa->history[fa->current];
-	uint32_t channel = fa->config.mode == FFT_ANALYZER_MIX ? fa->channel : index;
+	uint32_t channel = fa->config.mode == FFT_ANALYZER_MIX ? fa->config.channel : index;
 
 	if (channel < channels) {
 		for (uint32_t i = 0; i < fa->fft_len; i++) dst[i] = src[i * channels + channel];
@@ -200,6 +233,17 @@ static void mono_frame(const fft_analyzer_t *fa, uint32_t index, float *dst) {
 
 void fft_analyzer_update(fft_analyzer_t *fa) {
 	if (!fa->streaming) return;
+
+	if (fa->reconfigure) {
+		fa->config = fa->pending;
+		fa->reconfigure = 0;
+		free_transform(fa);
+		if (alloc_transform(fa) != 0) {
+			free_transform(fa);
+			fa->streaming = 0;
+			return;
+		}
+	}
 
 	uint32_t channels = fa->stream.channels;
 	uint32_t bytes_per_frame = fa->stream.audio_format.bytes_per_sample * channels;

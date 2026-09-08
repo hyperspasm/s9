@@ -1,0 +1,119 @@
+#include "harmonic_readout.h"
+
+#include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define OFFSET_MAX 0.5   // the table's range of reported offsets
+
+void harmonic_magnitude_db(const float *spectrum, uint32_t bins, uint32_t n, float *db) {
+	double scale = 2.0 / n;
+	for (uint32_t k = 0; k < bins; k++) {
+		double re = spectrum[2 * k], im = spectrum[2 * k + 1];
+		double mag = sqrt(re * re + im * im) * scale;
+		db[k] = mag > 0.0 ? (float)(20.0 * log10(mag)) : -INFINITY;
+	}
+}
+
+// (offset from the centre sample, peak value) of the parabola through three samples
+static void parabola(double y0, double y1, double y2, double *d, double *peak) {
+	double denom = y0 - 2.0 * y1 + y2;
+	*d = denom != 0.0 ? 0.5 * (y0 - y2) / denom : 0.0;
+	*peak = y1 - 0.25 * (y0 - y2) * *d;
+}
+
+// the window's transform magnitude in dB relative to its peak, delta bins from its centre
+static double lobe_db(const float *w, uint32_t n, double delta) {
+	double theta = -2.0 * M_PI * delta / n;
+	double c = cos(theta), s = sin(theta);
+	double re = 1.0, im = 0.0, sum_re = 0.0, sum_im = 0.0, sum_w = 0.0;
+	for (uint32_t j = 0; j < n; j++) {
+		if ((j & 255) == 0) {
+			// restart the rotation from an exact value so its rounding does not accumulate
+			re = cos(theta * j);
+			im = sin(theta * j);
+		}
+		sum_re += w[j] * re;
+		sum_im += w[j] * im;
+		sum_w += w[j];
+		double next = re * c - im * s;
+		im = re * s + im * c;
+		re = next;
+	}
+	return 20.0 * log10(hypot(sum_re, sum_im) / sum_w);
+}
+
+// linear interpolation of a table over increasing xp, held at the ends
+static double interp(double x, const double *xp, const double *fp, uint32_t m) {
+	if (x <= xp[0]) return fp[0];
+	if (x >= xp[m - 1]) return fp[m - 1];
+	uint32_t i = 0;
+	while (i + 2 < m && xp[i + 1] <= x) i++;
+	double t = (x - xp[i]) / (xp[i + 1] - xp[i]);
+	return fp[i] + t * (fp[i + 1] - fp[i]);
+}
+
+void harmonic_correction_compute(harmonic_correction_t *c, const float *window, uint32_t n) {
+	enum { SAMPLES = 4 * HARMONIC_CORRECTION_POINTS };
+	double reported[SAMPLES], db_bias[SAMPLES], offset_bias[SAMPLES];
+	for (int i = 0; i < SAMPLES; i++) {
+		double truth = OFFSET_MAX * i / (SAMPLES - 1);
+		double y0 = lobe_db(window, n, -1.0 - truth);
+		double y1 = lobe_db(window, n, 0.0 - truth);
+		double y2 = lobe_db(window, n, 1.0 - truth);
+		double d, peak;
+		parabola(y0, y1, y2, &d, &peak);
+		reported[i] = d;
+		db_bias[i] = peak;   // the true peak is 0 dB by construction
+		offset_bias[i] = d - truth;
+	}
+	for (int g = 0; g < HARMONIC_CORRECTION_POINTS; g++) {
+		double x = OFFSET_MAX * g / (HARMONIC_CORRECTION_POINTS - 1);
+		c->db_bias[g] = interp(x, reported, db_bias, SAMPLES);
+		c->offset_bias[g] = interp(x, reported, offset_bias, SAMPLES);
+	}
+}
+
+// a table value at a reported offset, between the uniformly spaced points
+static double table_at(const double *table, double offset) {
+	double pos = offset / OFFSET_MAX * (HARMONIC_CORRECTION_POINTS - 1);
+	int i = (int)pos;
+	if (i >= HARMONIC_CORRECTION_POINTS - 1) return table[HARMONIC_CORRECTION_POINTS - 1];
+	double t = pos - i;
+	return table[i] + t * (table[i + 1] - table[i]);
+}
+
+harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
+									const harmonic_correction_t *c) {
+	harmonic_readout_t r = { 0, 0.0f, 0.0f };
+	if (bins < 3) return r;
+	long last = (long)bins - 2;   // the highest bin a parabola can be centred on
+	long centre = lrint(centre_hz / delta_f);
+	if (centre < 1 || centre > last) return r;
+
+	long lo = centre - (long)search, hi = centre + (long)search;
+	if (lo < 1) lo = 1;
+	if (hi > last) hi = last;
+	long p = lo;
+	for (long i = lo + 1; i <= hi; i++)
+		if (db[i] > db[p]) p = i;
+
+	double y0 = db[p - 1], y1 = db[p], y2 = db[p + 1];
+	if (!(y1 > y0 && y1 >= y2)) return r;
+	r.found = 1;
+	if (!isfinite(y0) || !isfinite(y1) || !isfinite(y2)) {
+		r.frequency = (float)(p * delta_f);
+		r.db = (float)y1;
+		return r;
+	}
+
+	double d, peak;
+	parabola(y0, y1, y2, &d, &peak);
+	double a = fabs(d) < OFFSET_MAX ? fabs(d) : OFFSET_MAX;
+	double off = d - copysign(table_at(c->offset_bias, a), d);
+	r.frequency = (float)((p + off) * delta_f);
+	r.db = (float)(peak - table_at(c->db_bias, a));
+	return r;
+}
