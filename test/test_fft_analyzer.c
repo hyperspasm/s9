@@ -201,6 +201,36 @@ TEST power_average_follows_audio_time(void) {
 	PASS();
 }
 
+// The average does not start until the history has filled: a tone arriving
+// in quarter frames reads its full power the moment the frame is full,
+// with nothing of the partial frames in it, and averages from the next.
+TEST power_average_waits_for_a_full_frame(void) {
+	enum { N = 1024, BIN = 100, HOP = N / 4 };
+	float *x = malloc(sizeof(float) * N);
+	test_signal_t s = { SIGNAL_SINE, (double)BIN * FS / N, 0, 0.5, 0, 0, 0, 0 };
+	test_signal_generate(&s, x, N, FS);
+
+	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){
+		.fft_len = N, .window_function = WINDOW_FUNCTION_HANN, .mode = FFT_ANALYZER_MIX, .averaging_s = 10.0f,
+	});
+	fft_analyzer_prepare_to_stream(fa, &(s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 1, .buffer_frames = 256, .samples_per_display_frame = HOP,
+	});
+	for (int i = 0; i < 4; i++) {
+		feed(fa, x + i * HOP, HOP, 1);
+		ASSERT_FALSE(fft_analyzer_averaging(fa));
+	}
+	const fftwf_complex *sp = fft_analyzer_spectrum(fa, 0);
+	float full = sp[BIN][0] * sp[BIN][0] + sp[BIN][1] * sp[BIN][1];
+	ASSERT_EQ_FMT(full, fft_analyzer_power(fa, 0)[BIN], "%g");
+	feed(fa, x, HOP, 1);
+	ASSERT(fft_analyzer_averaging(fa));
+
+	free(x);
+	fft_analyzer_free(&fa);
+	PASS();
+}
+
 // The transform length is the power of two at or above sample_rate / resolution.
 TEST fft_len_from_resolution(void) {
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .resolution_hz = 2.0f, .window_function = WINDOW_FUNCTION_HANN });
@@ -226,6 +256,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(history_slides_by_whole_display_frames);
 	RUN_TEST(reconfigure_at_next_update);
 	RUN_TEST(power_average_follows_audio_time);
+	RUN_TEST(power_average_waits_for_a_full_frame);
 	RUN_TEST(fft_len_from_resolution);
 	GREATEST_MAIN_END();
 }

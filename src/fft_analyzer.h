@@ -67,11 +67,18 @@ const fftwf_complex *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t in
 // The per-bin power, |X|^2, averaged over the configured time: each update
 // moves it toward the latest transform's by a fraction set by the audio
 // time the update consumed, so the average follows audio time whatever the
-// update rate. fft_len/2 + 1 bins.
+// update rate. Until the history has filled with audio once, it is the
+// latest transform's. fft_len/2 + 1 bins.
 const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index);
 
 // restart the average from the next transform
 void fft_analyzer_reset_power(fft_analyzer_t *fa);
+
+// whether the last update folded its transform into the average rather
+// than taking it whole, as it does while the history is still filling with
+// audio (a transform is then of a partial frame) and for the first
+// transform after a reset
+int fft_analyzer_averaging(const fft_analyzer_t *fa);
 
 // the audio the last update consumed, in seconds
 float fft_analyzer_hop_seconds(const fft_analyzer_t *fa);

@@ -318,7 +318,7 @@ static int analyze(harmonics_t *h) {
 			uint32_t p_k = (uint32_t)lrint(r->readout.frequency / delta_f);
 			float theta = harmonic_phase(spectrum, n, p_k, p_1, k) * (float)(M_PI / 180.0);
 			float re = cosf(theta), im = sinf(theta);
-			if (!h->phases[k - 1].primed) {
+			if (!h->phases[k - 1].primed || !fft_analyzer_averaging(fa)) {   // taken whole as long as the levels are
 				h->phases[k - 1].re = re;
 				h->phases[k - 1].im = im;
 				h->phases[k - 1].primed = 1;

@@ -31,6 +31,8 @@ struct fft_analyzer {
 	fftwf_plan plan;              // frame -> spectrum
 	float **power;                // transforms x (fft_len/2 + 1): the averaged power
 	int power_primed;             // the average holds a transform
+	int averaged;                 // the last update folded its transform into the average
+	uint32_t consumed;            // frames consumed since the transform was set up, until the history filled
 	float hop_s;                  // audio the last update consumed, seconds
 
 	fftwf_plan inverse;           // product -> acf
@@ -116,6 +118,7 @@ static int alloc_transform(fft_analyzer_t *fa) {
 		CHECK_ALLOC(fa->history[i], return -1);
 	}
 	fa->current = 0;
+	fa->consumed = 0;
 
 	fa->window = malloc(sizeof(float) * fa->fft_len);
 	CHECK_ALLOC(fa->window, return -1);
@@ -273,6 +276,8 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 	uint32_t dequeued = ring_buffer_read(fa->rb, (uint8_t *)fa->input, consume * bytes_per_frame);
 	S9_ASSERT(dequeued == consume * bytes_per_frame);
 	fa->hop_s = (float)consume / (float)fa->stream.sample_rate;
+	int was_full = fa->consumed >= fa->fft_len;   // the frame before this update was whole
+	if (fa->consumed < fa->fft_len) fa->consumed += consume < fa->fft_len - fa->consumed ? consume : fa->fft_len - fa->consumed;
 
 	// slide the history: keep what still fits, append the new frames; drop
 	// what cannot be caught up with
@@ -288,9 +293,11 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 	if (kept) memcpy(next, last + consume * channels, kept * bytes_per_frame);
 	if (consume) memcpy(next + kept * channels, fa->input + dropped * channels, consume * bytes_per_frame);
 
-	// the fraction of the way the average moves toward this transform's power
-	float alpha = 1.0f;
-	if (fa->power_primed && fa->config.averaging_s > 0.0f) alpha = 1.0f - expf(-fa->hop_s / fa->config.averaging_s);
+	// the fraction of the way the average moves toward this transform's
+	// power; all the way until the history has filled and the average holds
+	// a whole frame's transform
+	fa->averaged = fa->power_primed && was_full && fa->config.averaging_s > 0.0f;
+	float alpha = fa->averaged ? 1.0f - expf(-fa->hop_s / fa->config.averaging_s) : 1.0f;
 
 	uint32_t bins = fa->fft_len / 2 + 1;
 	for (uint32_t i = 0; i < fa->transforms; i++) {
@@ -322,6 +329,10 @@ const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index) {
 
 void fft_analyzer_reset_power(fft_analyzer_t *fa) {
 	fa->power_primed = 0;
+}
+
+int fft_analyzer_averaging(const fft_analyzer_t *fa) {
+	return fa->averaged;
 }
 
 float fft_analyzer_hop_seconds(const fft_analyzer_t *fa) { return fa->hop_s; }
