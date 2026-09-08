@@ -73,9 +73,26 @@ pitch_estimate_t pitch_estimate(const float *nacf, uint32_t n, uint32_t lag_min,
 
 // -- conditioning
 
+struct pitch_conditioner {
+	pitch_conditioner_config_t config;
+	int valid;
+	uint32_t hold;       // unpitched frames since the last accepted estimate
+	int tracking;        // smoothed and reported hold a frequency
+	double smoothed;     // in cents
+	double reported;     // in cents
+};
+
+size_t pitch_conditioner_alloc_size(void) {
+	return sizeof(pitch_conditioner_t);
+}
+
 void pitch_conditioner_init(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config) {
 	pc->config = *config;
 	pitch_conditioner_reset(pc);
+}
+
+void pitch_conditioner_set_config(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config) {
+	pc->config = *config;
 }
 
 void pitch_conditioner_reset(pitch_conditioner_t *pc) {

@@ -34,7 +34,7 @@ struct harmonics {
 	int config_changed;              // applied at the next frame
 
 	fft_analyzer_t *analyzer;
-	pitch_conditioner_t conditioner;
+	pitch_conditioner_t *conditioner;
 	uint32_t buffer_len;             // the transform length nacf and db are sized for
 	float *nacf;
 	float *db;                       // the latest spectrum, per bin
@@ -116,7 +116,8 @@ static void apply_config(harmonics_t *h) {
 	} else if (wanted.channel != current->channel) {
 		fft_analyzer_set_channel(h->analyzer, wanted.channel);
 	}
-	h->conditioner.config = conditioner_config(h);
+	pitch_conditioner_config_t cc = conditioner_config(h);
+	pitch_conditioner_set_config(h->conditioner, &cc);
 }
 
 // -- lifecycle
@@ -152,8 +153,10 @@ harmonics_t *harmonics_new(const harmonics_config_t *config) {
 	h->analyzer = fft_analyzer_new(&ac);
 	CHECK_ALLOC(h->analyzer, free(h); return NULL);
 
+	h->conditioner = malloc(pitch_conditioner_alloc_size());
+	CHECK_ALLOC(h->conditioner, harmonics_free(&h); return NULL);
 	pitch_conditioner_config_t cc = conditioner_config(h);
-	pitch_conditioner_init(&h->conditioner, &cc);
+	pitch_conditioner_init(h->conditioner, &cc);
 	return h;
 }
 
@@ -161,6 +164,7 @@ void harmonics_free(harmonics_t **h) {
 	if (h && *h) {
 		free_drawing(*h);
 		fft_analyzer_free(&(*h)->analyzer);
+		free((*h)->conditioner);
 		free((*h)->nacf);
 		free((*h)->db);
 		free(*h);
@@ -175,7 +179,7 @@ float harmonics_get_pitch_frequency(const harmonics_t *h) { return h->pitch_freq
 
 void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t *stream_config) {
 	fft_analyzer_prepare_to_stream(h->analyzer, stream_config);
-	pitch_conditioner_reset(&h->conditioner);
+	pitch_conditioner_reset(h->conditioner);
 	h->pitch_valid = false;
 	h->pitch_frequency = 0.0f;
 	h->correction_len = 0;
@@ -222,7 +226,7 @@ static int analyze(harmonics_t *h) {
 	if (fft_analyzer_nacf(fa, 0, h->nacf, lags) == 0)
 		e = pitch_estimate(h->nacf, lags, lag_min, lag_max, PEAK_TOLERANCE);
 	float rms = fft_analyzer_rms(fa, 0);
-	h->pitch_valid = pitch_conditioner_update(&h->conditioner, e.period, e.clarity, rms, fs, &h->pitch_frequency);
+	h->pitch_valid = pitch_conditioner_update(h->conditioner, e.period, e.clarity, rms, fs, &h->pitch_frequency);
 
 	harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), bins, n, h->db);
 	return 0;

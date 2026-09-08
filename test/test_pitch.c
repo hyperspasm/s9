@@ -70,19 +70,20 @@ TEST conditioner_traces_match_golden(void) {
 		.hold_frames = c->hold_frames, .octave_tolerance_cents = (float)c->octave_tolerance_cents,
 		.smoothing = (float)c->smoothing, .deadband_cents = (float)c->deadband_cents,
 	};
+	pitch_conditioner_t *pc = malloc(pitch_conditioner_alloc_size());
 	for (unsigned i = 0; i < PITCH_GOLDEN_TRACE_COUNT; i++) {
 		const pitch_golden_trace_t *trace = &pitch_golden_traces[i];
-		pitch_conditioner_t pc;
-		pitch_conditioner_init(&pc, &config);
+		pitch_conditioner_init(pc, &config);
 		for (unsigned k = 0; k < trace->count; k++) {
 			const pitch_golden_step_t *step = &trace->steps[k];
 			float frequency;
-			int valid = pitch_conditioner_update(&pc, (float)step->period, (float)step->clarity, (float)step->rms,
+			int valid = pitch_conditioner_update(pc, (float)step->period, (float)step->clarity, (float)step->rms,
 												 PITCH_GOLDEN_FS, &frequency);
 			ASSERT_EQm(trace->label, step->valid, valid);
 			ASSERT_IN_RANGEm(trace->label, step->frequency, (double)frequency, step->frequency * 1e-5 + 1e-6);
 		}
 	}
+	free(pc);
 	PASS();
 }
 

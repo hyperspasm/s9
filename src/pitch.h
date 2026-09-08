@@ -1,6 +1,7 @@
 #ifndef pitch_h
 #define pitch_h
 
+#include <stddef.h>
 #include <stdint.h>
 
 // Pitch estimation from a normalized autocorrelation, and the conditioning
@@ -36,18 +37,18 @@ typedef struct {
 // Turns per-frame estimates into (valid, frequency). While valid, the
 // frequency follows the estimates through the smoother and the deadband;
 // while invalid, it holds its last value, so a display keeps a stable
-// picture. The config may be changed between updates.
-typedef struct {
-	pitch_conditioner_config_t config;
-	int valid;
-	uint32_t hold;       // unpitched frames since the last accepted estimate
-	int tracking;        // smoothed and reported hold a frequency
-	double smoothed;     // in cents
-	double reported;     // in cents
-} pitch_conditioner_t;
+// picture. Caller-owned: allocate pitch_conditioner_alloc_size() bytes,
+// aligned as malloc aligns, and init them.
+typedef struct pitch_conditioner pitch_conditioner_t;
 
+size_t pitch_conditioner_alloc_size(void);
 void pitch_conditioner_init(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config);
+
+// forget the tracked fundamental; the config stays
 void pitch_conditioner_reset(pitch_conditioner_t *pc);
+
+// new thresholds from the next update on; the tracked fundamental stays
+void pitch_conditioner_set_config(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config);
 
 // One frame: period in samples (0 when none), its clarity, and the frame's
 // RMS. Returns whether the fundamental is valid; *frequency receives the
