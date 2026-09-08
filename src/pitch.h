@@ -28,7 +28,7 @@ typedef struct {
 	float gate_rms;                // frames quieter than this are unpitched
 	float clarity_on;              // clarity needed to become valid
 	float clarity_off;             // clarity needed to stay valid
-	uint32_t hold_frames;          // unpitched frames tolerated before validity ends
+	uint32_t hold_frames;          // unpitched frames tolerated before validity ends, and octave disagreements before they are followed
 	float octave_tolerance_cents;  // an estimate this close to double or half the tracked value is folded onto it
 	float smoothing;               // per-frame move toward the estimate, 0..1, in cents
 	float deadband_cents;          // the reported value moves only when the smoothed one differs by more
@@ -37,8 +37,11 @@ typedef struct {
 // Turns per-frame estimates into (valid, frequency). While valid, the
 // frequency follows the estimates through the smoother and the deadband;
 // while invalid, it holds its last value, so a display keeps a stable
-// picture. Caller-owned: allocate pitch_conditioner_alloc_size() bytes,
-// aligned as malloc aligns, and init them.
+// picture. An estimate an octave from the tracked value is folded onto it,
+// an estimator's slip, for up to hold_frames frames; one that keeps
+// insisting is a new note and is followed. Caller-owned: allocate
+// pitch_conditioner_alloc_size() bytes, aligned as malloc aligns, and init
+// them.
 typedef struct pitch_conditioner pitch_conditioner_t;
 
 size_t pitch_conditioner_alloc_size(void);

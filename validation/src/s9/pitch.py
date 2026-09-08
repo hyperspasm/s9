@@ -102,7 +102,7 @@ class ConditionerConfig:
         self.gate_rms = gate_rms                    # frames quieter than this are unpitched
         self.clarity_on = clarity_on                # clarity needed to become valid
         self.clarity_off = clarity_off              # clarity needed to stay valid
-        self.hold_frames = hold_frames              # unpitched frames tolerated before validity ends
+        self.hold_frames = hold_frames              # unpitched frames tolerated before validity ends, and octave disagreements before they are followed
         self.octave_tolerance_cents = octave_tolerance_cents  # an estimate this close to double or half is folded
         self.smoothing = smoothing                  # per-frame one-pole coefficient toward the estimate, in cents
         self.deadband_cents = deadband_cents        # the reported value moves only when the smoothed one differs by more
@@ -113,13 +113,16 @@ class Conditioner:
 
     While valid, the frequency follows the estimates through the smoother and
     the deadband; while invalid, it holds its last value, so a display can
-    keep a stable picture.
+    keep a stable picture. An estimate an octave from the tracked value is
+    folded onto it, an estimator's slip, for up to hold_frames frames; one
+    that keeps insisting is a new note and is followed.
     """
 
     def __init__(self, config):
         self.cfg = config
         self.valid = False
         self.hold = 0
+        self.folded = 0          # consecutive frames the octave guard folded
         self.smoothed = None
         self.reported = None
 
@@ -140,15 +143,23 @@ class Conditioner:
             c = cents(candidate)
             if self.valid:
                 d = c - self.smoothed
+                fold = 0.0
                 if abs(d - 1200.0) <= cfg.octave_tolerance_cents:
-                    c -= 1200.0
+                    fold = -1200.0
                 elif abs(d + 1200.0) <= cfg.octave_tolerance_cents:
-                    c += 1200.0
+                    fold = 1200.0
+                if fold != 0.0:
+                    self.folded += 1
+                    if self.folded <= cfg.hold_frames:
+                        c += fold
+                else:
+                    self.folded = 0
                 self.smoothed += cfg.smoothing * (c - self.smoothed)
             else:
                 self.smoothed = c
                 self.reported = c
                 self.valid = True
+                self.folded = 0
             self.hold = 0
             if abs(self.smoothed - self.reported) > cfg.deadband_cents:
                 self.reported = self.smoothed

@@ -91,6 +91,29 @@ TRACES = [
         (52.0, 0.95, 0.1),      # not within the tolerance: followed
         (52.0, 0.95, 0.1),
     ]),
+    ("octave_jump_follows", [
+        (100.0, 0.95, 0.1),
+        (200.0, 0.95, 0.1),     # an octave down: folded 1
+        (200.0, 0.95, 0.1),     # folded 2
+        (200.0, 0.95, 0.1),     # folded 3
+        (200.0, 0.95, 0.1),     # past the hold: followed
+        (200.0, 0.95, 0.1),
+        (200.0, 0.95, 0.1),
+        (200.0, 0.95, 0.1),
+        (200.0, 0.95, 0.1),
+    ]),
+    ("two_octaves_follow", [
+        (100.0, 0.95, 0.1),
+        (400.0, 0.95, 0.1),     # two octaves down: halfway, to an octave from the note
+        (400.0, 0.95, 0.1),     # now an octave away: folded 1
+        (400.0, 0.95, 0.1),     # folded 2
+        (400.0, 0.95, 0.1),     # folded 3
+        (400.0, 0.95, 0.1),     # past the hold: followed
+        (400.0, 0.95, 0.1),
+        (400.0, 0.95, 0.1),
+        (400.0, 0.95, 0.1),
+        (400.0, 0.95, 0.1),
+    ]),
     ("smoothing_and_deadband", [
         (100.0, 0.95, 0.1),
         (99.0, 0.95, 0.1),
