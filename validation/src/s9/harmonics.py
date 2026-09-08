@@ -153,6 +153,38 @@ def readouts_db(db, n, fs, f0, harmonics, search, table, reach, shoulder, promin
     return out
 
 
+def centre_phase(bins, n, p):
+    """The phase at the frame's centre of the component peaking at bin p, in
+    radians: the bin's phase, which is at the frame's first sample, advanced
+    by the bin's frequency over half the frame. Under a symmetric window the
+    window's own transform is real within its main lobe, so the peak's
+    nearest bin carries no phase from where the peak sits within it."""
+    c = (n - 1) / 2.0
+    return math.atan2(bins[p].imag, bins[p].real) + 2.0 * math.pi * p * c / n
+
+
+def relative_phase(bins, n, p_k, p_1, k):
+    """Harmonic k's phase relative to the fundamental's, in degrees in
+    (-180, 180]: its phase less k times the fundamental's, which is the
+    shape of the waveform whatever its time origin."""
+    theta = centre_phase(bins, n, p_k) - k * centre_phase(bins, n, p_1)
+    deg = math.degrees(theta) % 360.0
+    return deg - 360.0 if deg > 180.0 else deg
+
+
+def phases(bins, n, fs, reads):
+    """The relative phase of each harmonic found, from the readouts' peak
+    bins; 0 where a harmonic or the fundamental was not found."""
+    delta_f = fs / n
+    if not reads or not reads[0][0]:
+        return [0.0] * len(reads)
+    p_1 = int(round(reads[0][1] / delta_f))
+    out = []
+    for k, (found, freq, _, _) in enumerate(reads, 1):
+        out.append(relative_phase(bins, n, int(round(freq / delta_f)), p_1, k) if found else 0.0)
+    return out
+
+
 def thd(reads):
     """Total harmonic distortion: the RMS of the harmonics found over the
     fundamental's, as a ratio; None when the fundamental was not found."""

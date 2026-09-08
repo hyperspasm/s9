@@ -57,8 +57,8 @@ static const double harmonics_golden_blackman_harris_offset_bias[33] = {
 	0,
 };
 #define HARMONICS_GOLDEN_BLACKMAN_HARRIS_REACH 4
-/* kind: 0 sine, 1 sawtooth, 2 square, 3 twin, 4 noise, 5 silence; thd is -1 without a fundamental */
-typedef struct { const char *label; int kind; double freq, freq2, amp, phase; unsigned harmonics, seed; double noise_amp; int window; double skew; double f0; unsigned count; const int *found; const double *frequency; const double *db; double thd; } harmonics_golden_case_t;
+/* kind: 0 sine, 1 sawtooth, 2 square, 3 twin, 4 noise, 5 silence; phase_deg is relative to the fundamental; thd is -1 without a fundamental */
+typedef struct { const char *label; int kind; double freq, freq2, amp, phase; unsigned harmonics, seed; double noise_amp; int window; double skew; double f0; unsigned count; const int *found; const double *frequency; const double *db; const double *phase_deg; double thd; } harmonics_golden_case_t;
 static const int harmonics_golden_saw_220_found[12] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
 };
@@ -72,6 +72,11 @@ static const double harmonics_golden_saw_220_db[12] = {
 	-23.945359415325434, -25.484891507531248, -26.870208081228714, -28.052165834199471,
 	-29.048309000929851, -29.996627396896116, 0, 0,
 };
+static const double harmonics_golden_saw_220_phase[12] = {
+	0, -89.87579368975122, -179.91669914665493, 90.242992113620289,
+	0.1895550238409669, -89.658650726626092, -179.68905683161483, 89.958546086913088,
+	0.44357660730804582, -89.867276849222776, 0, 0,
+};
 static const int harmonics_golden_square_300_found[8] = {
 	1, 0, 1, 0, 1, 0, 1, 0,
 };
@@ -82,6 +87,10 @@ static const double harmonics_golden_square_300_frequency[8] = {
 static const double harmonics_golden_square_300_db[8] = {
 	-3.9208254369334568, 0, -13.446159858728365, 0,
 	-17.937639454666048, 0, -20.860688061111127, 0,
+};
+static const double harmonics_golden_square_300_phase[8] = {
+	0, 0, 179.99610924084419, 0,
+	0.073510725827418355, 0, -179.89694548405168, 0,
 };
 static const int harmonics_golden_sine_5000_found[6] = {
 	1, 0, 0, 0, 0, 0,
@@ -94,6 +103,10 @@ static const double harmonics_golden_sine_5000_db[6] = {
 	4.3363865967482873e-05, 0, 0, 0,
 	0, 0,
 };
+static const double harmonics_golden_sine_5000_phase[6] = {
+	0, 0, 0, 0,
+	0, 0,
+};
 static const int harmonics_golden_sine_offbin_found[3] = {
 	1, 0, 0,
 };
@@ -102,6 +115,9 @@ static const double harmonics_golden_sine_offbin_frequency[3] = {
 };
 static const double harmonics_golden_sine_offbin_db[3] = {
 	-12.041011406927526, 0, 0,
+};
+static const double harmonics_golden_sine_offbin_phase[3] = {
+	0, 0, 0,
 };
 static const int harmonics_golden_saw_110_bh_found[16] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -118,6 +134,12 @@ static const double harmonics_golden_saw_110_bh_db[16] = {
 	-29.027783157192211, -29.942904275508727, -30.770874641208547, -31.526617685348697,
 	-32.221813740762371, -32.865440457549468, -33.464807142241639, -34.025459703053819,
 };
+static const double harmonics_golden_saw_110_bh_phase[16] = {
+	0, -89.999490278211169, 179.99870715020086, 89.999044380731334,
+	-0.00071213386843282933, -90.000638390108634, 179.99789283784287, 89.998290511360096,
+	-0.0017127736198290222, -90.001470003440772, 179.9989502949328, 89.997515715027021,
+	-0.0027115097366277041, -90.002299410928345, 179.998050058329, 89.997479602954627,
+};
 static const int harmonics_golden_sine_noise_found[6] = {
 	1, 0, 0, 0, 0, 0,
 };
@@ -127,6 +149,10 @@ static const double harmonics_golden_sine_noise_frequency[6] = {
 };
 static const double harmonics_golden_sine_noise_db[6] = {
 	-6.0256881167299339, 0, 0, 0,
+	0, 0,
+};
+static const double harmonics_golden_sine_noise_phase[6] = {
+	0, 0, 0, 0,
 	0, 0,
 };
 static const int harmonics_golden_saw_noise_found[10] = {
@@ -142,6 +168,11 @@ static const double harmonics_golden_saw_noise_db[10] = {
 	-23.928237044141284, -25.51729912248144, -26.851249443392035, -28.019064355400634,
 	-29.068398121101186, -29.889175472312044,
 };
+static const double harmonics_golden_saw_noise_phase[10] = {
+	0, -90.023541563274307, 179.99998109471559, 89.994921248181299,
+	0.063795405368523461, -89.856795032837226, 179.81251263485728, 90.046243681099043,
+	-0.48780794088736457, -90.055382526918379,
+};
 static const int harmonics_golden_square_noise_found[10] = {
 	1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
 };
@@ -155,15 +186,20 @@ static const double harmonics_golden_square_noise_db[10] = {
 	-17.899034600196082, 0, -20.825453449933445, 0,
 	-23.012241950858584, 0,
 };
+static const double harmonics_golden_square_noise_phase[10] = {
+	0, 0, -179.9070858369908, 0,
+	-0.083953150913941954, 0, 179.94349219661194, 0,
+	0.2160313626458219, 0,
+};
 static const harmonics_golden_case_t harmonics_golden_cases[] = {
-	{ "saw_220", 1, 220, 0, 0.5, 0.20000000000000001, 10, 1, 0, 3, 0, 220, 12, harmonics_golden_saw_220_found, harmonics_golden_saw_220_frequency, harmonics_golden_saw_220_db, 0.73899761194648017 },
-	{ "square_300", 2, 300, 0, 0.5, 0.5, 9, 1, 0, 3, 0, 300, 8, harmonics_golden_square_300_found, harmonics_golden_square_300_frequency, harmonics_golden_square_300_db, 0.41404944375547403 },
-	{ "sine_5000", 0, 5000, 0, 1, 0, 10, 1, 0, 3, 0, 5000, 6, harmonics_golden_sine_5000_found, harmonics_golden_sine_5000_frequency, harmonics_golden_sine_5000_db, 0 },
-	{ "sine_offbin", 0, 440.69999999999999, 0, 0.25, 0.90000000000000002, 10, 1, 0, 3, 0, 440.69999999999999, 3, harmonics_golden_sine_offbin_found, harmonics_golden_sine_offbin_frequency, harmonics_golden_sine_offbin_db, 0 },
-	{ "saw_110_bh", 1, 110, 0, 0.5, 0, 16, 1, 0, 4, 0, 110, 16, harmonics_golden_saw_110_bh_found, harmonics_golden_saw_110_bh_frequency, harmonics_golden_saw_110_bh_db, 0.76442251617536727 },
-	{ "sine_noise", 0, 1000, 0, 0.5, 0.29999999999999999, 10, 7, 0.02, 3, 0, 1000, 6, harmonics_golden_sine_noise_found, harmonics_golden_sine_noise_frequency, harmonics_golden_sine_noise_db, 0 },
-	{ "saw_noise", 1, 220, 0, 0.5, 0.10000000000000001, 10, 11, 0.0050000000000000001, 4, 0, 220, 10, harmonics_golden_saw_noise_found, harmonics_golden_saw_noise_frequency, harmonics_golden_saw_noise_db, 0.74163485788226435 },
-	{ "square_noise", 2, 300, 0, 0.5, 0, 9, 5, 0.01, 4, 0, 300, 10, harmonics_golden_square_noise_found, harmonics_golden_square_noise_frequency, harmonics_golden_square_noise_db, 0.42872531492010491 },
+	{ "saw_220", 1, 220, 0, 0.5, 0.20000000000000001, 10, 1, 0, 3, 0, 220, 12, harmonics_golden_saw_220_found, harmonics_golden_saw_220_frequency, harmonics_golden_saw_220_db, harmonics_golden_saw_220_phase, 0.73899761194648017 },
+	{ "square_300", 2, 300, 0, 0.5, 0.5, 9, 1, 0, 3, 0, 300, 8, harmonics_golden_square_300_found, harmonics_golden_square_300_frequency, harmonics_golden_square_300_db, harmonics_golden_square_300_phase, 0.41404944375547403 },
+	{ "sine_5000", 0, 5000, 0, 1, 0, 10, 1, 0, 3, 0, 5000, 6, harmonics_golden_sine_5000_found, harmonics_golden_sine_5000_frequency, harmonics_golden_sine_5000_db, harmonics_golden_sine_5000_phase, 0 },
+	{ "sine_offbin", 0, 440.69999999999999, 0, 0.25, 0.90000000000000002, 10, 1, 0, 3, 0, 440.69999999999999, 3, harmonics_golden_sine_offbin_found, harmonics_golden_sine_offbin_frequency, harmonics_golden_sine_offbin_db, harmonics_golden_sine_offbin_phase, 0 },
+	{ "saw_110_bh", 1, 110, 0, 0.5, 0, 16, 1, 0, 4, 0, 110, 16, harmonics_golden_saw_110_bh_found, harmonics_golden_saw_110_bh_frequency, harmonics_golden_saw_110_bh_db, harmonics_golden_saw_110_bh_phase, 0.76442251617536727 },
+	{ "sine_noise", 0, 1000, 0, 0.5, 0.29999999999999999, 10, 7, 0.02, 3, 0, 1000, 6, harmonics_golden_sine_noise_found, harmonics_golden_sine_noise_frequency, harmonics_golden_sine_noise_db, harmonics_golden_sine_noise_phase, 0 },
+	{ "saw_noise", 1, 220, 0, 0.5, 0.10000000000000001, 10, 11, 0.0050000000000000001, 4, 0, 220, 10, harmonics_golden_saw_noise_found, harmonics_golden_saw_noise_frequency, harmonics_golden_saw_noise_db, harmonics_golden_saw_noise_phase, 0.74163485788226435 },
+	{ "square_noise", 2, 300, 0, 0.5, 0, 9, 5, 0.01, 4, 0, 300, 10, harmonics_golden_square_noise_found, harmonics_golden_square_noise_frequency, harmonics_golden_square_noise_db, harmonics_golden_square_noise_phase, 0.42872531492010491 },
 };
 #define HARMONICS_GOLDEN_CASE_COUNT 8
 

@@ -32,6 +32,14 @@ TEST window_models_match_golden(void) {
 	PASS();
 }
 
+// the difference between two angles in degrees, in (-180, 180]
+static double angle_diff(double a, double b) {
+	double d = fmod(a - b, 360.0);
+	if (d < -180.0) d += 360.0;
+	if (d > 180.0) d -= 360.0;
+	return d;
+}
+
 // the shoulder, shortened as the oracle shortens it so it ends before the neighbouring harmonic's lobe
 static uint32_t shoulder_for(double f0, double delta_f, uint32_t reach) {
 	long fit = (long)(f0 / delta_f / 2.0) - (long)reach;
@@ -76,6 +84,17 @@ TEST readouts_match_golden(void) {
 				ASSERTm(g->label, reads[k - 1].peak && reads[k - 1].prominence >= HARMONICS_GOLDEN_PROMINENCE);
 				ASSERT_IN_RANGEm(g->label, g->frequency[k - 1], (double)reads[k - 1].frequency, 2e-3);
 				ASSERT_IN_RANGEm(g->label, g->db[k - 1], (double)reads[k - 1].db, 1e-4);
+			}
+		}
+
+		// the phases, relative to the fundamental, where both were found
+		if (reads[0].found) {
+			uint32_t p_1 = (uint32_t)lrint(reads[0].frequency / delta_f);
+			for (unsigned k = 1; k <= g->count; k++) {
+				if (!reads[k - 1].found) continue;
+				uint32_t p_k = (uint32_t)lrint(reads[k - 1].frequency / delta_f);
+				float phase = harmonic_phase((const float *)fft_analyzer_spectrum(fa, 0), N, p_k, p_1, k);
+				ASSERT_IN_RANGEm(g->label, 0.0, angle_diff(phase, g->phase_deg[k - 1]), 0.01);
 			}
 		}
 

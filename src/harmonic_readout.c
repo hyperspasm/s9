@@ -185,6 +185,21 @@ int harmonic_gate_update(harmonic_gate_t *g, const harmonic_readout_t *r, float 
 	return g->open;
 }
 
+// the phase at the frame's centre of the component peaking at bin p: the
+// bin's phase, at the frame's first sample, advanced over half the frame
+static double centre_phase(const float *spectrum, uint32_t n, uint32_t p) {
+	double c = (n - 1) / 2.0;
+	return atan2(spectrum[2 * p + 1], spectrum[2 * p]) + 2.0 * M_PI * p * c / n;
+}
+
+float harmonic_phase(const float *spectrum, uint32_t n, uint32_t p_k, uint32_t p_1, uint32_t k) {
+	double theta = centre_phase(spectrum, n, p_k) - k * centre_phase(spectrum, n, p_1);
+	double deg = fmod(theta * 180.0 / M_PI, 360.0);
+	if (deg < 0.0) deg += 360.0;
+	if (deg > 180.0) deg -= 360.0;
+	return (float)deg;
+}
+
 int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd) {
 	if (!count || !reads[0].found) return -1;
 	double power = 0.0;

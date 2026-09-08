@@ -55,6 +55,13 @@ typedef struct {
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
 									uint32_t shoulder, float prominence, const harmonic_window_t *w);
 
+// Harmonic k's phase relative to the fundamental's, in degrees in
+// (-180, 180]: its phase less k times the fundamental's, which is the shape
+// of the waveform whatever its time origin. The phases are read at the peak
+// bins p_k and p_1 of the n-point spectrum, at the frame's centre, where a
+// symmetric window adds no phase of its own within its main lobe.
+float harmonic_phase(const float *spectrum, uint32_t n, uint32_t p_k, uint32_t p_1, uint32_t k);
+
 // Total harmonic distortion over readouts of harmonics 1..count: the RMS of
 // the harmonics found over the fundamental's, as a ratio. Returns 0, or -1
 // when the fundamental was not found.
