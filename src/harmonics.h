@@ -11,9 +11,9 @@
 
 // The harmonic analyzer: the latest spectrum on a linear axis scaled to the
 // fundamental, with a marker at each harmonic. While the tracker is locked,
-// each harmonic that stands out from the floor carries its level relative
-// to the fundamental's, and the fundamental's own level and the distortion
-// the harmonics add up to sit above. The axis keeps the last locked
+// each harmonic that stands out from the floor carries its level and its
+// phase relative to the fundamental's, and the fundamental's own level and
+// the distortion the harmonics add up to sit above. The axis keeps the last locked
 // fundamental, or a configured one before there is any, so the spectrum is
 // always on a scale. The curve is live; the readings come from the
 // spectrum averaged over a short time, so they settle rather than jitter.
@@ -38,7 +38,7 @@ typedef struct {
 	float deadband_cents;             // the reported value moves only when the smoothed one differs by more
 
 	// reading the harmonics
-	float averaging_s;                // time constant of the average the readings come from, seconds; it restarts on a new note
+	float averaging_s;                // time constant of the average the levels and phases come from, seconds; it restarts on a new note
 	float prominence_db;              // a harmonic's label appears once it stands this far above the floor beside it (assumes averaging; without it, 15)
 	float hysteresis_db;              // and stays while it stands within this of that
 	float readout_hold_s;             // and for this long after it no longer does
@@ -108,6 +108,7 @@ float harmonics_get_pitch_frequency(const harmonics_t *h);
 typedef struct {
 	harmonic_readout_t readout;
 	bool shown;
+	float phase_deg;   // relative to the fundamental, averaged like the levels; meaningful while shown
 } harmonics_reading_t;
 
 const harmonics_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count);

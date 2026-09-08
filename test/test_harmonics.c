@@ -171,7 +171,17 @@ TEST sine_in_noise_reads_one_harmonic(void) {
 	PASS();
 }
 
-// A sawtooth of ten harmonics reads all ten and the distortion they add up to.
+// the difference between two angles in degrees, in (-180, 180]
+static double angle_diff(double a, double b) {
+	double d = fmod(a - b, 360.0);
+	if (d < -180.0) d += 360.0;
+	if (d > 180.0) d -= 360.0;
+	return d;
+}
+
+// A sawtooth of ten harmonics reads all ten, their phases, and the
+// distortion they add up to. The generator's harmonics are sines, the even
+// ones negated, so harmonic k sits at -90 + 90k degrees, plus 180 when even.
 TEST sawtooth_reads_its_distortion(void) {
 	harmonics_t *h = streaming(NULL);
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
@@ -185,6 +195,8 @@ TEST sawtooth_reads_its_distortion(void) {
 	for (uint32_t k = 1; k <= count; k++) {
 		ASSERT(reads[k - 1].shown);
 		ASSERT_IN_RANGE(-20.0 * log10(k), (double)(reads[k - 1].readout.db - reads[0].readout.db), 0.2);
+		double expected = -90.0 + 90.0 * k + (k % 2 == 0 ? 180.0 : 0.0);
+		ASSERT_IN_RANGE(0.0, angle_diff(reads[k - 1].phase_deg, expected), 1.0);
 	}
 	float thd;
 	ASSERT_EQ(0, harmonics_get_thd(h, &thd));

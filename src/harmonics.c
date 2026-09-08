@@ -49,6 +49,7 @@ struct harmonics {
 	float last_frequency;            // the frame before's, for noticing a new note
 	harmonics_reading_t reads[MAX_HARMONICS];   // the last frame's, for the harmonics on the axis
 	harmonic_gate_t gates[MAX_HARMONICS];
+	struct { float re, im; int primed; } phases[MAX_HARMONICS];   // each harmonic's relative phase as a unit vector, averaged
 	uint32_t read_count;
 	float thd;
 	int has_thd;
@@ -61,6 +62,7 @@ struct harmonics {
 	float *plot;                     // dB per plot column
 	SDL_FPoint *points;
 	label_t readouts[MAX_HARMONICS]; // the level read at each harmonic
+	label_t degrees[MAX_HARMONICS];  // and its phase, under that
 	label_t numbers[MAX_HARMONICS];  // the harmonic numbers under the markers
 	label_t header;                  // the fundamental
 };
@@ -144,6 +146,7 @@ static void free_drawing(harmonics_t *h) {
 	free(h->points); h->points = NULL;
 	for (int i = 0; i < MAX_HARMONICS; i++) {
 		free_label(&h->readouts[i]);
+		free_label(&h->degrees[i]);
 		free_label(&h->numbers[i]);
 	}
 	free_label(&h->header);
@@ -208,6 +211,7 @@ void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t 
 	h->read_count = 0;
 	h->has_thd = 0;
 	memset(h->gates, 0, sizeof(h->gates));
+	memset(h->phases, 0, sizeof(h->phases));
 	h->window_len = 0;
 }
 
@@ -272,6 +276,7 @@ static int analyze(harmonics_t *h) {
 	if (f0 > 0.0 && h->last_frequency > 0.0 && fabs(1200.0 * log2(f0 / h->last_frequency)) > NOTE_JUMP_CENTS) {
 		fft_analyzer_reset_power(fa);
 		memset(h->gates, 0, sizeof(h->gates));
+		memset(h->phases, 0, sizeof(h->phases));
 	}
 	h->last_frequency = (float)f0;
 
@@ -282,7 +287,9 @@ static int analyze(harmonics_t *h) {
 	float dt = fft_analyzer_hop_seconds(fa);
 	h->read_count = 0;
 	if (!h->pitch_valid) {
-		memset(h->gates, 0, sizeof(h->gates));   // the labels return through their gates with the lock
+		// the labels return through their gates with the lock
+		memset(h->gates, 0, sizeof(h->gates));
+		memset(h->phases, 0, sizeof(h->phases));
 	} else {
 		// the floor beside a harmonic is read short of the next harmonic's lobe
 		long fit = (long)(f0 / delta_f / 2.0) - (long)h->window.reach;
@@ -297,6 +304,29 @@ static int analyze(harmonics_t *h) {
 			r->shown = harmonic_gate_update(&h->gates[k - 1], &r->readout, h->config.prominence_db,
 											h->config.prominence_db - h->config.hysteresis_db, h->config.readout_hold_s, dt);
 			h->read_count = k;
+		}
+	}
+
+	// each harmonic's phase relative to the fundamental's, averaged as a unit vector
+	if (h->read_count && h->reads[0].readout.peak) {
+		const float *spectrum = (const float *)fft_analyzer_spectrum(fa, 0);
+		uint32_t p_1 = (uint32_t)lrint(h->reads[0].readout.frequency / delta_f);
+		float alpha = h->config.averaging_s > 0.0f ? 1.0f - expf(-dt / h->config.averaging_s) : 1.0f;
+		for (uint32_t k = 1; k <= h->read_count; k++) {
+			harmonics_reading_t *r = &h->reads[k - 1];
+			if (!r->readout.peak) continue;
+			uint32_t p_k = (uint32_t)lrint(r->readout.frequency / delta_f);
+			float theta = harmonic_phase(spectrum, n, p_k, p_1, k) * (float)(M_PI / 180.0);
+			float re = cosf(theta), im = sinf(theta);
+			if (!h->phases[k - 1].primed) {
+				h->phases[k - 1].re = re;
+				h->phases[k - 1].im = im;
+				h->phases[k - 1].primed = 1;
+			} else {
+				h->phases[k - 1].re += alpha * (re - h->phases[k - 1].re);
+				h->phases[k - 1].im += alpha * (im - h->phases[k - 1].im);
+			}
+			r->phase_deg = atan2f(h->phases[k - 1].im, h->phases[k - 1].re) * (float)(180.0 / M_PI);
 		}
 	}
 
@@ -454,15 +484,27 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
 	}
 
-	// the levels relative to the fundamental's, while locked and the fundamental read
+	// the levels and phases relative to the fundamental's, while locked and the fundamental read
 	const harmonics_reading_t *h1 = h->read_count && h->reads[0].shown ? &h->reads[0] : NULL;
 	for (uint32_t k = 1; k <= count; k++) {
 		const harmonics_reading_t *r = k <= h->read_count ? &h->reads[k - 1] : NULL;
-		if (h1 && r && r->shown) snprintf(text, sizeof(text), "%.1f", r->readout.db - h1->readout.db);
-		else text[0] = '\0';
+		char degrees[LABEL_TEXT];
+		if (h1 && r && r->shown) {
+			snprintf(text, sizeof(text), "%.1f", r->readout.db - h1->readout.db);
+			int deg = (int)lrintf(r->phase_deg);
+			if (deg == 0) snprintf(degrees, sizeof(degrees), "0\xc2\xb0");
+			else snprintf(degrees, sizeof(degrees), "%+d\xc2\xb0", deg);
+		} else {
+			text[0] = '\0';
+			degrees[0] = '\0';
+		}
 		label_set(&h->readouts[k - 1], renderer, h->font, h->config.readout_color, text);
-		if (k * f0 <= f_end)
-			label_blit(&h->readouts[k - 1], renderer, plot->x + (float)(plot->w * k * f0 / f_end), (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
+		label_set(&h->degrees[k - 1], renderer, h->font, h->config.readout_color, degrees);
+		if (k * f0 <= f_end) {
+			float x = plot->x + (float)(plot->w * k * f0 / f_end);
+			label_blit(&h->readouts[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
+			label_blit(&h->degrees[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN + h->readouts[k - 1].h), ANCHOR_TOP_MIDDLE);
+		}
 	}
 
 	// the fundamental: its level and the distortion while locked and read
