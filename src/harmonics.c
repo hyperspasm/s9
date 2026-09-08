@@ -354,7 +354,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		h->points[i] = (SDL_FPoint){ (float)i, ((float)h->config.max_db - h->plot[i]) * db_scale };
 	SDL_Rect plot_viewport = { save_viewport.x + plot->x, save_viewport.y + plot->y, plot->w, plot->h };
 	SDL_RenderSetViewport(renderer, &plot_viewport);
-	sdl_path_t *path = sdl_path_new(&h->config.plot_color, PLOT_WIDTH, 0, h->points, plot->w);
+	sdl_path_t *path = sdl_path_new(&h->config.plot_color, PLOT_WIDTH, 1, h->points, plot->w);
 	if (path) {
 		sdl_path_render(path, renderer);
 		sdl_path_free(&path);
