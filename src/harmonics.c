@@ -20,6 +20,7 @@
 #define SEARCH_RATIO 0.01f      // and at least this fraction of the harmonic's frequency, covering the reported fundamental's dead band and smoothing lag
 #define SHOULDER_BINS 32        // the floor beside a harmonic is read from this many bins per side, fewer when the next harmonic is closer
 #define AXIS_HEADROOM 0.5f      // the axis extends this many fundamentals past the last marker
+#define NOTE_JUMP_CENTS 50.0    // the fundamental moving this far in one frame is a new note
 #define PLOT_WIDTH 2.0f
 #define LABEL_TEXT 64
 
@@ -44,7 +45,9 @@ struct harmonics {
 
 	bool pitch_valid;
 	float pitch_frequency;
-	harmonic_readout_t reads[MAX_HARMONICS];   // the last frame's, for the harmonics on the axis
+	float last_frequency;            // the frame before's, for noticing a new note
+	harmonics_reading_t reads[MAX_HARMONICS];   // the last frame's, for the harmonics on the axis
+	harmonic_gate_t gates[MAX_HARMONICS];
 	uint32_t read_count;
 	float thd;
 	int has_thd;
@@ -70,6 +73,7 @@ static fft_analyzer_config_t analyzer_config(const harmonics_t *h) {
 		.window_skew = 0.0f,
 		.mode = FFT_ANALYZER_MIX,
 		.channel = h->config.channel,
+		.averaging_s = h->config.averaging_s,
 	};
 }
 
@@ -118,8 +122,8 @@ static void apply_config(harmonics_t *h) {
 	if (wanted.resolution_hz != current->resolution_hz || wanted.window_function != current->window_function) {
 		fft_analyzer_set_config(h->analyzer, &wanted);
 		h->window_len = 0;
-	} else if (wanted.channel != current->channel) {
-		fft_analyzer_set_channel(h->analyzer, wanted.channel);
+	} else if (wanted.channel != current->channel || wanted.averaging_s != current->averaging_s) {
+		fft_analyzer_set_config(h->analyzer, &wanted);
 	}
 	pitch_conditioner_config_t cc = conditioner_config(h);
 	pitch_conditioner_set_config(h->conditioner, &cc);
@@ -180,7 +184,7 @@ void harmonics_free(harmonics_t **h) {
 bool harmonics_get_pitch_valid(const harmonics_t *h) { return h->pitch_valid; }
 float harmonics_get_pitch_frequency(const harmonics_t *h) { return h->pitch_frequency; }
 
-const harmonic_readout_t *harmonics_readouts(const harmonics_t *h, uint32_t *count) {
+const harmonics_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count) {
 	*count = h->read_count;
 	return h->reads;
 }
@@ -198,8 +202,10 @@ void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t 
 	pitch_conditioner_reset(h->conditioner);
 	h->pitch_valid = false;
 	h->pitch_frequency = 0.0f;
+	h->last_frequency = 0.0f;
 	h->read_count = 0;
 	h->has_thd = 0;
+	memset(h->gates, 0, sizeof(h->gates));
 	h->window_len = 0;
 }
 
@@ -252,11 +258,18 @@ static int analyze(harmonics_t *h) {
 	float rms = fft_analyzer_rms(fa, 0);
 	h->pitch_valid = pitch_conditioner_update(h->conditioner, e.period, e.clarity, rms, fs, &h->pitch_frequency);
 
-	harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), bins, n, h->db);
-
-	// the harmonics on the axis
+	// a new note: the average and the labels start over
 	double f0 = h->pitch_frequency, delta_f = fs / n;
+	if (f0 > 0.0 && h->last_frequency > 0.0 && fabs(1200.0 * log2(f0 / h->last_frequency)) > NOTE_JUMP_CENTS) {
+		fft_analyzer_reset_power(fa);
+		memset(h->gates, 0, sizeof(h->gates));
+	}
+	h->last_frequency = (float)f0;
+
+	// the harmonics on the axis, read from the averaged spectrum
+	harmonic_power_db(fft_analyzer_power(fa, 0), bins, n, h->db);
 	double f_end = axis_end(h, f0, fs);
+	float dt = fft_analyzer_hop_seconds(fa);
 	h->read_count = 0;
 	if (f0 > 0.0) {
 		// the floor beside a harmonic is read short of the next harmonic's lobe
@@ -267,11 +280,21 @@ static int analyze(harmonics_t *h) {
 			if (fk > f_end) break;
 			uint32_t search = (uint32_t)ceil(fk * SEARCH_RATIO / delta_f);
 			if (search < SEARCH_MIN_BINS) search = SEARCH_MIN_BINS;
-			h->reads[k - 1] = harmonic_readout(h->db, bins, delta_f, fk, search, shoulder, h->config.prominence_db, &h->window);
+			harmonics_reading_t *r = &h->reads[k - 1];
+			r->readout = harmonic_readout(h->db, bins, delta_f, fk, search, shoulder, h->config.prominence_db, &h->window);
+			r->shown = harmonic_gate_update(&h->gates[k - 1], &r->readout, h->config.prominence_db,
+											h->config.prominence_db - h->config.hysteresis_db, h->config.readout_hold_s, dt);
 			h->read_count = k;
 		}
 	}
-	h->has_thd = harmonic_thd(h->reads, h->read_count, &h->thd) == 0;
+
+	// the distortion counts what is shown
+	harmonic_readout_t shown[MAX_HARMONICS];
+	for (uint32_t k = 0; k < h->read_count; k++) {
+		shown[k] = h->reads[k].readout;
+		shown[k].found = h->reads[k].shown;
+	}
+	h->has_thd = harmonic_thd(shown, h->read_count, &h->thd) == 0;
 	return 0;
 }
 
@@ -405,7 +428,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 
 	// markers and numbers at the harmonics, and the levels relative to the fundamental's
 	SDL_Color marker = h->pitch_valid ? h->config.marker_color : h->config.held_color;
-	const harmonic_readout_t *h1 = h->read_count ? &h->reads[0] : NULL;
+	const harmonics_reading_t *h1 = h->read_count ? &h->reads[0] : NULL;
 	char text[LABEL_TEXT];
 	for (uint32_t k = 1; k <= h->read_count; k++) {
 		float x = plot->x + (float)(plot->w * k * f0 / f_end);
@@ -417,8 +440,8 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		label_set(&h->numbers[k - 1], renderer, h->font, h->config.major_color, text);
 		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
 
-		const harmonic_readout_t *r = &h->reads[k - 1];
-		if (h1->found && r->found) snprintf(text, sizeof(text), "%.1f", r->db - h1->db);
+		const harmonics_reading_t *r = &h->reads[k - 1];
+		if (h1->shown && r->shown) snprintf(text, sizeof(text), "%.1f", r->readout.db - h1->readout.db);
 		else text[0] = '\0';
 		label_set(&h->readouts[k - 1], renderer, h->font, h->config.readout_color, text);
 		label_blit(&h->readouts[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
@@ -427,11 +450,11 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	// the fundamental, its level, and the distortion
 	if (f0 <= 0.0) {
 		snprintf(text, sizeof(text), "no pitch");
-	} else if (!h1 || !h1->found) {
+	} else if (!h1 || !h1->shown) {
 		snprintf(text, sizeof(text), "%.1f Hz%s   H1 not found", f0, h->pitch_valid ? "" : " (held)");
 	} else {
 		snprintf(text, sizeof(text), "%.1f Hz%s   H1 %.1f dB   THD %.3g %%", f0, h->pitch_valid ? "" : " (held)",
-				 h1->db, 100.0 * h->thd);
+				 h1->readout.db, 100.0 * h->thd);
 	}
 	label_set(&h->header, renderer, h->font, h->pitch_valid ? h->config.readout_color : h->config.held_color, text);
 	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);

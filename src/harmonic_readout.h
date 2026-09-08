@@ -13,6 +13,9 @@
 // -inf for an empty bin.
 void harmonic_magnitude_db(const float *spectrum, uint32_t bins, uint32_t n, float *db);
 
+// the same scale from per-bin power, |X|^2, as an average over time holds it
+void harmonic_power_db(const float *power, uint32_t bins, uint32_t n, float *db);
+
 // What the readouts need to know about the window. A parabola through
 // three dB values is not the shape of a window's main lobe, so refining a
 // peak with one is biased by an amount that depends only on the window and

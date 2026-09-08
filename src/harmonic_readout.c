@@ -20,6 +20,14 @@ void harmonic_magnitude_db(const float *spectrum, uint32_t bins, uint32_t n, flo
 	}
 }
 
+void harmonic_power_db(const float *power, uint32_t bins, uint32_t n, float *db) {
+	double scale = (2.0 / n) * (2.0 / n);
+	for (uint32_t k = 0; k < bins; k++) {
+		double p = power[k] * scale;
+		db[k] = p > 0.0 ? (float)(10.0 * log10(p)) : -INFINITY;
+	}
+}
+
 // (offset from the centre sample, peak value) of the parabola through three samples
 static void parabola(double y0, double y1, double y2, double *d, double *peak) {
 	double denom = y0 - 2.0 * y1 + y2;

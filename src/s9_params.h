@@ -8,7 +8,7 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS   7
-#define S9_HARM_NUM_PARAMS  14
+#define S9_HARM_NUM_PARAMS  17
 #define S9_PITCH_NUM_PARAMS 2
 #define S9_DEBUG_NUM_PARAMS 1
 

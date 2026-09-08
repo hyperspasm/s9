@@ -9,10 +9,11 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-// The harmonic analyzer: the spectrum on a linear axis scaled to the tracked
-// fundamental, with a marker at each harmonic and, for those that stand out
-// from the floor, its level relative to the fundamental's; the fundamental's
-// own level and the distortion the harmonics add up to above.
+// The harmonic analyzer: the spectrum, averaged over a short time, on a
+// linear axis scaled to the tracked fundamental, with a marker at each
+// harmonic and, for those that stand out from the floor, its level relative
+// to the fundamental's; the fundamental's own level and the distortion the
+// harmonics add up to above.
 
 #define HARMONICS_CHANNEL_ALL UINT32_MAX
 
@@ -34,7 +35,10 @@ typedef struct {
 	float deadband_cents;             // the reported value moves only when the smoothed one differs by more
 
 	// reading the harmonics
-	float prominence_db;              // a harmonic must stand this far above the floor beside it
+	float averaging_s;                // time constant of the spectrum's average, seconds; the average restarts on a new note
+	float prominence_db;              // a harmonic's label appears once it stands this far above the floor beside it (assumes averaging; without it, 15)
+	float hysteresis_db;              // and stays while it stands within this of that
+	float readout_hold_s;             // and for this long after it no longer does
 
 	// display
 	uint32_t harmonics;               // markers across the graph
@@ -59,7 +63,10 @@ static const harmonics_config_t default_harmonics_config = {
 	.octave_tolerance_cents = 30.0f,
 	.smoothing = 0.5f,
 	.deadband_cents = 5.0f,
-	.prominence_db = 15.0f,
+	.averaging_s = 1.0f,
+	.prominence_db = 10.0f,
+	.hysteresis_db = 3.0f,
+	.readout_hold_s = 0.5f,
 	.harmonics = 10,
 	.min_db = -90,
 	.max_db = 0,
@@ -91,13 +98,19 @@ void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config);
 bool harmonics_get_pitch_valid(const harmonics_t *h);
 float harmonics_get_pitch_frequency(const harmonics_t *h);
 
-// The last frame's readouts of harmonics 1..*count, levels in dB relative
-// to a full-scale sine; none before a fundamental is known. Valid until
-// the next frame.
-const harmonic_readout_t *harmonics_readouts(const harmonics_t *h, uint32_t *count);
+// The last frame's readings of harmonics 1..*count: the readout, levels in
+// dB relative to a full-scale sine, and whether its label is shown, which
+// is what the distortion counts. None before a fundamental is known. Valid
+// until the next frame.
+typedef struct {
+	harmonic_readout_t readout;
+	bool shown;
+} harmonics_reading_t;
+
+const harmonics_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count);
 
 // The last frame's total harmonic distortion as a ratio. Returns 0, or -1
-// when the fundamental was not read.
+// when the fundamental is not shown.
 int harmonics_get_thd(const harmonics_t *h, float *thd);
 
 // stop audio streaming

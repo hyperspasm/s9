@@ -61,6 +61,9 @@ HARM_FLOAT(harm_octave_tolerance, octave_tolerance_cents)
 HARM_FLOAT(harm_smoothing, smoothing)
 HARM_FLOAT(harm_deadband, deadband_cents)
 HARM_FLOAT(harm_prominence, prominence_db)
+HARM_FLOAT(harm_averaging, averaging_s)
+HARM_FLOAT(harm_hysteresis, hysteresis_db)
+HARM_FLOAT(harm_readout_hold, readout_hold_s)
 
 static void set_harm_window(void *ctx, uint32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.window_function = (window_function_t)val; harmonics_set_config(ctx, &c); }
 static uint32_t get_harm_window(void *ctx) { return (uint32_t)harmonics_config(ctx)->window_function; }
@@ -97,6 +100,9 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm) {
 	p->harm_params[11] = pn_float("smoothing",       harm, PN_FN(set_harm_smoothing),        PN_FN(get_harm_smoothing),        0.0f, 1.0f, 0);
 	p->harm_params[12] = pn_float("deadband",        harm, PN_FN(set_harm_deadband),         PN_FN(get_harm_deadband),         0.0f, 100.0f, 0);
 	p->harm_params[13] = pn_float("prominence",      harm, PN_FN(set_harm_prominence),       PN_FN(get_harm_prominence),       0.0f, 60.0f, 0);
+	p->harm_params[14] = pn_float("averaging",       harm, PN_FN(set_harm_averaging),        PN_FN(get_harm_averaging),        0.0f, 10.0f, 0);
+	p->harm_params[15] = pn_float("hysteresis",      harm, PN_FN(set_harm_hysteresis),       PN_FN(get_harm_hysteresis),       0.0f, 30.0f, 0);
+	p->harm_params[16] = pn_float("readout_hold",    harm, PN_FN(set_harm_readout_hold),     PN_FN(get_harm_readout_hold),     0.0f, 5.0f, 0);
 
 	p->pitch_params[S9_PITCH_FREQUENCY] = pn_float("frequency", harm, NULL, PN_FN(get_pitch_frequency), 0.0f, 24000.0f, 0);
 	p->pitch_params[S9_PITCH_VALID]     = pn_bool("valid",      harm, NULL, PN_FN(get_pitch_valid));
