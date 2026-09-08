@@ -14,7 +14,7 @@ TEST estimates_match_golden(void) {
 	for (unsigned i = 0; i < PITCH_GOLDEN_ESTIMATE_COUNT; i++) {
 		const pitch_golden_estimate_t *g = &pitch_golden_estimates[i];
 		test_signal_t s = { g->signal.kind, g->signal.freq, g->signal.freq2, g->signal.amp, g->signal.phase,
-							g->signal.harmonics, g->signal.seed };
+							g->signal.harmonics, g->signal.seed, 0 };
 		float *x = malloc(sizeof(float) * g->n);
 		float *nacf = malloc(sizeof(float) * g->n);
 		test_signal_generate(&s, x, g->n, PITCH_GOLDEN_FS);

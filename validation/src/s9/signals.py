@@ -57,20 +57,26 @@ def silence(n):
     return np.zeros(n, dtype=np.float32)
 
 
-def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10, seed=1):
+def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10, seed=1, noise_amp=0.0):
+    """A signal of the kind, with noise of amplitude noise_amp from seed added
+    when that is positive: each part rounded to float32, then their sum."""
     if kind == SINE:
-        return sine(n, fs, freq, amp, phase)
-    if kind == SAWTOOTH:
-        return sawtooth(n, fs, freq, amp, harmonics, phase)
-    if kind == SQUARE:
-        return square(n, fs, freq, amp, harmonics, phase)
-    if kind == TWIN:
-        return twin(n, fs, freq, freq2, amp, phase)
-    if kind == NOISE:
-        return noise(n, seed, amp)
-    if kind == SILENCE:
-        return silence(n)
-    raise ValueError(kind)
+        x = sine(n, fs, freq, amp, phase)
+    elif kind == SAWTOOTH:
+        x = sawtooth(n, fs, freq, amp, harmonics, phase)
+    elif kind == SQUARE:
+        x = square(n, fs, freq, amp, harmonics, phase)
+    elif kind == TWIN:
+        x = twin(n, fs, freq, freq2, amp, phase)
+    elif kind == NOISE:
+        x = noise(n, seed, amp)
+    elif kind == SILENCE:
+        x = silence(n)
+    else:
+        raise ValueError(kind)
+    if noise_amp > 0.0:
+        x = x + noise(n, seed, noise_amp)
+    return x
 
 
 def rms(x):

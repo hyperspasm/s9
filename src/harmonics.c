@@ -18,6 +18,8 @@
 #define PEAK_TOLERANCE 0.02f    // how far below the highest autocorrelation peak an earlier one may be and still be the period
 #define SEARCH_MIN_BINS 3       // a readout looks at least this far either side of its harmonic
 #define SEARCH_RATIO 0.01f      // and at least this fraction of the harmonic's frequency, covering the reported fundamental's dead band and smoothing lag
+#define SHOULDER_BINS 32        // the floor beside a harmonic is read from this many bins per side, fewer when the next harmonic is closer
+#define PROMINENCE_DB 15.0f     // a harmonic must stand this far above the floor beside it
 #define AXIS_HEADROOM 0.5f      // the axis extends this many fundamentals past the last marker
 #define PLOT_WIDTH 2.0f
 #define LABEL_TEXT 32
@@ -38,8 +40,8 @@ struct harmonics {
 	uint32_t buffer_len;             // the transform length nacf and db are sized for
 	float *nacf;
 	float *db;                       // the latest spectrum, per bin
-	harmonic_correction_t correction;
-	uint32_t correction_len;         // the transform length the correction was computed for; 0 before any
+	harmonic_window_t window;        // the readouts' model of the analyzer's window
+	uint32_t window_len;             // the transform length it was computed for; 0 before any
 
 	bool pitch_valid;
 	float pitch_frequency;
@@ -112,7 +114,7 @@ static void apply_config(harmonics_t *h) {
 	const fft_analyzer_config_t *current = fft_analyzer_config(h->analyzer);
 	if (wanted.resolution_hz != current->resolution_hz || wanted.window_function != current->window_function) {
 		fft_analyzer_set_config(h->analyzer, &wanted);
-		h->correction_len = 0;
+		h->window_len = 0;
 	} else if (wanted.channel != current->channel) {
 		fft_analyzer_set_channel(h->analyzer, wanted.channel);
 	}
@@ -182,7 +184,7 @@ void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t 
 	pitch_conditioner_reset(h->conditioner);
 	h->pitch_valid = false;
 	h->pitch_frequency = 0.0f;
-	h->correction_len = 0;
+	h->window_len = 0;
 }
 
 void harmonics_stop_streaming(harmonics_t *h) {
@@ -210,9 +212,9 @@ static int analyze(harmonics_t *h) {
 		CHECK_ALLOC(h->nacf, return -1);
 		CHECK_ALLOC(h->db, return -1);
 	}
-	if (h->correction_len != n) {
-		harmonic_correction_compute(&h->correction, fft_analyzer_window(fa), n);
-		h->correction_len = n;
+	if (h->window_len != n) {
+		harmonic_window_compute(&h->window, fft_analyzer_window(fa), n);
+		h->window_len = n;
 	}
 
 	// the period lies between the lags of f_max and f_min
@@ -367,6 +369,11 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	// markers, numbers, and readouts at the harmonics
 	if (f0 > 0.0) {
 		SDL_Color marker = h->pitch_valid ? h->config.marker_color : h->config.held_color;
+
+		// the floor beside a harmonic is read short of the next harmonic's lobe
+		long fit = (long)(f0 / delta_f / 2.0) - (long)h->window.reach;
+		uint32_t shoulder = fit < 1 ? 1 : fit < SHOULDER_BINS ? (uint32_t)fit : SHOULDER_BINS;
+
 		for (uint32_t k = 1; k <= count; k++) {
 			double fk = k * f0;
 			if (fk > f_end) break;
@@ -382,7 +389,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 
 			uint32_t search = (uint32_t)ceil(fk * SEARCH_RATIO / delta_f);
 			if (search < SEARCH_MIN_BINS) search = SEARCH_MIN_BINS;
-			harmonic_readout_t r = harmonic_readout(h->db, bins, delta_f, fk, search, &h->correction);
+			harmonic_readout_t r = harmonic_readout(h->db, bins, delta_f, fk, search, shoulder, PROMINENCE_DB, &h->window);
 			if (r.found) snprintf(text, sizeof(text), "%.1f", r.db);
 			else text[0] = '\0';
 			label_set(&h->readouts[k - 1], renderer, h->font, h->config.readout_color, text);

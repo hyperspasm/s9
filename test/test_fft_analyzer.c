@@ -35,7 +35,7 @@ static float bin_amplitude(const fft_analyzer_t *fa, uint32_t index, uint32_t bi
 // The normalized autocorrelation of the golden's frame matches the oracle at every lag.
 TEST nacf_matches_golden(void) {
 	const pitch_golden_signal_t *g = &pitch_golden_nacf_signal;
-	test_signal_t s = { g->kind, g->freq, g->freq2, g->amp, g->phase, g->harmonics, g->seed };
+	test_signal_t s = { g->kind, g->freq, g->freq2, g->amp, g->phase, g->harmonics, g->seed, 0 };
 	float *x = malloc(sizeof(float) * PITCH_GOLDEN_NACF_N);
 	test_signal_generate(&s, x, PITCH_GOLDEN_NACF_N, FS);
 
@@ -59,7 +59,7 @@ TEST nacf_matches_golden(void) {
 TEST spectrum_is_calibrated(void) {
 	enum { N = 4096, BIN = 100 };
 	float *x = malloc(sizeof(float) * N);
-	test_signal_t s = { SIGNAL_SINE, (double)BIN * FS / N, 0, 0.5, 0.3, 0, 0 };
+	test_signal_t s = { SIGNAL_SINE, (double)BIN * FS / N, 0, 0.5, 0.3, 0, 0, 0 };
 	test_signal_generate(&s, x, N, FS);
 
 	fft_analyzer_t *fa = make(N, FFT_ANALYZER_EACH_CHANNEL, 0, WINDOW_FUNCTION_HANN, 0.0f, 1);
@@ -78,8 +78,8 @@ TEST spectrum_is_calibrated(void) {
 TEST mix_selects_a_channel_or_averages(void) {
 	enum { N = 2048, BIN0 = 50, BIN1 = 80 };
 	float *left = malloc(sizeof(float) * N), *right = malloc(sizeof(float) * N), *stereo = malloc(sizeof(float) * N * 2);
-	test_signal_t s0 = { SIGNAL_SINE, (double)BIN0 * FS / N, 0, 0.8, 0, 0, 0 };
-	test_signal_t s1 = { SIGNAL_SINE, (double)BIN1 * FS / N, 0, 0.4, 0, 0, 0 };
+	test_signal_t s0 = { SIGNAL_SINE, (double)BIN0 * FS / N, 0, 0.8, 0, 0, 0, 0 };
+	test_signal_t s1 = { SIGNAL_SINE, (double)BIN1 * FS / N, 0, 0.4, 0, 0, 0, 0 };
 	test_signal_generate(&s0, left, N, FS);
 	test_signal_generate(&s1, right, N, FS);
 	for (int i = 0; i < N; i++) { stereo[2 * i] = left[i]; stereo[2 * i + 1] = right[i]; }
@@ -117,7 +117,7 @@ TEST mix_selects_a_channel_or_averages(void) {
 TEST history_slides_by_whole_display_frames(void) {
 	enum { N = 1024 };
 	float *x = malloc(sizeof(float) * N * 2);
-	test_signal_t s = { SIGNAL_SINE, 100.0 * FS / N, 0, 0.5, 0, 0, 0 };
+	test_signal_t s = { SIGNAL_SINE, 100.0 * FS / N, 0, 0.5, 0, 0, 0, 0 };
 	test_signal_generate(&s, x, N * 2, FS);
 
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .fft_len = N, .window_function = WINDOW_FUNCTION_HANN, .mode = FFT_ANALYZER_MIX });
@@ -144,7 +144,7 @@ TEST history_slides_by_whole_display_frames(void) {
 TEST reconfigure_at_next_update(void) {
 	enum { N = 1024 };
 	float *x = malloc(sizeof(float) * N * 2);
-	test_signal_t s = { SIGNAL_SINE, 100.0 * FS / N, 0, 0.5, 0, 0, 0 };
+	test_signal_t s = { SIGNAL_SINE, 100.0 * FS / N, 0, 0.5, 0, 0, 0, 0 };
 	test_signal_generate(&s, x, N * 2, FS);
 
 	fft_analyzer_t *fa = make(N, FFT_ANALYZER_MIX, 0, WINDOW_FUNCTION_HANN, 0.0f, 1);

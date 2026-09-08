@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-// Per-harmonic readouts from a spectrum: the level and the frequency of the
-// peak nearest a harmonic, refined between bins. Pure functions over
-// caller-owned memory.
+// Per-harmonic readouts from a spectrum, and the distortion they add up
+// to: the level and the frequency of the peak nearest a harmonic, refined
+// between bins. Pure functions over caller-owned memory.
 
 // Magnitudes in dB relative to a full-scale sine: under a window normalized
 // to sum to n, a sine of amplitude a reads 20 log10(a) at its bin. spectrum
@@ -13,32 +13,46 @@
 // -inf for an empty bin.
 void harmonic_magnitude_db(const float *spectrum, uint32_t bins, uint32_t n, float *db);
 
-// A parabola through three dB values is not the shape of a window's main
-// lobe, so refining a peak with one is biased by an amount that depends only
-// on the window and on the offset the parabola reports. The table holds that
-// bias over reported offsets 0..0.5, uniformly.
+// What the readouts need to know about the window. A parabola through
+// three dB values is not the shape of a window's main lobe, so refining a
+// peak with one is biased by an amount that depends only on the window and
+// on the offset the parabola reports; the tables hold that bias over
+// reported offsets 0..0.5, uniformly. The reach is where a peak's own lobe
+// no longer raises its neighbours, wherever the peak sits within its bin.
 #define HARMONIC_CORRECTION_POINTS 33
 typedef struct {
 	double db_bias[HARMONIC_CORRECTION_POINTS];       // the parabola's peak is high by this
 	double offset_bias[HARMONIC_CORRECTION_POINTS];   // the parabola's offset is off by this, away from the true peak
-} harmonic_correction_t;
+	uint32_t reach;                                   // bins from a peak's bin to the first bin outside its main lobe
+} harmonic_window_t;
 
-// the table for a window of n samples
-void harmonic_correction_compute(harmonic_correction_t *c, const float *window, uint32_t n);
+// the model of a window of n samples
+void harmonic_window_compute(harmonic_window_t *w, const float *window, uint32_t n);
 
 typedef struct {
-	int found;         // a peak lies within reach of the harmonic
+	int found;         // a harmonic stands there
 	float frequency;   // Hz
 	float db;
 } harmonic_readout_t;
 
-// The peak within search bins of centre_hz: the loudest bin there, refined
-// by a parabola through its neighbours and corrected. delta_f is the bin
-// spacing; db holds bins values. Not found when the loudest bin is no local
-// maximum (the skirt of something louder nearby has no peak to read), or
-// when the nearest bin is the first or lies beyond the last a parabola fits
-// around.
+// The most bins the floor is read from on each side of a peak
+#define HARMONIC_SHOULDER_MAX 64
+
+// The harmonic within search bins of centre_hz: the loudest bin there, when
+// it is a local maximum standing prominence dB above the floor, refined by
+// a parabola through its neighbours and corrected. The floor is, on each
+// side, the median of the shoulder bins starting the window's reach away;
+// the lower side's, so the skirt of a louder neighbour does not hide a
+// harmonic. The caller keeps the shoulder short enough that it ends before
+// the neighbouring harmonic's lobe. delta_f is the bin spacing; db holds
+// bins values. Not found either when the nearest bin is the first or lies
+// beyond the last a parabola fits around.
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
-									const harmonic_correction_t *c);
+									uint32_t shoulder, float prominence, const harmonic_window_t *w);
+
+// Total harmonic distortion over readouts of harmonics 1..count: the RMS of
+// the harmonics found over the fundamental's, as a ratio. Returns 0, or -1
+// when the fundamental was not found.
+int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd);
 
 #endif /* harmonic_readout_h */

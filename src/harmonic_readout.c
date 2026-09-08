@@ -6,7 +6,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define OFFSET_MAX 0.5   // the table's range of reported offsets
+#define OFFSET_MAX 0.5        // the tables' range of reported offsets
+#define LOBE_END_DB -40.0     // the main lobe ends where the window's transform has fallen this far below its peak
+#define LOBE_SCAN_STEP 0.05   // bins, when looking for that
+#define LOBE_SCAN_MAX 16.0    // bins, when the transform never falls that far
 
 void harmonic_magnitude_db(const float *spectrum, uint32_t bins, uint32_t n, float *db) {
 	double scale = 2.0 / n;
@@ -55,7 +58,7 @@ static double interp(double x, const double *xp, const double *fp, uint32_t m) {
 	return fp[i] + t * (fp[i + 1] - fp[i]);
 }
 
-void harmonic_correction_compute(harmonic_correction_t *c, const float *window, uint32_t n) {
+void harmonic_window_compute(harmonic_window_t *w, const float *window, uint32_t n) {
 	enum { SAMPLES = 4 * HARMONIC_CORRECTION_POINTS };
 	double reported[SAMPLES], db_bias[SAMPLES], offset_bias[SAMPLES];
 	for (int i = 0; i < SAMPLES; i++) {
@@ -71,9 +74,14 @@ void harmonic_correction_compute(harmonic_correction_t *c, const float *window, 
 	}
 	for (int g = 0; g < HARMONIC_CORRECTION_POINTS; g++) {
 		double x = OFFSET_MAX * g / (HARMONIC_CORRECTION_POINTS - 1);
-		c->db_bias[g] = interp(x, reported, db_bias, SAMPLES);
-		c->offset_bias[g] = interp(x, reported, offset_bias, SAMPLES);
+		w->db_bias[g] = interp(x, reported, db_bias, SAMPLES);
+		w->offset_bias[g] = interp(x, reported, offset_bias, SAMPLES);
 	}
+
+	// where the lobe ends, plus the half bin a peak may be off, rounded up
+	double x = LOBE_SCAN_STEP;
+	while (x < LOBE_SCAN_MAX && lobe_db(window, n, x) > LOBE_END_DB) x += LOBE_SCAN_STEP;
+	w->reach = (uint32_t)ceil(x + 0.5);
 }
 
 // a table value at a reported offset, between the uniformly spaced points
@@ -85,13 +93,47 @@ static double table_at(const double *table, double offset) {
 	return table[i] + t * (table[i + 1] - table[i]);
 }
 
+// the median of the finite values among db[lo..hi]; returns whether there were any
+static int median_db(const float *db, long lo, long hi, double *median) {
+	double values[HARMONIC_SHOULDER_MAX];
+	uint32_t count = 0;
+	for (long i = lo; i <= hi && count < HARMONIC_SHOULDER_MAX; i++) {
+		if (!isfinite(db[i])) continue;
+		// insertion into sorted order
+		uint32_t j = count++;
+		while (j > 0 && values[j - 1] > db[i]) {
+			values[j] = values[j - 1];
+			j--;
+		}
+		values[j] = db[i];
+	}
+	if (!count) return 0;
+	*median = count % 2 ? values[count / 2] : 0.5 * (values[count / 2 - 1] + values[count / 2]);
+	return 1;
+}
+
+// the floor around bin p: the lower of the two sides' shoulder medians, or -inf without any usable bin
+static double floor_db(const float *db, uint32_t bins, long p, uint32_t reach, uint32_t shoulder) {
+	double floor = INFINITY, side;
+	int any = 0;
+	long lo = p - (long)reach - (long)shoulder + 1, hi = p - (long)reach;
+	if (lo < 0) lo = 0;
+	if (hi >= 0 && lo <= hi && median_db(db, lo, hi, &side)) { floor = side; any = 1; }
+	lo = p + (long)reach;
+	hi = p + (long)reach + (long)shoulder - 1;
+	if (hi > (long)bins - 1) hi = (long)bins - 1;
+	if (lo <= hi && median_db(db, lo, hi, &side) && side < floor) { floor = side; any = 1; }
+	return any ? floor : -INFINITY;
+}
+
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
-									const harmonic_correction_t *c) {
+									uint32_t shoulder, float prominence, const harmonic_window_t *w) {
 	harmonic_readout_t r = { 0, 0.0f, 0.0f };
 	if (bins < 3) return r;
 	long last = (long)bins - 2;   // the highest bin a parabola can be centred on
 	long centre = lrint(centre_hz / delta_f);
 	if (centre < 1 || centre > last) return r;
+	if (shoulder > HARMONIC_SHOULDER_MAX) shoulder = HARMONIC_SHOULDER_MAX;
 
 	long lo = centre - (long)search, hi = centre + (long)search;
 	if (lo < 1) lo = 1;
@@ -102,6 +144,7 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 
 	double y0 = db[p - 1], y1 = db[p], y2 = db[p + 1];
 	if (!(y1 > y0 && y1 >= y2)) return r;
+	if (y1 - floor_db(db, bins, p, w->reach, shoulder) < prominence) return r;
 	r.found = 1;
 	if (!isfinite(y0) || !isfinite(y1) || !isfinite(y2)) {
 		r.frequency = (float)(p * delta_f);
@@ -112,8 +155,17 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 	double d, peak;
 	parabola(y0, y1, y2, &d, &peak);
 	double a = fabs(d) < OFFSET_MAX ? fabs(d) : OFFSET_MAX;
-	double off = d - copysign(table_at(c->offset_bias, a), d);
+	double off = d - copysign(table_at(w->offset_bias, a), d);
 	r.frequency = (float)((p + off) * delta_f);
-	r.db = (float)(peak - table_at(c->db_bias, a));
+	r.db = (float)(peak - table_at(w->db_bias, a));
 	return r;
+}
+
+int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd) {
+	if (!count || !reads[0].found) return -1;
+	double power = 0.0;
+	for (uint32_t k = 1; k < count; k++)
+		if (reads[k].found) power += pow(10.0, reads[k].db / 10.0);
+	*thd = (float)(sqrt(power) / pow(10.0, reads[0].db / 20.0));
+	return 0;
 }

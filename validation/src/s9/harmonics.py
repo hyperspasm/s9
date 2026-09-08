@@ -1,9 +1,14 @@
-"""Per-harmonic readouts from a spectrum.
+"""Per-harmonic readouts from a spectrum, and the distortion they add up to.
 
 Magnitudes are in dB relative to a full-scale sine: with s9's normalized
 window, a sine of amplitude a reads 20 log10(a). For harmonic k of the
-reference f0, the loudest bin within `search` bins of k*f0 is refined by a
-parabola through the dB values of it and its neighbours. A parabola is not
+reference f0, the loudest bin within `search` bins of k*f0 is a harmonic
+when it is a local maximum that stands `prominence` dB above the floor
+around it; the floor is the median of a shoulder of bins on each side,
+starting past the window's main lobe so the peak's own leakage does not
+raise it, and the lower side's median is taken so the skirt of a louder
+neighbour does not hide a harmonic. A harmonic's peak is refined by a
+parabola through the dB values of its bin and neighbours. A parabola is not
 the shape of a window's main lobe, so the refinement is biased by an amount
 that depends only on the window and on the offset the parabola reports; the
 correction table gives that bias and is subtracted.
@@ -13,6 +18,9 @@ import math
 import numpy as np
 
 CORRECTION_POINTS = 33   # table entries over the offset range 0..0.5
+LOBE_END_DB = -40.0      # the main lobe ends where the window's transform has fallen this far below its peak
+LOBE_SCAN_STEP = 0.05    # bins, when looking for that
+LOBE_SCAN_MAX = 16.0     # bins, when the transform never falls that far
 
 
 def spectrum(xw):
@@ -40,7 +48,33 @@ def lobe_db(w, delta):
     j = np.arange(n, dtype=np.float64)
     wd = w.astype(np.float64)
     value = abs(np.sum(wd * np.exp(-2j * math.pi * delta * j / n)))
-    return 20.0 * math.log10(value / np.sum(wd))
+    return 20.0 * math.log10(max(value / np.sum(wd), 1e-300))
+
+
+def lobe_reach(w):
+    """Whole bins from a peak's bin to the first bin outside its main lobe,
+    wherever the peak sits within its bin: where the lobe ends, plus the
+    half bin the peak may be off, rounded up."""
+    x = LOBE_SCAN_STEP
+    while x < LOBE_SCAN_MAX and lobe_db(w, x) > LOBE_END_DB:
+        x += LOBE_SCAN_STEP
+    return int(math.ceil(x + 0.5))
+
+
+def floor_db(db, p, reach, shoulder):
+    """The floor around bin p: on each side, the median of the `shoulder`
+    bins starting `reach` bins away; the lower side's. Bins off the ends of
+    the spectrum and empty bins are left out, a side without any is
+    ignored, and no usable bin at all gives -inf."""
+    sides = []
+    for lo, hi in ((p - reach - shoulder + 1, p - reach), (p + reach, p + reach + shoulder - 1)):
+        lo, hi = max(lo, 0), min(hi, len(db) - 1)
+        if lo <= hi:
+            values = db[lo:hi + 1]
+            values = values[np.isfinite(values)]
+            if len(values):
+                sides.append(float(np.median(values)))
+    return min(sides) if sides else -math.inf
 
 
 def correction_table(w, points=CORRECTION_POINTS):
@@ -69,14 +103,17 @@ def corrected(d, peak_db, table):
     return off, db
 
 
-def readouts(bins, n, fs, f0, harmonics, search, table):
+def readouts(bins, n, fs, f0, harmonics, search, table, reach, shoulder, prominence):
     """A list of (found, frequency, db) for harmonics 1..harmonics. A harmonic
     is found when the loudest bin within `search` bins of it is a local
-    maximum; on a slope, the skirt of something louder nearby, there is no
-    peak to read."""
+    maximum `prominence` dB above the floor. The shoulder the floor is taken
+    from is shortened so it ends before the neighbouring harmonic's lobe."""
     db = magnitude_db(bins, n)
     last = n // 2 - 1          # the highest bin a parabola can be centred on
     delta_f = fs / n
+    spacing = f0 / delta_f     # bins between harmonics
+    fit = int(spacing / 2) - reach
+    shoulder = max(1, min(shoulder, fit))
     out = []
     for k in range(1, harmonics + 1):
         centre = int(round(k * f0 / delta_f))
@@ -90,6 +127,9 @@ def readouts(bins, n, fs, f0, harmonics, search, table):
         if not (y1 > y0 and y1 >= y2):
             out.append((False, 0.0, 0.0))
             continue
+        if y1 - floor_db(db, p, reach, shoulder) < prominence:
+            out.append((False, 0.0, 0.0))
+            continue
         if not all(math.isfinite(v) for v in (y0, y1, y2)):
             out.append((True, p * delta_f, y1))
             continue
@@ -97,3 +137,13 @@ def readouts(bins, n, fs, f0, harmonics, search, table):
         off, value = corrected(d, peak, table)
         out.append((True, (p + off) * delta_f, value))
     return out
+
+
+def thd(reads):
+    """Total harmonic distortion: the RMS of the harmonics found over the
+    fundamental's, as a ratio; None when the fundamental was not found."""
+    if not reads or not reads[0][0]:
+        return None
+    a1 = 10.0 ** (reads[0][2] / 20.0)
+    power = sum((10.0 ** (db / 20.0)) ** 2 for found, _, db in reads[1:] if found)
+    return math.sqrt(power) / a1

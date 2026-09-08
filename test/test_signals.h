@@ -18,10 +18,18 @@ typedef struct {
 	int kind;
 	double freq, freq2, amp, phase;
 	unsigned harmonics, seed;
+	double noise_amp;   // noise from the same seed added to the signal, when positive
 } test_signal_t;
 
+static inline float test_signal_noise(uint32_t *state, double amp) {
+	*state ^= *state << 13;
+	*state ^= *state >> 17;
+	*state ^= *state << 5;
+	return (float)(amp * ((*state >> 8) * (2.0 / 16777216.0) - 1.0));
+}
+
 static inline void test_signal_generate(const test_signal_t *s, float *out, uint32_t n, double fs) {
-	uint32_t state = s->seed;
+	uint32_t state = s->seed, added = s->seed;
 	for (uint32_t i = 0; i < n; i++) {
 		double t = (double)i / fs;
 		double x = 0.0;
@@ -41,15 +49,13 @@ static inline void test_signal_generate(const test_signal_t *s, float *out, uint
 			x = s->amp * sin(2.0 * M_PI * s->freq * t + s->phase) + s->amp * sin(2.0 * M_PI * s->freq2 * t + s->phase);
 			break;
 		case SIGNAL_NOISE:
-			state ^= state << 13;
-			state ^= state >> 17;
-			state ^= state << 5;
-			x = s->amp * ((state >> 8) * (2.0 / 16777216.0) - 1.0);
+			x = test_signal_noise(&state, s->amp);
 			break;
 		default:
 			break;
 		}
 		out[i] = (float)x;
+		if (s->noise_amp > 0.0) out[i] += test_signal_noise(&added, s->noise_amp);
 	}
 }
 

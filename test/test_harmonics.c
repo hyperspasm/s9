@@ -62,7 +62,7 @@ static unsigned lit_pixels(void) {
 // A steady sawtooth is tracked within the dead band, and drawn.
 TEST tracks_a_sawtooth(void) {
 	harmonics_t *h = streaming(NULL);
-	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0 };
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
 	unsigned offset = 0;
 	for (int i = 0; i < 120; i++) frame(h, &saw, &offset);
 	ASSERT(harmonics_get_pitch_valid(h));
@@ -76,8 +76,8 @@ TEST tracks_a_sawtooth(void) {
 // then reported invalid while its value stays.
 TEST holds_then_drops_on_silence(void) {
 	harmonics_t *h = streaming(NULL);
-	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0 };
-	test_signal_t silence = { SIGNAL_SILENCE, 0, 0, 0, 0, 0, 0 };
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
+	test_signal_t silence = { SIGNAL_SILENCE, 0, 0, 0, 0, 0, 0, 0 };
 	unsigned offset = 0;
 	for (int i = 0; i < 120; i++) frame(h, &saw, &offset);
 	ASSERT(harmonics_get_pitch_valid(h));
@@ -100,7 +100,7 @@ TEST holds_then_drops_on_silence(void) {
 // harmonic count, and the channel analyzed.
 TEST reconfigures_while_streaming(void) {
 	harmonics_t *h = streaming(NULL);
-	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0 };
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
 	unsigned offset = 0;
 	for (int i = 0; i < 60; i++) frame(h, &saw, &offset);
 
@@ -125,7 +125,7 @@ TEST reconfigures_while_streaming(void) {
 // Noise never becomes a pitch, and the display copes with none.
 TEST noise_has_no_pitch(void) {
 	harmonics_t *h = streaming(NULL);
-	test_signal_t noise = { SIGNAL_NOISE, 0, 0, 0.5, 0, 0, 12345 };
+	test_signal_t noise = { SIGNAL_NOISE, 0, 0, 0.5, 0, 0, 12345, 0 };
 	unsigned offset = 0;
 	for (int i = 0; i < 60; i++) {
 		frame(h, &noise, &offset);
