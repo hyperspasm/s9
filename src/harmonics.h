@@ -9,11 +9,12 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-// The harmonic analyzer: the spectrum, averaged over a short time, on a
-// linear axis scaled to the tracked fundamental, with a marker at each
-// harmonic and, for those that stand out from the floor, its level relative
-// to the fundamental's; the fundamental's own level and the distortion the
-// harmonics add up to above.
+// The harmonic analyzer: the latest spectrum on a linear axis scaled to the
+// tracked fundamental, with a marker at each harmonic and, for those that
+// stand out from the floor, its level relative to the fundamental's; the
+// fundamental's own level and the distortion the harmonics add up to above.
+// The curve is live; the readings come from the spectrum averaged over a
+// short time, so they settle rather than jitter.
 
 #define HARMONICS_CHANNEL_ALL UINT32_MAX
 
@@ -35,7 +36,7 @@ typedef struct {
 	float deadband_cents;             // the reported value moves only when the smoothed one differs by more
 
 	// reading the harmonics
-	float averaging_s;                // time constant of the spectrum's average, seconds; the average restarts on a new note
+	float averaging_s;                // time constant of the average the readings come from, seconds; it restarts on a new note
 	float prominence_db;              // a harmonic's label appears once it stands this far above the floor beside it (assumes averaging; without it, 15)
 	float hysteresis_db;              // and stays while it stands within this of that
 	float readout_hold_s;             // and for this long after it no longer does

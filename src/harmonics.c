@@ -37,9 +37,10 @@ struct harmonics {
 
 	fft_analyzer_t *analyzer;
 	pitch_conditioner_t *conditioner;
-	uint32_t buffer_len;             // the transform length nacf and db are sized for
+	uint32_t buffer_len;             // the transform length nacf, db, and live_db are sized for
 	float *nacf;
-	float *db;                       // the latest spectrum, per bin
+	float *db;                       // the averaged spectrum, per bin: what the readings come from
+	float *live_db;                  // the latest transform's, per bin: what the curve shows
 	harmonic_window_t window;        // the readouts' model of the analyzer's window
 	uint32_t window_len;             // the transform length it was computed for; 0 before any
 
@@ -176,6 +177,7 @@ void harmonics_free(harmonics_t **h) {
 		free((*h)->conditioner);
 		free((*h)->nacf);
 		free((*h)->db);
+		free((*h)->live_db);
 		free(*h);
 		*h = NULL;
 	}
@@ -233,12 +235,14 @@ static int analyze(harmonics_t *h) {
 	float fs = (float)fft_analyzer_sample_rate(fa);
 
 	if (h->buffer_len != n) {
-		free(h->nacf); free(h->db);
+		free(h->nacf); free(h->db); free(h->live_db);
 		h->nacf = malloc(sizeof(float) * n);
 		h->db = malloc(sizeof(float) * bins);
-		h->buffer_len = h->nacf && h->db ? n : 0;
+		h->live_db = malloc(sizeof(float) * bins);
+		h->buffer_len = h->nacf && h->db && h->live_db ? n : 0;
 		CHECK_ALLOC(h->nacf, return -1);
 		CHECK_ALLOC(h->db, return -1);
+		CHECK_ALLOC(h->live_db, return -1);
 	}
 	if (h->window_len != n) {
 		harmonic_window_compute(&h->window, fft_analyzer_window(fa), n);
@@ -266,7 +270,8 @@ static int analyze(harmonics_t *h) {
 	}
 	h->last_frequency = (float)f0;
 
-	// the harmonics on the axis, read from the averaged spectrum
+	// the curve shows the latest transform; the harmonics are read from the average
+	harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), bins, n, h->live_db);
 	harmonic_power_db(fft_analyzer_power(fa, 0), bins, n, h->db);
 	double f_end = axis_end(h, f0, fs);
 	float dt = fft_analyzer_hop_seconds(fa);
@@ -367,9 +372,11 @@ static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 	CHECK_ALLOC(h->points, free_drawing(h); return);
 }
 
-// the spectrum from 0 to f_end Hz across the plot columns: the loudest bin
-// in each column, or the level between bins where a column holds none
+// the latest spectrum from 0 to f_end Hz across the plot columns: the
+// loudest bin in each column, or the level between bins where a column
+// holds none
 static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t bins) {
+	const float *db = h->live_db;
 	int w = h->plot_rect.w;
 	float floor_db = (float)h->config.min_db - 10.0f;   // off the bottom of the plot
 	for (int i = 0; i < w; i++) {
@@ -379,17 +386,17 @@ static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t b
 		if (b1 > bins) b1 = bins;
 		float v;
 		if (b0 < b1) {
-			v = h->db[b0];
+			v = db[b0];
 			for (uint32_t b = b0 + 1; b < b1; b++)
-				if (h->db[b] > v) v = h->db[b];
+				if (db[b] > v) v = db[b];
 		} else {
 			double f = 0.5 * (lo + hi) / delta_f;
 			uint32_t b = (uint32_t)f;
 			if (b + 1 >= bins) {
-				v = h->db[bins - 1];
+				v = db[bins - 1];
 			} else {
 				float t = (float)(f - b);
-				v = isfinite(h->db[b]) && isfinite(h->db[b + 1]) ? h->db[b] + t * (h->db[b + 1] - h->db[b]) : floor_db;
+				v = isfinite(db[b]) && isfinite(db[b + 1]) ? db[b] + t * (db[b + 1] - db[b]) : floor_db;
 			}
 		}
 		if (!(v > floor_db)) v = floor_db;
