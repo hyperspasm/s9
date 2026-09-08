@@ -468,7 +468,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	// the fundamental: its level and the distortion while locked and read
 	if (!h->pitch_valid) snprintf(text, sizeof(text), "%.1f Hz   H1 not found", f0);
 	else if (!h1) snprintf(text, sizeof(text), "%.1f Hz", f0);
-	else snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3g %%", f0, h1->readout.db, 100.0 * h->thd);
+	else snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * h->thd);
 	label_set(&h->header, renderer, h->font, h->pitch_valid ? h->config.readout_color : h->config.held_color, text);
 	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);
 }
