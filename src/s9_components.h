@@ -15,6 +15,7 @@ typedef enum {
 	COMP_SPECTROGRAM,
 	COMP_OSCILLOSCOPE,
 	COMP_LISSAJOUS,
+	COMP_HARMONICS,
 	COMP_COUNT,
 } s9_component_id_t;
 

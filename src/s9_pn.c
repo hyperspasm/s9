@@ -1,6 +1,7 @@
 #include "s9_pn.h"
 #include "s9_params.h"
 #include "s9_ws.h"
+#include "harmonics.h"
 #include "s9.h"
 
 #include <pn/pn.h>
@@ -14,6 +15,11 @@ struct s9_pn {
 	s9_ws_t *ws;
 	char *manifest;
 	uint32_t manifest_len;
+
+	// the pitch last pushed to clients
+	harmonics_t *harmonics;
+	bool pitch_valid;
+	float pitch_frequency;
 };
 
 // -- manifest text
@@ -69,7 +75,8 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 
 	pn->config = *config;
 	void *osc = s9_components_get(pn->config.components, COMP_OSCILLOSCOPE)->instance;
-	pn_param_t *root = s9_params_build(&pn->params, osc);
+	pn->harmonics = s9_components_get(pn->config.components, COMP_HARMONICS)->instance;
+	pn_param_t *root = s9_params_build(&pn->params, osc, pn->harmonics);
 
 	// allocate server
 	pn_server_config_t server_config = {
@@ -127,8 +134,25 @@ void s9_pn_free(s9_pn_t **pn) {
 	}
 }
 
+// The tracked pitch changes on its own, so its parameters are pushed
+// whenever their values move.
+static void notify_pitch(s9_pn_t *pn) {
+	bool valid = harmonics_get_pitch_valid(pn->harmonics);
+	float frequency = harmonics_get_pitch_frequency(pn->harmonics);
+	if (valid != pn->pitch_valid) {
+		pn->pitch_valid = valid;
+		pn_param_notify(&pn->params.pitch_params[S9_PITCH_VALID]);
+	}
+	if (frequency != pn->pitch_frequency) {
+		pn->pitch_frequency = frequency;
+		pn_param_notify(&pn->params.pitch_params[S9_PITCH_FREQUENCY]);
+	}
+}
+
 void s9_pn_update(s9_pn_t *pn) {
-	if (pn && pn->ws) s9_ws_update(pn->ws);
+	if (!pn) return;
+	if (pn->ws) s9_ws_update(pn->ws);
+	notify_pitch(pn);
 }
 
 void s9_pn_notify_mode(s9_pn_t *pn) {
