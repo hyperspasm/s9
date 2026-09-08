@@ -137,6 +137,49 @@ TEST noise_has_no_pitch(void) {
 	PASS();
 }
 
+// A sine in noise reads one harmonic, the fundamental, and no distortion.
+TEST sine_in_noise_reads_one_harmonic(void) {
+	harmonics_t *h = streaming(NULL);
+	test_signal_t sine = { SIGNAL_SINE, 1000.0, 0, 0.5, 0.3, 0, 7, 0.02 };
+	unsigned offset = 0;
+	for (int i = 0; i < 120; i++) frame(h, &sine, &offset);
+	ASSERT(harmonics_get_pitch_valid(h));
+
+	uint32_t count;
+	const harmonic_readout_t *reads = harmonics_readouts(h, &count);
+	ASSERT_EQ(10u, count);
+	ASSERT(reads[0].found);
+	ASSERT_IN_RANGE(-6.02, (double)reads[0].db, 0.1);
+	for (uint32_t k = 2; k <= count; k++) ASSERT_FALSE(reads[k - 1].found);
+	float thd;
+	ASSERT_EQ(0, harmonics_get_thd(h, &thd));
+	ASSERT_EQ_FMT(0.0f, thd, "%g");
+	harmonics_free(&h);
+	PASS();
+}
+
+// A sawtooth of ten harmonics reads all ten and the distortion they add up to.
+TEST sawtooth_reads_its_distortion(void) {
+	harmonics_t *h = streaming(NULL);
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
+	unsigned offset = 0;
+	for (int i = 0; i < 120; i++) frame(h, &saw, &offset);
+	ASSERT(harmonics_get_pitch_valid(h));
+
+	uint32_t count;
+	const harmonic_readout_t *reads = harmonics_readouts(h, &count);
+	ASSERT_EQ(10u, count);
+	for (uint32_t k = 1; k <= count; k++) {
+		ASSERT(reads[k - 1].found);
+		ASSERT_IN_RANGE(-20.0 * log10(k), (double)(reads[k - 1].db - reads[0].db), 0.2);
+	}
+	float thd;
+	ASSERT_EQ(0, harmonics_get_thd(h, &thd));
+	ASSERT_IN_RANGE(0.7415, (double)thd, 0.01);
+	harmonics_free(&h);
+	PASS();
+}
+
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
@@ -158,5 +201,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(holds_then_drops_on_silence);
 	RUN_TEST(reconfigures_while_streaming);
 	RUN_TEST(noise_has_no_pitch);
+	RUN_TEST(sine_in_noise_reads_one_harmonic);
+	RUN_TEST(sawtooth_reads_its_distortion);
 	GREATEST_MAIN_END();
 }

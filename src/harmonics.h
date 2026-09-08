@@ -4,12 +4,15 @@
 #include "s9_dsp.h"
 #include "s9_colors.h"
 #include "window_function.h"
+#include "harmonic_readout.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
 // The harmonic analyzer: the spectrum on a linear axis scaled to the tracked
-// fundamental, with a marker and a level readout at each harmonic.
+// fundamental, with a marker at each harmonic and, for those that stand out
+// from the floor, its level relative to the fundamental's; the fundamental's
+// own level and the distortion the harmonics add up to above.
 
 #define HARMONICS_CHANNEL_ALL UINT32_MAX
 
@@ -29,6 +32,9 @@ typedef struct {
 	float octave_tolerance_cents;     // an estimate this close to double or half the tracked value is folded onto it
 	float smoothing;                  // per-frame move toward the estimate, 0..1
 	float deadband_cents;             // the reported value moves only when the smoothed one differs by more
+
+	// reading the harmonics
+	float prominence_db;              // a harmonic must stand this far above the floor beside it
 
 	// display
 	uint32_t harmonics;               // markers across the graph
@@ -53,6 +59,7 @@ static const harmonics_config_t default_harmonics_config = {
 	.octave_tolerance_cents = 30.0f,
 	.smoothing = 0.5f,
 	.deadband_cents = 5.0f,
+	.prominence_db = 15.0f,
 	.harmonics = 10,
 	.min_db = -90,
 	.max_db = 0,
@@ -83,6 +90,15 @@ void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config);
 // reported, which holds while invalid and is 0 before the first valid frame.
 bool harmonics_get_pitch_valid(const harmonics_t *h);
 float harmonics_get_pitch_frequency(const harmonics_t *h);
+
+// The last frame's readouts of harmonics 1..*count, levels in dB relative
+// to a full-scale sine; none before a fundamental is known. Valid until
+// the next frame.
+const harmonic_readout_t *harmonics_readouts(const harmonics_t *h, uint32_t *count);
+
+// The last frame's total harmonic distortion as a ratio. Returns 0, or -1
+// when the fundamental was not read.
+int harmonics_get_thd(const harmonics_t *h, float *thd);
 
 // stop audio streaming
 void harmonics_stop_streaming(harmonics_t *h);
