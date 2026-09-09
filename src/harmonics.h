@@ -48,7 +48,10 @@ typedef struct {
 	float initial_f0;                 // the axis' fundamental before the tracker has locked, Hz
 	int32_t min_db, max_db;
 	uint32_t major_db_interval, minor_db_interval;
-	SDL_Color major_color, minor_color, plot_color;
+	SDL_Color major_color;            // the frame, the numbers, and the axis labels
+	SDL_Color minor_color;            // the grid: the dB lines and ticks, and the harmonic markers
+	SDL_Color plot_color;
+	float plot_width;                 // the curve's stroke, pixels
 	SDL_Color readout_color;          // readings and the header while locked
 	SDL_Color held_color;             // the header while not
 } harmonics_config_t;
@@ -77,8 +80,9 @@ static const harmonics_config_t default_harmonics_config = {
 	.major_db_interval = 10,
 	.minor_db_interval = 5,
 	.major_color = S9_WHITE,
-	.minor_color = S9_WHITE,
-	.plot_color = S9_ELECTRIC,
+	.minor_color = (SDL_Color){ .r = 0xff, .g = 0xff, .b = 0xff, .a = 0x80 },
+	.plot_color = S9_LEMON,
+	.plot_width = 2.0f,
 	.readout_color = S9_WHITE,
 	.held_color = S9_SLATE,
 };

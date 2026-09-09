@@ -21,7 +21,6 @@
 #define SHOULDER_BINS 32        // the floor beside a harmonic is read from this many bins per side, fewer when the next harmonic is closer
 #define AXIS_HEADROOM 0.5f      // the axis extends this many fundamentals past the last marker
 #define NOTE_JUMP_CENTS 50.0    // the fundamental moving this far in one frame is a new note
-#define PLOT_WIDTH 2.0f
 #define LABEL_TEXT 64
 
 // text drawn from a texture that is remade only when the text changes
@@ -112,6 +111,7 @@ void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config) {
 	if (h->config.harmonics < 1) h->config.harmonics = 1;
 	if (h->config.harmonics > MAX_HARMONICS) h->config.harmonics = MAX_HARMONICS;
 	if (!(h->config.resolution_hz > 0.0f)) h->config.resolution_hz = default_harmonics_config.resolution_hz;
+	if (!(h->config.plot_width >= 1.0f)) h->config.plot_width = default_harmonics_config.plot_width;
 	h->config_changed = 1;
 }
 
@@ -371,7 +371,11 @@ static void draw_graticule(harmonics_t *h, SDL_Renderer *renderer) {
 	int right = GRAPH_MARGIN;
 	h->plot_rect = (SDL_Rect){ left, top, h->viewport.w - left - right, h->viewport.h - top - bottom };
 
+	// lines go into the texture as they are, alpha included, so they blend
+	// onto the screen once, exactly as the markers drawn there do
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 	graph_db_axis_draw(&axis, renderer, h->font, &h->plot_rect, LABEL_MARGIN);
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
 	sdl_polygon_t *frame = frame_new_from_rect(h->plot_rect, 2.0, h->config.major_color);
 	if (frame) {
@@ -460,7 +464,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		h->points[i] = (SDL_FPoint){ (float)i, ((float)h->config.max_db - h->plot[i]) * db_scale };
 	SDL_Rect plot_viewport = { save_viewport.x + plot->x, save_viewport.y + plot->y, plot->w, plot->h };
 	SDL_RenderSetViewport(renderer, &plot_viewport);
-	sdl_path_t *path = sdl_path_new(&h->config.plot_color, PLOT_WIDTH, 1, h->points, plot->w);
+	sdl_path_t *path = sdl_path_new(&h->config.plot_color, h->config.plot_width, 1, h->points, plot->w);
 	if (path) {
 		sdl_path_render(path, renderer);
 		sdl_path_free(&path);
@@ -473,7 +477,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	// markers and numbers at the harmonics on the axis
 	uint32_t count = h->config.harmonics;
 	char text[LABEL_TEXT];
-	SDL_SET_RENDER_DRAW_COLOR(renderer, &h->config.major_color);
+	SDL_SET_RENDER_DRAW_COLOR(renderer, &h->config.minor_color);
 	for (uint32_t k = 1; k <= count; k++) {
 		double fk = k * f0;
 		if (fk > f_end) break;
