@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Emit test/golden/pitch_golden.h: the normalized autocorrelation of a
-windowed frame at every lag,
-pitch estimates for synthetic signals, peak picking on constructed functions,
-and conditioner traces.
+windowed frame at every lag, pitch estimates for synthetic signals, peak
+picking on constructed functions, and conditioner traces.
 
     python validation/scripts/emit_pitch_golden.py
 """
@@ -225,7 +224,7 @@ def main():
     out = repo_path("test", "golden", "pitch_golden.h")
     with open(out, "w") as f:
         f.write(header("S9_TEST_PITCH_GOLDEN_H", "emit_pitch_golden.py",
-                       "Pitch: the NSDF of a frame, estimates for synthetic signals, peak picking, and conditioner traces.",
+                       "Pitch: the normalized autocorrelation of a frame, estimates for synthetic signals, peak picking, and conditioner traces.",
                        "\n".join(parts)))
     print(f"wrote {out}", file=sys.stderr)
 

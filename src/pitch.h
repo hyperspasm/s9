@@ -18,20 +18,24 @@ typedef struct {
 // regions between lag_min and lag_max, past the lobe around lag 0; the
 // estimate is the first candidate within tolerance of the highest, refined
 // by a parabola through its neighbours. Preferring the first keeps a
-// periodic signal's own period over its multiples; the tolerance lets a
-// twin tone's common period beat the shoulders of its beat. A region cut
-// off by lag_max still counts. Returns zeros when no positive region lies
-// in range.
-pitch_estimate_t pitch_estimate(const float *nacf, uint32_t n, uint32_t lag_min, uint32_t lag_max, float tolerance);
+// periodic signal's own period over its multiples; the tolerance lets two
+// tones' common period win over the nearby peaks their beating makes. A
+// region cut off by lag_max still counts. Returns zeros when no positive
+// region lies in range.
+pitch_estimate_t pitch_estimate(const float *nacf, uint32_t n, uint32_t lag_min, uint32_t lag_max,
+								float tolerance);
 
 typedef struct {
 	float gate_rms;                // frames quieter than this are unpitched
 	float clarity_on;              // clarity needed to become valid
 	float clarity_off;             // clarity needed to stay valid
-	uint32_t hold_frames;          // unpitched frames tolerated before validity ends, and octave disagreements before they are followed
-	float octave_tolerance_cents;  // an estimate this close to double or half the tracked value is folded onto it
-	float smoothing;               // per-frame move toward the estimate, 0..1, in cents
-	float deadband_cents;          // the reported value moves only when the smoothed one differs by more
+	uint32_t hold_frames;          // unpitched frames tolerated before validity ends, and octave
+	                               // disagreements tolerated before they are followed
+	float octave_tolerance_cents;  // an estimate this close to double or half the tracked value is
+	                               // folded onto it
+	float smoothing;               // the fraction of the way the tracked value moves toward each
+	                               // estimate, 0..1; the smoothing is done in cents
+	float deadband_cents;          // the reported value moves only when the tracked one differs by more
 } pitch_conditioner_config_t;
 
 // Turns per-frame estimates into (valid, frequency). While valid, the
@@ -56,6 +60,7 @@ void pitch_conditioner_set_config(pitch_conditioner_t *pc, const pitch_condition
 // One frame: period in samples (0 when none), its clarity, and the frame's
 // RMS. Returns whether the fundamental is valid; *frequency receives the
 // reported fundamental in Hz, 0 before the first valid frame.
-int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarity, float rms, float sample_rate, float *frequency);
+int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
+							 float *frequency);
 
 #endif /* pitch_h */

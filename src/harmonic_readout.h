@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
-// Per-harmonic readouts from a spectrum, and the distortion they add up
-// to: the level and the frequency of the peak nearest a harmonic, refined
-// between bins. Pure functions over caller-owned memory.
+// Reading harmonics from a spectrum: what the window does to a peak, the
+// level, frequency, and prominence of the peak nearest a harmonic, its
+// phase relative to the fundamental, the distortion the harmonics add up
+// to, and the gate that decides whether a harmonic's reading is shown.
+// Pure functions over caller-owned memory.
 
 // Magnitudes in dB relative to a full-scale sine: under a window normalized
 // to sum to n, a sine of amplitude a reads 20 log10(a) at its bin. spectrum
@@ -13,7 +15,7 @@
 // -inf for an empty bin.
 void harmonic_magnitude_db(const float *spectrum, uint32_t bins, uint32_t n, float *db);
 
-// the same scale from per-bin power, |X|^2, as an average over time holds it
+// the same scale from per-bin power |X|^2, the form an average over time keeps
 void harmonic_power_db(const float *power, uint32_t bins, uint32_t n, float *db);
 
 // What the readouts need to know about the window. A parabola through
@@ -52,8 +54,9 @@ typedef struct {
 // the neighbouring harmonic's lobe. delta_f is the bin spacing; db holds
 // bins values. Not found either when the nearest bin is the first or lies
 // beyond the last a parabola fits around.
-harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
-									uint32_t shoulder, float prominence, const harmonic_window_t *w);
+harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz,
+									uint32_t search, uint32_t shoulder, float prominence,
+									const harmonic_window_t *w);
 
 // Harmonic k's phase relative to the fundamental's, in degrees in
 // (-180, 180]: its phase less k times the fundamental's, which is the shape
@@ -76,6 +79,7 @@ typedef struct {
 	float below_s;   // time spent under off_db while open
 } harmonic_gate_t;
 
-int harmonic_gate_update(harmonic_gate_t *g, const harmonic_readout_t *r, float on_db, float off_db, float hold_s, float dt_s);
+int harmonic_gate_update(harmonic_gate_t *g, const harmonic_readout_t *r, float on_db, float off_db,
+						 float hold_s, float dt_s);
 
 #endif /* harmonic_readout_h */

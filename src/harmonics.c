@@ -15,10 +15,13 @@
 #define GRAPH_MARGIN 10         // between the graph and the viewport
 #define FONT_SIZE 16
 #define MAX_HARMONICS 64
-#define PEAK_TOLERANCE 0.02f    // how far below the highest autocorrelation peak an earlier one may be and still be the period
+#define PEAK_TOLERANCE 0.02f    // how far below the highest autocorrelation peak an earlier one may be
+                                // and still be the period
 #define SEARCH_MIN_BINS 3       // a readout looks at least this far either side of its harmonic
-#define SEARCH_RATIO 0.01f      // and at least this fraction of the harmonic's frequency, covering the reported fundamental's dead band and smoothing lag
-#define SHOULDER_BINS 32        // the floor beside a harmonic is read from this many bins per side, fewer when the next harmonic is closer
+#define SEARCH_RATIO 0.01f      // and at least this fraction of the harmonic's frequency, covering the
+                                // reported fundamental's dead band and smoothing lag
+#define SHOULDER_BINS 32        // the floor beside a harmonic is read from this many bins per side,
+                                // fewer when the next harmonic is closer
 #define AXIS_HEADROOM 0.5f      // the axis extends this many fundamentals past the last marker
 #define NOTE_JUMP_CENTS 50.0    // the fundamental moving this far in one frame is a new note
 #define LABEL_TEXT 64
@@ -287,7 +290,8 @@ static int analyze(harmonics_t *h) {
 	float dt = fft_analyzer_hop_seconds(fa);
 	h->read_count = 0;
 	if (!h->pitch_valid) {
-		// the labels return through their gates with the lock
+		// without a lock there are no readings; when it returns, each label
+		// must earn its way through its gate again
 		memset(h->gates, 0, sizeof(h->gates));
 		memset(h->phases, 0, sizeof(h->phases));
 	} else {
@@ -318,7 +322,9 @@ static int analyze(harmonics_t *h) {
 			uint32_t p_k = (uint32_t)lrint(r->readout.frequency / delta_f);
 			float theta = harmonic_phase(spectrum, n, p_k, p_1, k) * (float)(M_PI / 180.0);
 			float re = cosf(theta), im = sinf(theta);
-			if (!h->phases[k - 1].primed || !fft_analyzer_averaging(fa)) {   // taken whole as long as the levels are
+			// the vector is replaced, not averaged, whenever the analyzer replaces its
+			// power average: while the history fills and after a reset
+			if (!h->phases[k - 1].primed || !fft_analyzer_averaging(fa)) {
 				h->phases[k - 1].re = re;
 				h->phases[k - 1].im = im;
 				h->phases[k - 1].primed = 1;

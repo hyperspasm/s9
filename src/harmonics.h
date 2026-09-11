@@ -13,10 +13,11 @@
 // fundamental, with a marker at each harmonic. While the tracker is locked,
 // each harmonic that stands out from the floor carries its level and its
 // phase relative to the fundamental's, and the fundamental's own level and
-// the distortion the harmonics add up to sit above. The axis keeps the last locked
-// fundamental, or a configured one before there is any, so the spectrum is
-// always on a scale. The curve is live; the readings come from the
-// spectrum averaged over a short time, so they settle rather than jitter.
+// the distortion the harmonics add up to sit above. The axis keeps the last
+// locked fundamental, or a configured one before there is any, so the
+// spectrum is always on a scale. The curve is live; the readings come from
+// the spectrum averaged over a short time, so they settle rather than
+// jitter.
 
 #define HARMONICS_CHANNEL_ALL UINT32_MAX
 
@@ -24,24 +25,31 @@ typedef struct harmonics harmonics_t;
 
 typedef struct {
 	// analysis
-	float resolution_hz;              // bin spacing; the transform is the power of two at or above sample_rate / resolution_hz
+	float resolution_hz;              // bin spacing; the transform is the power of two at or above
+	                                  // sample_rate / resolution_hz
 	window_function_t window_function;
-	uint32_t channel;                 // the channel analyzed, or HARMONICS_CHANNEL_ALL for the channels averaged
+	uint32_t channel;                 // the channel analyzed, or HARMONICS_CHANNEL_ALL for the channels
+	                                  // averaged
 
 	// tracking the fundamental
 	float f_min, f_max;               // the fundamentals looked for, Hz
 	float gate_rms;                   // frames quieter than this are unpitched
 	float clarity_on, clarity_off;    // the clarity needed to become valid, and to stay valid
 	uint32_t hold_frames;             // unpitched frames tolerated before validity ends
-	float octave_tolerance_cents;     // an estimate this close to double or half the tracked value is folded onto it
+	float octave_tolerance_cents;     // an estimate this close to double or half the tracked value is
+	                                  // folded onto it
 	float smoothing;                  // per-frame move toward the estimate, 0..1
-	float deadband_cents;             // the reported value moves only when the smoothed one differs by more
+	float deadband_cents;             // the reported value moves only when the tracked one differs by
+	                                  // more
 
 	// reading the harmonics
-	float averaging_s;                // time constant of the average the levels and phases come from, seconds; it restarts on a new note
-	float prominence_db;              // a harmonic's label appears once it stands this far above the floor beside it (assumes averaging; without it, 15)
+	float averaging_s;                // time constant of the average the levels and phases come from,
+	                                  // seconds; it restarts on a new note
+	float prominence_db;              // a harmonic's label appears once it stands this far above the
+	                                  // floor beside it; noise reaches about 10 dB after a second of
+	                                  // averaging, 15 dB with none
 	float hysteresis_db;              // and stays while it stands within this of that
-	float readout_hold_s;             // and for this long after it no longer does
+	float readout_hold_s;             // and for this long after it has stopped
 
 	// display
 	uint32_t harmonics;               // markers across the graph

@@ -232,7 +232,10 @@ TEST weak_harmonic_is_shown_steadily(void) {
 	int changes = 0, empty_shown = 0;
 	bool last = false;
 	for (int i = 0; i < 240; i++) {
-		weak_frame(h, 220.0, 3.7e-4, &offset);   // about 15 dB over the floor's median
+		// 3.7e-4 puts the third harmonic about 15 dB over the median of the
+		// floor that noise of amplitude 0.01 makes under the default window
+		// and resolution; it is read about 12 dB above it
+		weak_frame(h, 220.0, 3.7e-4, &offset);
 		uint32_t count;
 		const harmonics_reading_t *reads = harmonics_readings(h, &count);
 		if (i < 120) continue;                     // the average settles

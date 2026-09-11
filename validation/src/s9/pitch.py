@@ -11,8 +11,8 @@ to zero makes that contribution vanish, one that does not (Hamming) leaves a
 small bias at the longest lags. Peaks are the maxima of the positive regions; the first
 peak within a tolerance of the highest is the period, refined by a parabola
 through it and its neighbours. Preferring the first keeps a periodic
-signal's own period over its multiples; the tolerance lets a twin tone's
-common period beat the shoulders of its beat.
+signal's own period over its multiples; the tolerance lets two tones'
+common period win over the nearby peaks their beating makes.
 """
 import math
 
@@ -48,17 +48,16 @@ def estimate(nacf, lag_min, lag_max, tolerance=0.02):
     tolerance of the highest, or (0.0, 0.0) when the function has no positive
     peak there. A peak cut off by lag_max counts. The initial lobe around lag
     0 is skipped."""
-    nsdf = nacf
-    n = len(nsdf)
+    n = len(nacf)
     lag_max = min(lag_max, n - 1)
     i = 1
-    while i <= lag_max and nsdf[i] > 0.0:
+    while i <= lag_max and nacf[i] > 0.0:
         i += 1
     candidates = []
     in_peak = False
     best = None
     while i <= lag_max:
-        v = nsdf[i]
+        v = nacf[i]
         if v > 0.0:
             if not in_peak:
                 in_peak = True
@@ -78,14 +77,14 @@ def estimate(nacf, lag_min, lag_max, tolerance=0.02):
     for p, v in candidates:
         if v >= threshold:
             break
-    return refine(nsdf, p)
+    return refine(nacf, p)
 
 
-def refine(nsdf, p):
+def refine(nacf, p):
     """Parabolic interpolation around index p: (fractional lag, peak value)."""
-    if p < 1 or p + 1 >= len(nsdf):
-        return float(p), float(min(max(nsdf[p], 0.0), 1.0))
-    y0, y1, y2 = float(nsdf[p - 1]), float(nsdf[p]), float(nsdf[p + 1])
+    if p < 1 or p + 1 >= len(nacf):
+        return float(p), float(min(max(nacf[p], 0.0), 1.0))
+    y0, y1, y2 = float(nacf[p - 1]), float(nacf[p]), float(nacf[p + 1])
     denom = y0 - 2.0 * y1 + y2
     delta = 0.5 * (y0 - y2) / denom if denom != 0.0 else 0.0
     value = y1 - 0.25 * (y0 - y2) * delta
