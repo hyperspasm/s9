@@ -27,7 +27,7 @@ typedef struct {
 	float resolution_hz;              // bin spacing; the transform is the power of two at or above
 	                                  // sample_rate / resolution_hz
 	window_function_t window_function;
-	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for the channels averaged
+	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
 
 	// tracking the fundamental
 	float f_min, f_max;               // the fundamentals looked for, Hz

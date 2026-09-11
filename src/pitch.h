@@ -35,7 +35,8 @@ typedef struct {
 	                               // folded onto it
 	float smoothing;               // the fraction of the way the tracked value moves toward each
 	                               // estimate, 0..1; the smoothing is done in cents
-	float deadband_cents;          // the reported value moves only when the tracked one differs by more
+	float deadband_cents;          // the reported value moves only when the tracked one differs by
+	                               // more
 } pitch_conditioner_config_t;
 
 // Turns per-frame estimates into (valid, frequency). While valid, the

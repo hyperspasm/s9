@@ -16,12 +16,14 @@
 
 typedef struct {
 	uint32_t harmonics;          // read of each fundamental, counting it; at most HARMONIC_MAX
-	uint32_t search_min_bins;    // a harmonic is looked for at least this far either side of its frequency
+	uint32_t search_min_bins;    // a harmonic is looked for at least this far either side of its
+	                             // frequency
 	float search_ratio;          // and at least this fraction of that frequency, covering the reported
 	                             // fundamental's dead band and smoothing lag
 	uint32_t shoulder_bins;      // the floor beside a harmonic is read from this many bins per side,
 	                             // fewer when the next harmonic is closer
-	float prominence_db;         // a harmonic is shown once it stands this far above the floor beside it
+	float prominence_db;         // a harmonic is shown once it stands this far above the floor
+	                             // beside it
 	float hysteresis_db;         // and stays while it stands within this of that
 	float hold_s;                // and for this long after it has stopped
 	float note_jump_cents;       // a fundamental moving this far between frames is a new note

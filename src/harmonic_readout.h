@@ -27,8 +27,10 @@ void harmonic_power_db(const float *power, uint32_t bins, uint32_t n, float *db)
 #define HARMONIC_CORRECTION_POINTS 33
 typedef struct {
 	double db_bias[HARMONIC_CORRECTION_POINTS];       // the parabola's peak is high by this
-	double offset_bias[HARMONIC_CORRECTION_POINTS];   // the parabola's offset is off by this, away from the true peak
-	uint32_t reach;                                   // bins from a peak's bin to the first bin outside its main lobe
+	double offset_bias[HARMONIC_CORRECTION_POINTS];   // the parabola's offset is off by this, away from
+	                                                  // the true peak
+	uint32_t reach;                                   // bins from a peak's bin to the first outside its
+	                                                  // main lobe
 } harmonic_window_t;
 
 // the model of a window of n samples

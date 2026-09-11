@@ -28,7 +28,7 @@ typedef struct {
 	float window_skew;
 	fft_analyzer_mode_t mode;
 	uint32_t channel;                  // FFT_ANALYZER_MIX: the channel transformed, or S9_CHANNEL_ALL
-	float averaging_s;                 // time constant of the per-bin power average, in seconds of audio;
+	float averaging_s;                 // time constant of the per-bin power average, seconds of audio;
 	                                   // 0 keeps the latest transform's
 } fft_analyzer_config_t;
 
