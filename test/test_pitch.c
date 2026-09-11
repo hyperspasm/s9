@@ -68,7 +68,7 @@ TEST conditioner_traces_match_golden(void) {
 	pitch_conditioner_config_t config = {
 		.gate_rms = (float)c->gate_rms, .clarity_on = (float)c->clarity_on, .clarity_off = (float)c->clarity_off,
 		.hold_s = (float)c->hold_s, .octave_tolerance_cents = (float)c->octave_tolerance_cents,
-		.smoothing = (float)c->smoothing, .deadband_cents = (float)c->deadband_cents,
+		.smoothing_s = (float)c->smoothing_s, .deadband_cents = (float)c->deadband_cents,
 	};
 	pitch_conditioner_t *pc = malloc(pitch_conditioner_alloc_size());
 	for (unsigned i = 0; i < PITCH_GOLDEN_TRACE_COUNT; i++) {

@@ -129,7 +129,8 @@ int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarit
 			} else {
 				pc->folded_s = 0.0f;
 			}
-			pc->smoothed += cfg->smoothing * (c - pc->smoothed);
+			double alpha = cfg->smoothing_s > 0.0f ? 1.0 - exp(-(double)dt_s / cfg->smoothing_s) : 1.0;
+			pc->smoothed += alpha * (c - pc->smoothed);
 		} else {
 			pc->smoothed = c;
 			pc->reported = c;

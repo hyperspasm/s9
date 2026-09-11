@@ -769,8 +769,8 @@ static const pitch_golden_pick_t pitch_golden_picks[] = {
 
 /* Conditioner traces: the outputs frame by frame for a configuration, frames PITCH_GOLDEN_TRACE_DT seconds apart */
 #define PITCH_GOLDEN_TRACE_DT 0.016666666666666666
-typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing, deadband_cents; } pitch_golden_conditioner_config_t;
-static const pitch_golden_conditioner_config_t pitch_golden_conditioner_config = { 0.01, 0.90000000000000002, 0.80000000000000004, 0.0625, 30, 0.5, 5 };
+typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } pitch_golden_conditioner_config_t;
+static const pitch_golden_conditioner_config_t pitch_golden_conditioner_config = { 0.01, 0.90000000000000002, 0.80000000000000004, 0.0625, 30, 0.02404491734814939, 5 };
 typedef struct { double period, clarity, rms; int valid; double frequency; } pitch_golden_step_t;
 typedef struct { const char *label; const pitch_golden_step_t *steps; unsigned count; } pitch_golden_trace_t;
 static const pitch_golden_step_t pitch_golden_trace_gate_and_hysteresis[] = {

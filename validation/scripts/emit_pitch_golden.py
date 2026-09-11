@@ -5,6 +5,7 @@ picking on constructed functions, and conditioner traces.
 
     python validation/scripts/emit_pitch_golden.py
 """
+import math
 import os
 import sys
 
@@ -69,10 +70,11 @@ PICK_CASES = [
 
 # --- conditioner traces
 
-# frames of 1/60 s; a hold of 0.0625 s is three of them, exhausted by the fourth
+# frames of 1/60 s; a hold of 0.0625 s is three of them, exhausted by the
+# fourth; the smoothing time constant is the one that moves halfway per frame
 TRACE_DT = 1.0 / 60.0
 COND = pitch.ConditionerConfig(gate_rms=0.01, clarity_on=0.9, clarity_off=0.8, hold_s=0.0625,
-                               octave_tolerance_cents=30.0, smoothing=0.5, deadband_cents=5.0)
+                               octave_tolerance_cents=30.0, smoothing_s=TRACE_DT / math.log(2.0), deadband_cents=5.0)
 TRACES = [
     ("gate_and_hysteresis", [
         (100.0, 0.95, 0.001),   # too quiet
@@ -205,10 +207,10 @@ def main():
     # conditioner
     parts.append("/* Conditioner traces: the outputs frame by frame for a configuration, frames PITCH_GOLDEN_TRACE_DT seconds apart */")
     parts.append("#define PITCH_GOLDEN_TRACE_DT %s" % c_double(TRACE_DT))
-    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing, deadband_cents; } pitch_golden_conditioner_config_t;")
+    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } pitch_golden_conditioner_config_t;")
     parts.append("static const pitch_golden_conditioner_config_t pitch_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s };"
                  % (c_double(COND.gate_rms), c_double(COND.clarity_on), c_double(COND.clarity_off), c_double(COND.hold_s),
-                    c_double(COND.octave_tolerance_cents), c_double(COND.smoothing), c_double(COND.deadband_cents)))
+                    c_double(COND.octave_tolerance_cents), c_double(COND.smoothing_s), c_double(COND.deadband_cents)))
     parts.append("typedef struct { double period, clarity, rms; int valid; double frequency; } pitch_golden_step_t;")
     parts.append("typedef struct { const char *label; const pitch_golden_step_t *steps; unsigned count; } pitch_golden_trace_t;")
     rows = []

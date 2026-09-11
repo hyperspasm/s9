@@ -97,15 +97,15 @@ def cents(freq):
 
 class ConditionerConfig:
     def __init__(self, gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents,
-                 smoothing, deadband_cents):
+                 smoothing_s, deadband_cents):
         self.gate_rms = gate_rms                    # frames quieter than this are unpitched
         self.clarity_on = clarity_on                # clarity needed to become valid
         self.clarity_off = clarity_off              # clarity needed to stay valid
         self.hold_s = hold_s                        # unpitched time tolerated before validity ends, and an octave
                                                     # disagreement tolerated before it is followed, seconds
         self.octave_tolerance_cents = octave_tolerance_cents  # an estimate this close to double or half is folded
-        self.smoothing = smoothing                  # the fraction of the way the tracked value moves toward each
-                                                    # estimate, 0..1; the smoothing is done in cents
+        self.smoothing_s = smoothing_s              # time constant of the tracked value's move toward the estimates,
+                                                    # seconds; the smoothing is done in cents
         self.deadband_cents = deadband_cents        # the reported value moves only when the tracked one differs by more
 
 
@@ -114,7 +114,9 @@ class Conditioner:
 
     While valid, the frequency follows the estimates through the smoother and
     the deadband; while invalid, it holds its last value, so a display can
-    keep a stable picture. An estimate an octave from the tracked value is
+    keep a stable picture. The smoother is a one-pole low-pass with its time
+    constant in seconds, so it averages a vibrato out and glides to a new
+    note however fast the frames come. An estimate an octave from the tracked value is
     folded onto it, an estimator's slip, for up to the hold time; one that
     keeps insisting is a new note and is followed. Time is the audio time
     between updates, so the frame rate does not matter.
@@ -156,7 +158,8 @@ class Conditioner:
                         c += fold
                 else:
                     self.folded_s = 0.0
-                self.smoothed += cfg.smoothing * (c - self.smoothed)
+                alpha = 1.0 - math.exp(-dt / cfg.smoothing_s) if cfg.smoothing_s > 0.0 else 1.0
+                self.smoothed += alpha * (c - self.smoothed)
             else:
                 self.smoothed = c
                 self.reported = c

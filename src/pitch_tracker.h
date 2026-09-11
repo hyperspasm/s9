@@ -38,7 +38,7 @@ static const pitch_tracker_config_t default_pitch_tracker_config = {
 		.clarity_off = 0.8f,
 		.hold_s = 0.05f,
 		.octave_tolerance_cents = 30.0f,
-		.smoothing = 0.5f,
+		.smoothing_s = 0.5f,
 		.deadband_cents = 5.0f,
 	},
 };

@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=45af7ff9
+# pn manifest v1 s9 fnv1a32=07edd319
 s9/mode enum full|scope|spectrum|harmonics
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -27,6 +27,6 @@ s9/pitch/clarity_on float 0x00000000 0x3f800000 0x00000000
 s9/pitch/clarity_off float 0x00000000 0x3f800000 0x00000000
 s9/pitch/hold float 0x00000000 0x40000000 0x00000000
 s9/pitch/octave_tolerance float 0x00000000 0x43480000 0x00000000
-s9/pitch/smoothing float 0x00000000 0x3f800000 0x00000000
+s9/pitch/smoothing float 0x00000000 0x40a00000 0x00000000
 s9/pitch/deadband float 0x00000000 0x42c80000 0x00000000
 s9/debug/fps bool

@@ -84,7 +84,7 @@ PITCH_FLOAT(pitch_clarity_on, conditioner.clarity_on)
 PITCH_FLOAT(pitch_clarity_off, conditioner.clarity_off)
 PITCH_FLOAT(pitch_hold, conditioner.hold_s)
 PITCH_FLOAT(pitch_octave_tolerance, conditioner.octave_tolerance_cents)
-PITCH_FLOAT(pitch_smoothing, conditioner.smoothing)
+PITCH_FLOAT(pitch_smoothing, conditioner.smoothing_s)
 PITCH_FLOAT(pitch_deadband, conditioner.deadband_cents)
 
 static void set_pitch_channel(void *ctx, int32_t val) { pitch_tracker_config_t c = *pitch_tracker_config(ctx); c.channel = channel_from_param(val); pitch_tracker_set_config(ctx, &c); }
@@ -126,7 +126,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm, void *tracker
 	p->pitch_params[9]  = pn_float("clarity_off",     tracker, PN_FN(set_pitch_clarity_off),      PN_FN(get_pitch_clarity_off),      0.0f, 1.0f, 0);
 	p->pitch_params[10] = pn_float("hold",            tracker, PN_FN(set_pitch_hold),             PN_FN(get_pitch_hold),             0.0f, 2.0f, 0);
 	p->pitch_params[11] = pn_float("octave_tolerance", tracker, PN_FN(set_pitch_octave_tolerance), PN_FN(get_pitch_octave_tolerance), 0.0f, 200.0f, 0);
-	p->pitch_params[12] = pn_float("smoothing",       tracker, PN_FN(set_pitch_smoothing),        PN_FN(get_pitch_smoothing),        0.0f, 1.0f, 0);
+	p->pitch_params[12] = pn_float("smoothing",       tracker, PN_FN(set_pitch_smoothing),        PN_FN(get_pitch_smoothing),        0.0f, 5.0f, 0);
 	p->pitch_params[13] = pn_float("deadband",        tracker, PN_FN(set_pitch_deadband),         PN_FN(get_pitch_deadband),         0.0f, 100.0f, 0);
 
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
