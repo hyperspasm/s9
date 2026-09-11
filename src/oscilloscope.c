@@ -17,7 +17,7 @@ typedef struct {
 	int trig_slope;       // 1 = rising, -1 = falling
 	float trig_thresh;    // -1.0 to 1.0
 	float trig_holdoff;   // seconds
-	uint32_t channel;     // channel index, or OSC_CHANNEL_ALL to sum
+	uint32_t channel;     // channel index, or S9_CHANNEL_ALL to sum
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
@@ -27,7 +27,7 @@ static const oscilloscope_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,
-	.channel = OSC_CHANNEL_ALL,
+	.channel = S9_CHANNEL_ALL,
 };
 
 typedef struct oscilloscope {

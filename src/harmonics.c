@@ -14,7 +14,6 @@
 #define LABEL_MARGIN 8          // between labels and the plot
 #define GRAPH_MARGIN 10         // between the graph and the viewport
 #define FONT_SIZE 16
-#define MAX_HARMONICS 64
 #define PEAK_TOLERANCE 0.02f    // how far below the highest autocorrelation peak an earlier one may be
                                 // and still be the period
 #define SEARCH_MIN_BINS 3       // a readout looks at least this far either side of its harmonic
@@ -49,9 +48,9 @@ struct harmonics {
 	bool pitch_valid;
 	float pitch_frequency;
 	float last_frequency;            // the frame before's, for noticing a new note
-	harmonics_reading_t reads[MAX_HARMONICS];   // the last frame's, for the harmonics on the axis
-	harmonic_gate_t gates[MAX_HARMONICS];
-	struct { float re, im; int primed; } phases[MAX_HARMONICS];   // each harmonic's relative phase as a unit vector, averaged
+	harmonics_reading_t reads[HARMONIC_MAX];   // the last frame's, for the harmonics on the axis
+	harmonic_gate_t gates[HARMONIC_MAX];
+	struct { float re, im; int primed; } phases[HARMONIC_MAX];   // each harmonic's relative phase as a unit vector, averaged
 	uint32_t read_count;
 	float thd;
 	int has_thd;
@@ -63,9 +62,9 @@ struct harmonics {
 	SDL_Texture *graticule;
 	float *plot;                     // dB per plot column
 	SDL_FPoint *points;
-	label_t readouts[MAX_HARMONICS]; // the level read at each harmonic
-	label_t degrees[MAX_HARMONICS];  // and its phase, under that
-	label_t numbers[MAX_HARMONICS];  // the harmonic numbers under the markers
+	label_t readouts[HARMONIC_MAX]; // the level read at each harmonic
+	label_t degrees[HARMONIC_MAX];  // and its phase, under that
+	label_t numbers[HARMONIC_MAX];  // the harmonic numbers under the markers
 	label_t header;                  // the fundamental
 };
 
@@ -112,7 +111,7 @@ const harmonics_config_t *harmonics_config(const harmonics_t *h) {
 void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config) {
 	h->config = config ? *config : default_harmonics_config;
 	if (h->config.harmonics < 1) h->config.harmonics = 1;
-	if (h->config.harmonics > MAX_HARMONICS) h->config.harmonics = MAX_HARMONICS;
+	if (h->config.harmonics > HARMONIC_MAX) h->config.harmonics = HARMONIC_MAX;
 	if (!(h->config.resolution_hz > 0.0f)) h->config.resolution_hz = default_harmonics_config.resolution_hz;
 	if (!(h->config.plot_width >= 1.0f)) h->config.plot_width = default_harmonics_config.plot_width;
 	h->config_changed = 1;
@@ -147,7 +146,7 @@ static void free_drawing(harmonics_t *h) {
 	if (h->graticule) { SDL_DestroyTexture(h->graticule); h->graticule = NULL; }
 	free(h->plot); h->plot = NULL;
 	free(h->points); h->points = NULL;
-	for (int i = 0; i < MAX_HARMONICS; i++) {
+	for (int i = 0; i < HARMONIC_MAX; i++) {
 		free_label(&h->readouts[i]);
 		free_label(&h->degrees[i]);
 		free_label(&h->numbers[i]);
@@ -295,9 +294,7 @@ static int analyze(harmonics_t *h) {
 		memset(h->gates, 0, sizeof(h->gates));
 		memset(h->phases, 0, sizeof(h->phases));
 	} else {
-		// the floor beside a harmonic is read short of the next harmonic's lobe
-		long fit = (long)(f0 / delta_f / 2.0) - (long)h->window.reach;
-		uint32_t shoulder = fit < 1 ? 1 : fit < SHOULDER_BINS ? (uint32_t)fit : SHOULDER_BINS;
+		uint32_t shoulder = harmonic_shoulder(f0 / delta_f, h->window.reach, SHOULDER_BINS);
 		for (uint32_t k = 1; k <= h->config.harmonics; k++) {
 			double fk = k * f0;
 			if (fk > f_end) break;
@@ -337,7 +334,7 @@ static int analyze(harmonics_t *h) {
 	}
 
 	// the distortion counts what is shown
-	harmonic_readout_t shown[MAX_HARMONICS];
+	harmonic_readout_t shown[HARMONIC_MAX];
 	for (uint32_t k = 0; k < h->read_count; k++) {
 		shown[k] = h->reads[k].readout;
 		shown[k].found = h->reads[k].shown;

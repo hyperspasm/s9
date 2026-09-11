@@ -7,8 +7,6 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-#define OSC_CHANNEL_ALL  UINT32_MAX
-
 typedef struct oscilloscope oscilloscope_t;
 
 typedef struct {

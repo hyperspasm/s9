@@ -42,18 +42,25 @@ typedef struct {
 	float db;
 } harmonic_readout_t;
 
+// The most harmonics read of one fundamental, counting the fundamental
+#define HARMONIC_MAX 64
+
 // The most bins the floor is read from on each side of a peak
 #define HARMONIC_SHOULDER_MAX 64
+
+// The shoulder that fits between harmonics spacing_bins apart: shoulder, or
+// less so that it ends before the neighbouring harmonic's lobe, never
+// fewer than one bin.
+uint32_t harmonic_shoulder(double spacing_bins, uint32_t reach, uint32_t shoulder);
 
 // The harmonic within search bins of centre_hz: the loudest bin there, when
 // it is a local maximum standing prominence dB above the floor, refined by
 // a parabola through its neighbours and corrected. The floor is, on each
 // side, the median of the shoulder bins starting the window's reach away;
 // the lower side's, so the skirt of a louder neighbour does not hide a
-// harmonic. The caller keeps the shoulder short enough that it ends before
-// the neighbouring harmonic's lobe. delta_f is the bin spacing; db holds
-// bins values. Not found either when the nearest bin is the first or lies
-// beyond the last a parabola fits around.
+// harmonic. delta_f is the bin spacing; db holds bins values. Not found
+// either when the nearest bin is the first or lies beyond the last a
+// parabola fits around.
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz,
 									uint32_t search, uint32_t shoulder, float prominence,
 									const harmonic_window_t *w);

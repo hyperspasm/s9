@@ -110,6 +110,14 @@ def corrected(d, peak_db, table):
     return off, db
 
 
+def shoulder_fit(spacing_bins, reach, shoulder):
+    """The shoulder that fits between harmonics spacing_bins apart: shoulder,
+    or less so that it ends before the neighbouring harmonic's lobe, never
+    fewer than one bin."""
+    fit = int(spacing_bins / 2) - reach
+    return max(1, min(shoulder, fit))
+
+
 def readouts(bins, n, fs, f0, harmonics, search, table, reach, shoulder, prominence):
     """readouts_db of a spectrum's magnitudes."""
     return readouts_db(magnitude_db(bins, n), n, fs, f0, harmonics, search, table, reach, shoulder, prominence)
@@ -124,9 +132,7 @@ def readouts_db(db, n, fs, f0, harmonics, search, table, reach, shoulder, promin
     from is shortened so it ends before the neighbouring harmonic's lobe."""
     last = n // 2 - 1          # the highest bin a parabola can be centred on
     delta_f = fs / n
-    spacing = f0 / delta_f     # bins between harmonics
-    fit = int(spacing / 2) - reach
-    shoulder = max(1, min(shoulder, fit))
+    shoulder = shoulder_fit(f0 / delta_f, reach, shoulder)
     out = []
     for k in range(1, harmonics + 1):
         centre = int(round(k * f0 / delta_f))

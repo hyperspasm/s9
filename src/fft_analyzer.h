@@ -21,8 +21,6 @@ typedef enum {
 	FFT_ANALYZER_MIX,           // one transform of the selected channel, or of the channels averaged
 } fft_analyzer_mode_t;
 
-#define FFT_ANALYZER_CHANNEL_ALL UINT32_MAX
-
 typedef struct {
 	uint32_t fft_len;                  // transform length; 0 derives it from resolution_hz
 	float resolution_hz;               // bin spacing: the transform length is the power of two at or
@@ -30,7 +28,7 @@ typedef struct {
 	window_function_t window_function;
 	float window_skew;
 	fft_analyzer_mode_t mode;
-	uint32_t channel;                  // FFT_ANALYZER_MIX: the channel transformed, or FFT_ANALYZER_CHANNEL_ALL
+	uint32_t channel;                  // FFT_ANALYZER_MIX: the channel transformed, or S9_CHANNEL_ALL
 	float averaging_s;                 // time constant of the per-bin power average, in seconds of audio;
 	                                   // 0 keeps the latest transform's
 } fft_analyzer_config_t;

@@ -19,8 +19,6 @@
 // the spectrum averaged over a short time, so they settle rather than
 // jitter.
 
-#define HARMONICS_CHANNEL_ALL UINT32_MAX
-
 typedef struct harmonics harmonics_t;
 
 typedef struct {
@@ -28,8 +26,7 @@ typedef struct {
 	float resolution_hz;              // bin spacing; the transform is the power of two at or above
 	                                  // sample_rate / resolution_hz
 	window_function_t window_function;
-	uint32_t channel;                 // the channel analyzed, or HARMONICS_CHANNEL_ALL for the channels
-	                                  // averaged
+	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for the channels averaged
 
 	// tracking the fundamental
 	float f_min, f_max;               // the fundamentals looked for, Hz
@@ -67,7 +64,7 @@ typedef struct {
 static const harmonics_config_t default_harmonics_config = {
 	.resolution_hz = 2.0f,
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
-	.channel = HARMONICS_CHANNEL_ALL,
+	.channel = S9_CHANNEL_ALL,
 	.f_min = 20.0f,
 	.f_max = 4000.0f,
 	.gate_rms = 0.01f,

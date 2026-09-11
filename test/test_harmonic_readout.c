@@ -40,13 +40,6 @@ static double angle_diff(double a, double b) {
 	return d;
 }
 
-// the shoulder, shortened as the oracle shortens it so it ends before the neighbouring harmonic's lobe
-static uint32_t shoulder_for(double f0, double delta_f, uint32_t reach) {
-	long fit = (long)(f0 / delta_f / 2.0) - (long)reach;
-	long shoulder = fit < HARMONICS_GOLDEN_SHOULDER ? fit : HARMONICS_GOLDEN_SHOULDER;
-	return shoulder < 1 ? 1 : (uint32_t)shoulder;
-}
-
 // The readouts and the distortion of each golden signal, through the
 // analyzer's spectrum: which harmonics are found, in noise too, and what
 // they read.
@@ -74,7 +67,7 @@ TEST readouts_match_golden(void) {
 		harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), BINS, N, db);
 
 		double delta_f = (double)HARMONICS_GOLDEN_FS / N;
-		uint32_t shoulder = shoulder_for(g->f0, delta_f, model.reach);
+		uint32_t shoulder = harmonic_shoulder(g->f0 / delta_f, model.reach, HARMONICS_GOLDEN_SHOULDER);
 		harmonic_readout_t reads[64];
 		for (unsigned k = 1; k <= g->count; k++) {
 			reads[k - 1] = harmonic_readout(db, BINS, delta_f, k * g->f0, HARMONICS_GOLDEN_SEARCH, shoulder,
@@ -107,6 +100,14 @@ TEST readouts_match_golden(void) {
 	}
 	free(db);
 	free(x);
+	PASS();
+}
+
+// The shoulder shortens to fit between close harmonics, and never below a bin.
+TEST shoulder_fits_between_harmonics(void) {
+	ASSERT_EQ(32u, harmonic_shoulder(200.0, 4, 32));
+	ASSERT_EQ(6u, harmonic_shoulder(20.4, 4, 32));
+	ASSERT_EQ(1u, harmonic_shoulder(8.0, 4, 32));
 	PASS();
 }
 
@@ -187,6 +188,7 @@ GREATEST_MAIN_DEFS();
 int main(int argc, char **argv) {
 	GREATEST_MAIN_BEGIN();
 	RUN_TEST(window_models_match_golden);
+	RUN_TEST(shoulder_fits_between_harmonics);
 	RUN_TEST(readouts_match_golden);
 	RUN_TEST(calibration_and_range);
 	RUN_TEST(thd_from_readouts);

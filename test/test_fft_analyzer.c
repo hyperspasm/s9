@@ -95,7 +95,7 @@ TEST mix_selects_a_channel_or_averages(void) {
 	ASSERT(bin_amplitude(fa, 0, BIN0) < 1e-3f);
 	ASSERT_IN_RANGE(0.4f, bin_amplitude(fa, 0, BIN1), 1e-3f);
 
-	fft_analyzer_set_channel(fa, FFT_ANALYZER_CHANNEL_ALL);
+	fft_analyzer_set_channel(fa, S9_CHANNEL_ALL);
 	fft_analyzer_update(fa);
 	ASSERT_IN_RANGE(0.4f, bin_amplitude(fa, 0, BIN0), 1e-3f);
 	ASSERT_IN_RANGE(0.2f, bin_amplitude(fa, 0, BIN1), 1e-3f);

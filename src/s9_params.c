@@ -1,6 +1,7 @@
 #include "s9_params.h"
 #include "s9_modes.h"
 #include "window_function.h"
+#include "harmonic_readout.h"
 
 #ifndef PN_SCHEMA_ONLY
 #include "s9_app.h"
@@ -35,8 +36,12 @@ static float get_trig_thresh(void *ctx) { return oscilloscope_get_trig_thresh(ct
 static void set_trig_holdoff(void *ctx, float val) { oscilloscope_set_trig_holdoff(ctx, val); }
 static float get_trig_holdoff(void *ctx) { return oscilloscope_get_trig_holdoff(ctx); }
 
-static void set_channel(void *ctx, int32_t val) { oscilloscope_set_channel(ctx, (uint32_t)val); }
-static int32_t get_channel(void *ctx) { return (int32_t)oscilloscope_get_channel(ctx); }
+// channel parameters count from 0, and -1 is every channel
+static uint32_t channel_from_param(int32_t val) { return val < 0 ? S9_CHANNEL_ALL : (uint32_t)val; }
+static int32_t channel_to_param(uint32_t channel) { return channel == S9_CHANNEL_ALL ? -1 : (int32_t)channel; }
+
+static void set_channel(void *ctx, int32_t val) { oscilloscope_set_channel(ctx, channel_from_param(val)); }
+static int32_t get_channel(void *ctx) { return channel_to_param(oscilloscope_get_channel(ctx)); }
 
 // -- harmonics callbacks: each parameter is one field of the component's configuration
 
@@ -48,7 +53,6 @@ static int32_t get_channel(void *ctx) { return (int32_t)oscilloscope_get_channel
 	static void set_##param(void *ctx, int32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.field = (uint32_t)val; harmonics_set_config(ctx, &c); } \
 	static int32_t get_##param(void *ctx) { return (int32_t)harmonics_config(ctx)->field; }
 
-HARM_INT(harm_channel, channel)
 HARM_INT(harm_harmonics, harmonics)
 HARM_FLOAT(harm_resolution, resolution_hz)
 HARM_FLOAT(harm_f_min, f_min)
@@ -64,6 +68,9 @@ HARM_FLOAT(harm_prominence, prominence_db)
 HARM_FLOAT(harm_averaging, averaging_s)
 HARM_FLOAT(harm_hysteresis, hysteresis_db)
 HARM_FLOAT(harm_readout_hold, readout_hold_s)
+
+static void set_harm_channel(void *ctx, int32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.channel = channel_from_param(val); harmonics_set_config(ctx, &c); }
+static int32_t get_harm_channel(void *ctx) { return channel_to_param(harmonics_config(ctx)->channel); }
 
 static void set_harm_window(void *ctx, uint32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.window_function = (window_function_t)val; harmonics_set_config(ctx, &c); }
 static uint32_t get_harm_window(void *ctx) { return (uint32_t)harmonics_config(ctx)->window_function; }
@@ -87,7 +94,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm) {
 	p->osc_params[6] = pn_int("channel",        osc, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
 
 	p->harm_params[0]  = pn_int("channel",           harm, PN_FN(set_harm_channel),          PN_FN(get_harm_channel),          -1, 31, 1);
-	p->harm_params[1]  = pn_int("harmonics",         harm, PN_FN(set_harm_harmonics),        PN_FN(get_harm_harmonics),        1, 64, 1);
+	p->harm_params[1]  = pn_int("harmonics",         harm, PN_FN(set_harm_harmonics),        PN_FN(get_harm_harmonics),        1, HARMONIC_MAX, 1);
 	p->harm_params[2]  = pn_float("resolution",      harm, PN_FN(set_harm_resolution),       PN_FN(get_harm_resolution),       1.0f, 50.0f, 0);
 	p->harm_params[3]  = pn_enum("window",           harm, PN_FN(set_harm_window),           PN_FN(get_harm_window),           window_function_names, WINDOW_FUNCTION_COUNT);
 	p->harm_params[4]  = pn_float("f_min",           harm, PN_FN(set_harm_f_min),            PN_FN(get_harm_f_min),            10.0f, 1000.0f, 0);

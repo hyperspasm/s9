@@ -134,6 +134,12 @@ static double floor_db(const float *db, uint32_t bins, long p, uint32_t reach, u
 	return any ? floor : -INFINITY;
 }
 
+uint32_t harmonic_shoulder(double spacing_bins, uint32_t reach, uint32_t shoulder) {
+	long fit = (long)(spacing_bins / 2.0) - (long)reach;
+	if (fit < 1) return 1;
+	return (uint32_t)fit < shoulder ? (uint32_t)fit : shoulder;
+}
+
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
 									uint32_t shoulder, float prominence, const harmonic_window_t *w) {
 	harmonic_readout_t r = { 0, 0, -INFINITY, 0.0f, 0.0f };
