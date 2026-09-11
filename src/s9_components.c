@@ -5,6 +5,7 @@
 #include "spectrogram.h"
 #include "oscilloscope.h"
 #include "lissajous.h"
+#include "pitch_tracker.h"
 #include "harmonics.h"
 
 #include <stdlib.h>
@@ -75,8 +76,20 @@ s9_components_t *s9_components_new(void) {
 		.stop_streaming = (void (*)(void *))lissajous_stop_streaming,
 	};
 
-	// harmonics
-	harmonics_t *harmonics = harmonics_new(NULL);
+	// pitch tracker
+	pitch_tracker_t *tracker = pitch_tracker_new(NULL);
+	CHECK_ERROR(tracker != NULL, s9_components_free(&comps); return NULL, "Failed to create pitch tracker instance");
+	comps->components[COMP_PITCH_TRACKER] = (s9_component_t){
+		.instance = tracker,
+		.destroy = (void (*)(void **))pitch_tracker_free,
+		.update = (void (*)(void *))pitch_tracker_update,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))pitch_tracker_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))pitch_tracker_prepare_to_stream,
+		.stop_streaming = (void (*)(void *))pitch_tracker_stop_streaming,
+	};
+
+	// harmonics, of the fundamental the tracker finds
+	harmonics_t *harmonics = harmonics_new(NULL, tracker);
 	CHECK_ERROR(harmonics != NULL, s9_components_free(&comps); return NULL, "Failed to create harmonics instance");
 	comps->components[COMP_HARMONICS] = (s9_component_t){
 		.instance = harmonics,
@@ -136,6 +149,7 @@ static const s9_mode_slot_t mode_spectrum[] = {
 static const s9_mode_slot_t mode_harmonics[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
+	{ COMP_PITCH_TRACKER, {0} },
 	{ COMP_HARMONICS,     { .margin_left = 60 } },
 	{ COMP_NONE, {0} },
 };

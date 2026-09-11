@@ -8,8 +8,8 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS   7
-#define S9_HARM_NUM_PARAMS  17
-#define S9_PITCH_NUM_PARAMS 2
+#define S9_HARM_NUM_PARAMS  8
+#define S9_PITCH_NUM_PARAMS 14
 #define S9_DEBUG_NUM_PARAMS 1
 
 // The root's children, in declared order
@@ -22,7 +22,7 @@ typedef enum {
 	S9_ROOT_COUNT,
 } s9_root_child_t;
 
-// The "pitch" group's children, in declared order
+// The "pitch" group's children that the app pushes, in declared order
 typedef enum {
 	S9_PITCH_FREQUENCY,
 	S9_PITCH_VALID,
@@ -37,11 +37,10 @@ typedef struct {
 	pn_param_t root;
 } s9_params_t;
 
-// Build the tree into p and return its root. osc is the oscilloscope the
-// "osc" parameters read and write; harm is the harmonics component the
-// "harm" parameters read and write and the "pitch" parameters read. Both
-// are NULL in a schema-only build. The mode and debug parameters read and
-// write the app.
-pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm);
+// Build the tree into p and return its root. osc, harm, and tracker are
+// the oscilloscope, the harmonics component, and the pitch tracker that
+// the "osc", "harm", and "pitch" parameters read and write; all NULL in a
+// schema-only build. The mode and debug parameters read and write the app.
+pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm, void *tracker);
 
 #endif /* s9_params_h */

@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=dd2a3c14
+# pn manifest v1 s9 fnv1a32=07d6dd96
 s9/mode enum full|scope|spectrum|harmonics
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -11,19 +11,22 @@ s9/harm/channel int -1 31 1
 s9/harm/harmonics int 1 64 1
 s9/harm/resolution float 0x3f800000 0x42480000 0x00000000
 s9/harm/window enum bartlett|hann|welch|hamming|blackman_harris|blackman|rectangular
-s9/harm/f_min float 0x41200000 0x447a0000 0x00000000
-s9/harm/f_max float 0x42c80000 0x461c4000 0x00000000
-s9/harm/gate_rms float 0x00000000 0x3f800000 0x00000000
-s9/harm/clarity_on float 0x00000000 0x3f800000 0x00000000
-s9/harm/clarity_off float 0x00000000 0x3f800000 0x00000000
-s9/harm/hold float 0x00000000 0x40000000 0x00000000
-s9/harm/octave_tolerance float 0x00000000 0x43480000 0x00000000
-s9/harm/smoothing float 0x00000000 0x3f800000 0x00000000
-s9/harm/deadband float 0x00000000 0x42c80000 0x00000000
 s9/harm/prominence float 0x00000000 0x42700000 0x00000000
 s9/harm/averaging float 0x00000000 0x41200000 0x00000000
 s9/harm/hysteresis float 0x00000000 0x41f00000 0x00000000
 s9/harm/readout_hold float 0x00000000 0x40a00000 0x00000000
 s9/pitch/frequency float 0x00000000 0x46bb8000 0x00000000
 s9/pitch/valid bool
+s9/pitch/channel int -1 31 1
+s9/pitch/resolution float 0x3f800000 0x42480000 0x00000000
+s9/pitch/window enum bartlett|hann|welch|hamming|blackman_harris|blackman|rectangular
+s9/pitch/f_min float 0x41200000 0x447a0000 0x00000000
+s9/pitch/f_max float 0x42c80000 0x461c4000 0x00000000
+s9/pitch/gate_rms float 0x00000000 0x3f800000 0x00000000
+s9/pitch/clarity_on float 0x00000000 0x3f800000 0x00000000
+s9/pitch/clarity_off float 0x00000000 0x3f800000 0x00000000
+s9/pitch/hold float 0x00000000 0x40000000 0x00000000
+s9/pitch/octave_tolerance float 0x00000000 0x43480000 0x00000000
+s9/pitch/smoothing float 0x00000000 0x3f800000 0x00000000
+s9/pitch/deadband float 0x00000000 0x42c80000 0x00000000
 s9/debug/fps bool

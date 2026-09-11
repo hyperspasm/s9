@@ -15,6 +15,7 @@ typedef enum {
 	COMP_SPECTROGRAM,
 	COMP_OSCILLOSCOPE,
 	COMP_LISSAJOUS,
+	COMP_PITCH_TRACKER,
 	COMP_HARMONICS,
 	COMP_COUNT,
 } s9_component_id_t;
@@ -24,6 +25,7 @@ typedef struct s9_component {
 	void *instance;
 
 	void (*destroy)(void **instance);
+	void (*update)(void *instance);                        // once per frame, before any component renders
 	void (*render)(void *instance, SDL_Renderer *renderer);
 	void (*enqueue_audio)(void *instance, uint8_t *stream, int len);
 	void (*prepare_to_stream)(void *instance, const s9_audio_stream_config_t *config);

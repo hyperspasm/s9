@@ -5,20 +5,20 @@
 #include "s9_colors.h"
 #include "window_function.h"
 #include "harmonic_reader.h"
-#include "pitch.h"
+#include "pitch_tracker.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
 // The harmonic analyzer: the latest spectrum on a linear axis scaled to the
-// fundamental, with a marker at each harmonic. While the tracker is locked,
-// each harmonic that stands out from the floor carries its level and its
-// phase relative to the fundamental's, and the fundamental's own level and
-// the distortion the harmonics add up to sit above. The axis keeps the last
-// locked fundamental, or a configured one before there is any, so the
-// spectrum is always on a scale. The curve is live; the readings come from
-// the spectrum averaged over a short time, so they settle rather than
-// jitter.
+// fundamental a pitch tracker finds, with a marker at each harmonic. While
+// the tracker is locked, each harmonic that stands out from the floor
+// carries its level and its phase relative to the fundamental's, and the
+// fundamental's own level and the distortion the harmonics add up to sit
+// above. The axis keeps the last locked fundamental, or a configured one
+// before there is any, so the spectrum is always on a scale. The curve is
+// live; the readings come from the spectrum averaged over a short time, so
+// they settle rather than jitter.
 
 typedef struct harmonics harmonics_t;
 
@@ -28,10 +28,6 @@ typedef struct {
 	                                  // sample_rate / resolution_hz
 	window_function_t window_function;
 	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
-
-	// tracking the fundamental
-	float f_min, f_max;               // the fundamentals looked for, Hz
-	pitch_conditioner_config_t tracker;
 
 	// reading the harmonics
 	float averaging_s;                // time constant of the average the levels and phases come from,
@@ -55,17 +51,6 @@ static const harmonics_config_t default_harmonics_config = {
 	.resolution_hz = 2.0f,
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
 	.channel = S9_CHANNEL_ALL,
-	.f_min = 20.0f,
-	.f_max = 4000.0f,
-	.tracker = {
-		.gate_rms = 0.01f,
-		.clarity_on = 0.9f,
-		.clarity_off = 0.8f,
-		.hold_s = 0.05f,
-		.octave_tolerance_cents = 30.0f,
-		.smoothing = 0.5f,
-		.deadband_cents = 5.0f,
-	},
 	.averaging_s = 1.0f,
 	.reader = {
 		.harmonics = 10,
@@ -90,8 +75,10 @@ static const harmonics_config_t default_harmonics_config = {
 	.held_color = S9_SLATE,
 };
 
-// create harmonics; NULL takes the default configuration
-harmonics_t *harmonics_new(const harmonics_config_t *config);
+// create harmonics reading the fundamental of a tracker, which must be
+// updated before each frame is rendered; NULL takes the default
+// configuration
+harmonics_t *harmonics_new(const harmonics_config_t *config, pitch_tracker_t *tracker);
 
 // destroy harmonics
 void harmonics_free(harmonics_t **h);
@@ -102,11 +89,6 @@ void harmonics_render(harmonics_t *h, SDL_Renderer *renderer);
 // the configuration, and its replacement, applied at the next frame
 const harmonics_config_t *harmonics_config(const harmonics_t *h);
 void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config);
-
-// The tracked fundamental: whether it is valid now, and the frequency
-// reported, which holds while invalid and is 0 before the first valid frame.
-bool harmonics_get_pitch_valid(const harmonics_t *h);
-float harmonics_get_pitch_frequency(const harmonics_t *h);
 
 // the last frame's readings of harmonics 1..*count, none unless the tracker
 // is locked; valid until the next frame

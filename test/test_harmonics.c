@@ -1,7 +1,7 @@
-// The harmonic analyzer end to end: audio in through the component's own
-// path, frames rendered on SDL's software renderer, the tracked fundamental
-// and the readings out. Runs without a display. What the readings are made
-// of is tested on the reader itself.
+// The harmonic analyzer end to end: audio in through the tracker's and the
+// component's own paths, frames rendered on SDL's software renderer, the
+// readings out. Runs without a display. What the readings are made of is
+// tested on the reader, and the tracking on the tracker.
 #include "greatest.h"
 #include "harmonics.h"
 #include "test_signals.h"
@@ -20,37 +20,43 @@
 static SDL_Surface *surface;
 static SDL_Renderer *renderer;
 
-static harmonics_t *streaming(const harmonics_config_t *config) {
-	harmonics_t *h = harmonics_new(config);
-	harmonics_prepare_to_stream(h, &(s9_audio_stream_config_t){
+// the tracker and the component it feeds, streaming
+typedef struct {
+	pitch_tracker_t *tracker;
+	harmonics_t *h;
+} rig_t;
+
+static rig_t streaming(void) {
+	rig_t r;
+	s9_audio_stream_config_t stream = {
 		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 2,
 		.buffer_frames = 256, .samples_per_display_frame = FRAME,
-	});
-	return h;
+	};
+	r.tracker = pitch_tracker_new(NULL);
+	r.h = harmonics_new(NULL, r.tracker);
+	pitch_tracker_prepare_to_stream(r.tracker, &stream);
+	harmonics_prepare_to_stream(r.h, &stream);
+	return r;
 }
 
-// stereo frames of a signal, both channels alike, continuing from sample offset
-static void enqueue_frames(harmonics_t *h, const test_signal_t *s, unsigned frames, unsigned *offset) {
-	unsigned n = frames * FRAME;
-	float *mono = malloc(sizeof(float) * (*offset + n)), *stereo = malloc(sizeof(float) * n * 2);
-	test_signal_generate(s, mono, *offset + n, FS);
-	for (unsigned i = 0; i < n; i++) stereo[2 * i] = stereo[2 * i + 1] = mono[*offset + i];
-	harmonics_enqueue_audio_data(h, stereo, sizeof(float) * n * 2);
-	*offset += n;
+static void rig_free(rig_t *r) {
+	harmonics_free(&r->h);
+	pitch_tracker_free(&r->tracker);
+}
+
+// one display frame: its audio to both, the tracker's update, then the rendering
+static void frame(rig_t *r, const test_signal_t *s, unsigned *offset) {
+	float *mono = malloc(sizeof(float) * (*offset + FRAME)), stereo[FRAME * 2];
+	test_signal_generate(s, mono, *offset + FRAME, FS);
+	for (unsigned i = 0; i < FRAME; i++) stereo[2 * i] = stereo[2 * i + 1] = mono[*offset + i];
 	free(mono);
-	free(stereo);
-}
-
-// one display frame: its audio, then its rendering
-static void frame(harmonics_t *h, const test_signal_t *s, unsigned *offset) {
-	enqueue_frames(h, s, 1, offset);
+	*offset += FRAME;
+	pitch_tracker_enqueue_audio_data(r->tracker, stereo, sizeof(stereo));
+	harmonics_enqueue_audio_data(r->h, stereo, sizeof(stereo));
+	pitch_tracker_update(r->tracker);
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
-	harmonics_render(h, renderer);
-}
-
-static double cents_from(double f, double reference) {
-	return 1200.0 * log2(f / reference);
+	harmonics_render(r->h, renderer);
 }
 
 static unsigned lit_pixels(void) {
@@ -61,95 +67,6 @@ static unsigned lit_pixels(void) {
 	return lit;
 }
 
-// A steady sawtooth is tracked within the dead band, and drawn.
-TEST tracks_a_sawtooth(void) {
-	harmonics_t *h = streaming(NULL);
-	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
-	unsigned offset = 0;
-	for (int i = 0; i < 120; i++) frame(h, &saw, &offset);
-	ASSERT(harmonics_get_pitch_valid(h));
-	ASSERT_IN_RANGE(0.0, cents_from(harmonics_get_pitch_frequency(h), 220.0), 5.0);
-	ASSERT(lit_pixels() > 10000);
-	harmonics_free(&h);
-	PASS();
-}
-
-// After the signal stops, the fundamental is held for the hold time, then
-// reported invalid while its value stays.
-TEST holds_then_drops_on_silence(void) {
-	harmonics_t *h = streaming(NULL);
-	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
-	test_signal_t silence = { SIGNAL_SILENCE, 0, 0, 0, 0, 0, 0, 0 };
-	unsigned offset = 0;
-	for (int i = 0; i < 120; i++) frame(h, &saw, &offset);
-	ASSERT(harmonics_get_pitch_valid(h));
-	float held = harmonics_get_pitch_frequency(h);
-
-	// the analysis window is long: the tone lingers in it for a while
-	int hold = (int)(harmonics_config(h)->tracker.hold_s * FS / FRAME);   // in display frames
-	int dropped_at = -1;
-	for (int i = 0; i < 120 && dropped_at < 0; i++) {
-		frame(h, &silence, &offset);
-		if (!harmonics_get_pitch_valid(h)) dropped_at = i;
-	}
-	ASSERT(dropped_at >= hold);
-	ASSERT_EQ_FMT(held, harmonics_get_pitch_frequency(h), "%g");
-
-	// no readings without the lock
-	uint32_t count;
-	harmonics_readings(h, &count);
-	ASSERT_EQ(0u, count);
-	float thd;
-	ASSERT_EQ(-1, harmonics_get_thd(h, &thd));
-	harmonics_free(&h);
-	PASS();
-}
-
-// Reconfiguration while streaming keeps tracking: resolution, window,
-// harmonic count, and the channel analyzed.
-TEST reconfigures_while_streaming(void) {
-	harmonics_t *h = streaming(NULL);
-	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
-	unsigned offset = 0;
-	for (int i = 0; i < 60; i++) frame(h, &saw, &offset);
-
-	harmonics_config_t c = *harmonics_config(h);
-	c.resolution_hz = 4.0f;
-	c.window_function = WINDOW_FUNCTION_HANN;
-	c.reader.harmonics = 20;
-	c.channel = 1;
-	harmonics_set_config(h, &c);
-	for (int i = 0; i < 90; i++) frame(h, &saw, &offset);
-	ASSERT(harmonics_get_pitch_valid(h));
-	ASSERT_IN_RANGE(0.0, cents_from(harmonics_get_pitch_frequency(h), 110.0), 5.0);
-
-	c.reader.harmonics = 200;   // clamped to what fits
-	harmonics_set_config(h, &c);
-	ASSERT(harmonics_config(h)->reader.harmonics < 200);
-	frame(h, &saw, &offset);
-	harmonics_free(&h);
-	PASS();
-}
-
-// Noise never becomes a pitch; the spectrum is still drawn, on the
-// configured axis, with no readings.
-TEST noise_has_no_pitch(void) {
-	harmonics_t *h = streaming(NULL);
-	test_signal_t noise = { SIGNAL_NOISE, 0, 0, 0.5, 0, 0, 12345, 0 };
-	unsigned offset = 0;
-	uint32_t count;
-	for (int i = 0; i < 60; i++) {
-		frame(h, &noise, &offset);
-		ASSERT(!harmonics_get_pitch_valid(h));
-		harmonics_readings(h, &count);
-		ASSERT_EQ(0u, count);
-	}
-	ASSERT_EQ_FMT(0.0f, harmonics_get_pitch_frequency(h), "%g");
-	ASSERT(lit_pixels() > 10000);
-	harmonics_free(&h);
-	PASS();
-}
-
 // the difference between two angles in degrees, in (-180, 180]
 static double angle_diff(double a, double b) {
 	double d = fmod(a - b, 360.0);
@@ -158,19 +75,19 @@ static double angle_diff(double a, double b) {
 	return d;
 }
 
-// Through the component, a sawtooth of ten harmonics reads all ten, their
-// phases, and the distortion they add up to. The generator's harmonics are
-// sines, the even ones negated, so harmonic k sits at -90 + 90k degrees,
-// plus 180 when even.
-TEST sawtooth_reads_its_distortion(void) {
-	harmonics_t *h = streaming(NULL);
+// A steady sawtooth is drawn with its readings: all ten harmonics, their
+// levels against the fundamental's, their phases, and the distortion. The
+// generator's harmonics are sines, the even ones negated, so harmonic k
+// sits at -90 + 90k degrees, plus 180 when even.
+TEST sawtooth_is_drawn_and_read(void) {
+	rig_t r = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
 	unsigned offset = 0;
-	for (int i = 0; i < 120; i++) frame(h, &saw, &offset);
-	ASSERT(harmonics_get_pitch_valid(h));
+	for (int i = 0; i < 120; i++) frame(&r, &saw, &offset);
+	ASSERT(lit_pixels() > 10000);
 
 	uint32_t count;
-	const harmonic_reading_t *reads = harmonics_readings(h, &count);
+	const harmonic_reading_t *reads = harmonics_readings(r.h, &count);
 	ASSERT_EQ(10u, count);
 	for (uint32_t k = 1; k <= count; k++) {
 		ASSERT(reads[k - 1].shown);
@@ -179,9 +96,72 @@ TEST sawtooth_reads_its_distortion(void) {
 		ASSERT_IN_RANGE(0.0, angle_diff(reads[k - 1].phase_deg, expected), 1.0);
 	}
 	float thd;
-	ASSERT_EQ(0, harmonics_get_thd(h, &thd));
+	ASSERT_EQ(0, harmonics_get_thd(r.h, &thd));
 	ASSERT_IN_RANGE(0.7415, (double)thd, 0.01);
-	harmonics_free(&h);
+	rig_free(&r);
+	PASS();
+}
+
+// Once the tracker loses the note, the readings go with it.
+TEST readings_go_with_the_lock(void) {
+	rig_t r = streaming();
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
+	test_signal_t silence = { SIGNAL_SILENCE, 0, 0, 0, 0, 0, 0, 0 };
+	unsigned offset = 0;
+	for (int i = 0; i < 120; i++) frame(&r, &saw, &offset);
+	for (int i = 0; i < 120; i++) frame(&r, &silence, &offset);
+	ASSERT(!pitch_tracker_valid(r.tracker));
+
+	uint32_t count;
+	harmonics_readings(r.h, &count);
+	ASSERT_EQ(0u, count);
+	float thd;
+	ASSERT_EQ(-1, harmonics_get_thd(r.h, &thd));
+	rig_free(&r);
+	PASS();
+}
+
+// Reconfiguration while streaming keeps reading: resolution, window, and
+// the harmonic count, which is clamped to what fits.
+TEST reconfigures_while_streaming(void) {
+	rig_t r = streaming();
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
+	unsigned offset = 0;
+	for (int i = 0; i < 60; i++) frame(&r, &saw, &offset);
+
+	harmonics_config_t c = *harmonics_config(r.h);
+	c.resolution_hz = 4.0f;
+	c.window_function = WINDOW_FUNCTION_HANN;
+	c.reader.harmonics = 20;
+	harmonics_set_config(r.h, &c);
+	for (int i = 0; i < 90; i++) frame(&r, &saw, &offset);
+	uint32_t count;
+	const harmonic_reading_t *reads = harmonics_readings(r.h, &count);
+	ASSERT_EQ(20u, count);
+	ASSERT(reads[0].shown);
+
+	c.reader.harmonics = 200;
+	harmonics_set_config(r.h, &c);
+	ASSERT(harmonics_config(r.h)->reader.harmonics < 200);
+	frame(&r, &saw, &offset);
+	rig_free(&r);
+	PASS();
+}
+
+// Without a fundamental the spectrum is still drawn, on the configured
+// axis, with no readings.
+TEST noise_is_drawn_without_readings(void) {
+	rig_t r = streaming();
+	test_signal_t noise = { SIGNAL_NOISE, 0, 0, 0.5, 0, 0, 12345, 0 };
+	unsigned offset = 0;
+	uint32_t count;
+	for (int i = 0; i < 60; i++) {
+		frame(&r, &noise, &offset);
+		harmonics_readings(r.h, &count);
+		ASSERT_EQ(0u, count);
+	}
+	ASSERT(lit_pixels() > 10000);
+	rig_free(&r);
 	PASS();
 }
 
@@ -202,10 +182,9 @@ int main(int argc, char **argv) {
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
 	GREATEST_MAIN_BEGIN();
-	RUN_TEST(tracks_a_sawtooth);
-	RUN_TEST(holds_then_drops_on_silence);
+	RUN_TEST(sawtooth_is_drawn_and_read);
+	RUN_TEST(readings_go_with_the_lock);
 	RUN_TEST(reconfigures_while_streaming);
-	RUN_TEST(noise_has_no_pitch);
-	RUN_TEST(sawtooth_reads_its_distortion);
+	RUN_TEST(noise_is_drawn_without_readings);
 	GREATEST_MAIN_END();
 }

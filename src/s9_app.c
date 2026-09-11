@@ -66,6 +66,10 @@ static void render(SDL_Renderer *renderer) {
 	SDL_RenderGetViewport(renderer, &default_viewport);
 	const s9_component_t *fps = s9_components_get(g_app->components, COMP_FPS);
 
+	// every component advances before any renders, so one may read another's frame
+	for (s9_component_slot_t *s = g_app->slots; s->component; s++)
+		if (s->component->update) s->component->update(s->component->instance);
+
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
 		if (s->component == fps && !g_app->show_fps) continue;
 		if (s->component->render) {
