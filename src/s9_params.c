@@ -53,7 +53,7 @@ static int32_t get_channel(void *ctx) { return channel_to_param(oscilloscope_get
 	static void set_##param(void *ctx, int32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.field = (uint32_t)val; harmonics_set_config(ctx, &c); } \
 	static int32_t get_##param(void *ctx) { return (int32_t)harmonics_config(ctx)->field; }
 
-HARM_INT(harm_harmonics, harmonics)
+HARM_INT(harm_harmonics, reader.harmonics)
 HARM_FLOAT(harm_resolution, resolution_hz)
 HARM_FLOAT(harm_f_min, f_min)
 HARM_FLOAT(harm_f_max, f_max)
@@ -64,10 +64,10 @@ HARM_FLOAT(harm_hold, tracker.hold_s)
 HARM_FLOAT(harm_octave_tolerance, tracker.octave_tolerance_cents)
 HARM_FLOAT(harm_smoothing, tracker.smoothing)
 HARM_FLOAT(harm_deadband, tracker.deadband_cents)
-HARM_FLOAT(harm_prominence, prominence_db)
+HARM_FLOAT(harm_prominence, reader.prominence_db)
 HARM_FLOAT(harm_averaging, averaging_s)
-HARM_FLOAT(harm_hysteresis, hysteresis_db)
-HARM_FLOAT(harm_readout_hold, readout_hold_s)
+HARM_FLOAT(harm_hysteresis, reader.hysteresis_db)
+HARM_FLOAT(harm_readout_hold, reader.hold_s)
 
 static void set_harm_channel(void *ctx, int32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.channel = channel_from_param(val); harmonics_set_config(ctx, &c); }
 static int32_t get_harm_channel(void *ctx) { return channel_to_param(harmonics_config(ctx)->channel); }

@@ -112,8 +112,22 @@ target_include_directories(test_harmonic_readout PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_harmonic_readout PkgConfig::SDL2 PkgConfig::FFTW3F m)
 add_test(NAME harmonic_readout COMMAND test_harmonic_readout)
 
+add_executable(test_harmonic_reader test_harmonic_reader.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
+    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/window_function.c
+    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
+    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_harmonic_reader PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_harmonic_reader PkgConfig::SDL2 PkgConfig::FFTW3F m)
+add_test(NAME harmonic_reader COMMAND test_harmonic_reader)
+
 add_executable(test_harmonics test_harmonics.c
     ${CMAKE_SOURCE_DIR}/src/harmonics.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/pitch.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c

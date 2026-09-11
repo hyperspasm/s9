@@ -1,6 +1,7 @@
 // The harmonic analyzer end to end: audio in through the component's own
 // path, frames rendered on SDL's software renderer, the tracked fundamental
-// out. Runs without a display.
+// and the readings out. Runs without a display. What the readings are made
+// of is tested on the reader itself.
 #include "greatest.h"
 #include "harmonics.h"
 #include "test_signals.h"
@@ -115,16 +116,16 @@ TEST reconfigures_while_streaming(void) {
 	harmonics_config_t c = *harmonics_config(h);
 	c.resolution_hz = 4.0f;
 	c.window_function = WINDOW_FUNCTION_HANN;
-	c.harmonics = 20;
+	c.reader.harmonics = 20;
 	c.channel = 1;
 	harmonics_set_config(h, &c);
 	for (int i = 0; i < 90; i++) frame(h, &saw, &offset);
 	ASSERT(harmonics_get_pitch_valid(h));
 	ASSERT_IN_RANGE(0.0, cents_from(harmonics_get_pitch_frequency(h), 110.0), 5.0);
 
-	c.harmonics = 200;   // clamped to what fits
+	c.reader.harmonics = 200;   // clamped to what fits
 	harmonics_set_config(h, &c);
-	ASSERT(harmonics_config(h)->harmonics < 200);
+	ASSERT(harmonics_config(h)->reader.harmonics < 200);
 	frame(h, &saw, &offset);
 	harmonics_free(&h);
 	PASS();
@@ -149,28 +150,6 @@ TEST noise_has_no_pitch(void) {
 	PASS();
 }
 
-// A sine in noise reads one harmonic, the fundamental at its level once
-// the average has settled, and no distortion.
-TEST sine_in_noise_reads_one_harmonic(void) {
-	harmonics_t *h = streaming(NULL);
-	test_signal_t sine = { SIGNAL_SINE, 1000.0, 0, 0.5, 0.3, 0, 7, 0.02 };
-	unsigned offset = 0;
-	for (int i = 0; i < 300; i++) frame(h, &sine, &offset);
-	ASSERT(harmonics_get_pitch_valid(h));
-
-	uint32_t count;
-	const harmonics_reading_t *reads = harmonics_readings(h, &count);
-	ASSERT_EQ(10u, count);
-	ASSERT(reads[0].shown);
-	ASSERT_IN_RANGE(-6.02, (double)reads[0].readout.db, 0.1);
-	for (uint32_t k = 2; k <= count; k++) ASSERT_FALSE(reads[k - 1].shown);
-	float thd;
-	ASSERT_EQ(0, harmonics_get_thd(h, &thd));
-	ASSERT_EQ_FMT(0.0f, thd, "%g");
-	harmonics_free(&h);
-	PASS();
-}
-
 // the difference between two angles in degrees, in (-180, 180]
 static double angle_diff(double a, double b) {
 	double d = fmod(a - b, 360.0);
@@ -179,9 +158,10 @@ static double angle_diff(double a, double b) {
 	return d;
 }
 
-// A sawtooth of ten harmonics reads all ten, their phases, and the
-// distortion they add up to. The generator's harmonics are sines, the even
-// ones negated, so harmonic k sits at -90 + 90k degrees, plus 180 when even.
+// Through the component, a sawtooth of ten harmonics reads all ten, their
+// phases, and the distortion they add up to. The generator's harmonics are
+// sines, the even ones negated, so harmonic k sits at -90 + 90k degrees,
+// plus 180 when even.
 TEST sawtooth_reads_its_distortion(void) {
 	harmonics_t *h = streaming(NULL);
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
@@ -190,7 +170,7 @@ TEST sawtooth_reads_its_distortion(void) {
 	ASSERT(harmonics_get_pitch_valid(h));
 
 	uint32_t count;
-	const harmonics_reading_t *reads = harmonics_readings(h, &count);
+	const harmonic_reading_t *reads = harmonics_readings(h, &count);
 	ASSERT_EQ(10u, count);
 	for (uint32_t k = 1; k <= count; k++) {
 		ASSERT(reads[k - 1].shown);
@@ -201,52 +181,6 @@ TEST sawtooth_reads_its_distortion(void) {
 	float thd;
 	ASSERT_EQ(0, harmonics_get_thd(h, &thd));
 	ASSERT_IN_RANGE(0.7415, (double)thd, 0.01);
-	harmonics_free(&h);
-	PASS();
-}
-
-// one display frame of a sine with a weak third harmonic in noise
-static void weak_frame(harmonics_t *h, double f0, double weak_amp, unsigned *offset) {
-	test_signal_t sine = { SIGNAL_SINE, f0, 0, 0.5, 0.3, 0, 9, 0.01 };
-	test_signal_t weak = { SIGNAL_SINE, 3 * f0, 0, weak_amp, 1.1, 0, 0, 0 };
-	float a[FRAME], b[FRAME], stereo[FRAME * 2];
-	float *whole = calloc(*offset + FRAME, sizeof(float));
-	test_signal_generate(&sine, whole, *offset + FRAME, FS);
-	memcpy(a, whole + *offset, sizeof(a));
-	test_signal_generate(&weak, whole, *offset + FRAME, FS);
-	memcpy(b, whole + *offset, sizeof(b));
-	free(whole);
-	for (unsigned i = 0; i < FRAME; i++) stereo[2 * i] = stereo[2 * i + 1] = a[i] + b[i];
-	harmonics_enqueue_audio_data(h, stereo, sizeof(stereo));
-	*offset += FRAME;
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-	SDL_RenderClear(renderer);
-	harmonics_render(h, renderer);
-}
-
-// A harmonic a little above the floor is shown steadily once the average
-// has settled, and the harmonics that are not there never are.
-TEST weak_harmonic_is_shown_steadily(void) {
-	harmonics_t *h = streaming(NULL);
-	unsigned offset = 0;
-	int changes = 0, empty_shown = 0;
-	bool last = false;
-	for (int i = 0; i < 240; i++) {
-		// 3.7e-4 puts the third harmonic about 15 dB over the median of the
-		// floor that noise of amplitude 0.01 makes under the default window
-		// and resolution; it is read about 12 dB above it
-		weak_frame(h, 220.0, 3.7e-4, &offset);
-		uint32_t count;
-		const harmonics_reading_t *reads = harmonics_readings(h, &count);
-		if (i < 120) continue;                     // the average settles
-		if (count >= 3 && reads[2].shown != last) { changes++; last = reads[2].shown; }
-		for (uint32_t k = 2; k <= count; k++)
-			if (k != 3 && reads[k - 1].shown) empty_shown++;
-	}
-	ASSERT(harmonics_get_pitch_valid(h));
-	ASSERT(last);
-	ASSERT(changes <= 1);
-	ASSERT_EQ(0, empty_shown);
 	harmonics_free(&h);
 	PASS();
 }
@@ -272,8 +206,6 @@ int main(int argc, char **argv) {
 	RUN_TEST(holds_then_drops_on_silence);
 	RUN_TEST(reconfigures_while_streaming);
 	RUN_TEST(noise_has_no_pitch);
-	RUN_TEST(sine_in_noise_reads_one_harmonic);
 	RUN_TEST(sawtooth_reads_its_distortion);
-	RUN_TEST(weak_harmonic_is_shown_steadily);
 	GREATEST_MAIN_END();
 }

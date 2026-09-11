@@ -16,13 +16,7 @@
 #define FONT_SIZE 16
 #define PEAK_TOLERANCE 0.02f    // how far below the highest autocorrelation peak an earlier one may be
                                 // and still be the period
-#define SEARCH_MIN_BINS 3       // a readout looks at least this far either side of its harmonic
-#define SEARCH_RATIO 0.01f      // and at least this fraction of the harmonic's frequency, covering the
-                                // reported fundamental's dead band and smoothing lag
-#define SHOULDER_BINS 32        // the floor beside a harmonic is read from this many bins per side,
-                                // fewer when the next harmonic is closer
 #define AXIS_HEADROOM 0.5f      // the axis extends this many fundamentals past the last marker
-#define NOTE_JUMP_CENTS 50.0    // the fundamental moving this far in one frame is a new note
 #define LABEL_TEXT 64
 
 // text drawn from a texture that is remade only when the text changes
@@ -38,22 +32,15 @@ struct harmonics {
 
 	fft_analyzer_t *analyzer;
 	pitch_conditioner_t *conditioner;
+	harmonic_reader_t *reader;
 	uint32_t buffer_len;             // the transform length nacf, db, and live_db are sized for
 	float *nacf;
 	float *db;                       // the averaged spectrum, per bin: what the readings come from
 	float *live_db;                  // the latest transform's, per bin: what the curve shows
-	harmonic_window_t window;        // the readouts' model of the analyzer's window
-	uint32_t window_len;             // the transform length it was computed for; 0 before any
+	uint32_t reader_window_len;      // the transform length the reader's window is; 0 before any
 
 	bool pitch_valid;
 	float pitch_frequency;
-	float last_frequency;            // the frame before's, for noticing a new note
-	harmonics_reading_t reads[HARMONIC_MAX];   // the last frame's, for the harmonics on the axis
-	harmonic_gate_t gates[HARMONIC_MAX];
-	struct { float re, im; } phases[HARMONIC_MAX];   // each harmonic's relative phase as a unit vector, averaged
-	uint32_t read_count;
-	float thd;
-	int has_thd;
 
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
@@ -62,9 +49,9 @@ struct harmonics {
 	SDL_Texture *graticule;
 	float *plot;                     // dB per plot column
 	SDL_FPoint *points;
-	label_t readouts[HARMONIC_MAX]; // the level read at each harmonic
-	label_t degrees[HARMONIC_MAX];  // and its phase, under that
-	label_t numbers[HARMONIC_MAX];  // the harmonic numbers under the markers
+	label_t readouts[HARMONIC_MAX];  // the level read at each harmonic
+	label_t degrees[HARMONIC_MAX];   // and its phase, under that
+	label_t numbers[HARMONIC_MAX];   // the harmonic numbers under the markers
 	label_t header;                  // the fundamental
 };
 
@@ -100,15 +87,15 @@ void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config) {
 	harmonics_config_t before = h->config;
 	h->config = config ? *config : default_harmonics_config;
 	if (h->config.resolution_hz != before.resolution_hz || h->config.window_function != before.window_function)
-		h->window_len = 0;   // the analyzer's window changes with them; its model follows
-	if (h->config.harmonics < 1) h->config.harmonics = 1;
-	if (h->config.harmonics > HARMONIC_MAX) h->config.harmonics = HARMONIC_MAX;
+		h->reader_window_len = 0;   // the analyzer's window changes with them; the reader's follows
+	if (h->config.reader.harmonics < 1) h->config.reader.harmonics = 1;
+	if (h->config.reader.harmonics > HARMONIC_MAX) h->config.reader.harmonics = HARMONIC_MAX;
 	if (!(h->config.resolution_hz > 0.0f)) h->config.resolution_hz = default_harmonics_config.resolution_hz;
 	if (!(h->config.plot_width >= 1.0f)) h->config.plot_width = default_harmonics_config.plot_width;
 	h->config_changed = 1;
 }
 
-// hand a changed configuration to the analyzer and the conditioner
+// hand a changed configuration to the analyzer, the conditioner, and the reader
 static void apply_config(harmonics_t *h) {
 	if (!h->config_changed) return;
 	h->config_changed = 0;
@@ -116,6 +103,7 @@ static void apply_config(harmonics_t *h) {
 	fft_analyzer_config_t ac = analyzer_config(h);
 	fft_analyzer_set_config(h->analyzer, &ac);
 	pitch_conditioner_set_config(h->conditioner, &h->config.tracker);
+	harmonic_reader_set_config(h->reader, &h->config.reader);
 }
 
 // -- lifecycle
@@ -155,6 +143,10 @@ harmonics_t *harmonics_new(const harmonics_config_t *config) {
 	h->conditioner = malloc(pitch_conditioner_alloc_size());
 	CHECK_ALLOC(h->conditioner, harmonics_free(&h); return NULL);
 	pitch_conditioner_init(h->conditioner, &h->config.tracker);
+
+	h->reader = malloc(harmonic_reader_alloc_size());
+	CHECK_ALLOC(h->reader, harmonics_free(&h); return NULL);
+	harmonic_reader_init(h->reader, &h->config.reader);
 	return h;
 }
 
@@ -163,6 +155,7 @@ void harmonics_free(harmonics_t **h) {
 		free_drawing(*h);
 		fft_analyzer_free(&(*h)->analyzer);
 		free((*h)->conditioner);
+		free((*h)->reader);
 		free((*h)->nacf);
 		free((*h)->db);
 		free((*h)->live_db);
@@ -174,15 +167,12 @@ void harmonics_free(harmonics_t **h) {
 bool harmonics_get_pitch_valid(const harmonics_t *h) { return h->pitch_valid; }
 float harmonics_get_pitch_frequency(const harmonics_t *h) { return h->pitch_frequency; }
 
-const harmonics_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count) {
-	*count = h->read_count;
-	return h->reads;
+const harmonic_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count) {
+	return harmonic_reader_readings(h->reader, count);
 }
 
 int harmonics_get_thd(const harmonics_t *h, float *thd) {
-	if (!h->has_thd) return -1;
-	*thd = h->thd;
-	return 0;
+	return harmonic_reader_thd(h->reader, thd);
 }
 
 // -- streaming
@@ -190,14 +180,10 @@ int harmonics_get_thd(const harmonics_t *h, float *thd) {
 void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t *stream_config) {
 	fft_analyzer_prepare_to_stream(h->analyzer, stream_config);
 	pitch_conditioner_reset(h->conditioner);
+	harmonic_reader_reset(h->reader);
 	h->pitch_valid = false;
 	h->pitch_frequency = 0.0f;
-	h->last_frequency = 0.0f;
-	h->read_count = 0;
-	h->has_thd = 0;
-	memset(h->gates, 0, sizeof(h->gates));
-	memset(h->phases, 0, sizeof(h->phases));
-	h->window_len = 0;
+	h->reader_window_len = 0;
 }
 
 void harmonics_stop_streaming(harmonics_t *h) {
@@ -218,11 +204,12 @@ static double axis_f0(const harmonics_t *h) {
 
 // the axis' right edge: the harmonics across, within the band
 static double axis_end(const harmonics_t *h, double f0, double fs) {
-	double f_end = (h->config.harmonics + AXIS_HEADROOM) * f0;
+	double f_end = (h->config.reader.harmonics + AXIS_HEADROOM) * f0;
 	return f_end > fs / 2.0 ? fs / 2.0 : f_end;
 }
 
-// the fundamental and the spectrum from the latest transform
+// the fundamental from the latest transform, and the harmonics read from
+// the averaged spectrum
 static int analyze(harmonics_t *h) {
 	fft_analyzer_t *fa = h->analyzer;
 	uint32_t n = fft_analyzer_fft_len(fa), bins = n / 2 + 1;
@@ -238,9 +225,9 @@ static int analyze(harmonics_t *h) {
 		CHECK_ALLOC(h->db, return -1);
 		CHECK_ALLOC(h->live_db, return -1);
 	}
-	if (h->window_len != n) {
-		harmonic_window_compute(&h->window, fft_analyzer_window(fa), n);
-		h->window_len = n;
+	if (h->reader_window_len != n) {
+		harmonic_reader_set_window(h->reader, fft_analyzer_window(fa), n);
+		h->reader_window_len = n;
 	}
 
 	// the period lies between the lags of f_max and f_min
@@ -257,66 +244,13 @@ static int analyze(harmonics_t *h) {
 	float dt = fft_analyzer_hop_seconds(fa);
 	h->pitch_valid = pitch_conditioner_update(h->conditioner, e.period, e.clarity, rms, fs, dt, &h->pitch_frequency);
 
-	// a new note: the average and the labels start over
-	double f0 = h->pitch_frequency, delta_f = fs / n;
-	if (f0 > 0.0 && h->last_frequency > 0.0 && fabs(1200.0 * log2(f0 / h->last_frequency)) > NOTE_JUMP_CENTS) {
-		fft_analyzer_reset_power(fa);
-		memset(h->gates, 0, sizeof(h->gates));
-		memset(h->phases, 0, sizeof(h->phases));
-	}
-	h->last_frequency = (float)f0;
-
 	// the curve shows the latest transform; the harmonics are read from the average
-	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), bins, n, h->live_db);
+	const float *spectrum = fft_analyzer_spectrum(fa, 0);
+	harmonic_magnitude_db(spectrum, bins, n, h->live_db);
 	harmonic_power_db(fft_analyzer_power(fa, 0), bins, n, h->db);
-	double f_end = axis_end(h, f0, fs);
-	h->read_count = 0;
-	if (!h->pitch_valid) {
-		// without a lock there are no readings; when it returns, each label
-		// must earn its way through its gate again
-		memset(h->gates, 0, sizeof(h->gates));
-		memset(h->phases, 0, sizeof(h->phases));
-	} else {
-		uint32_t shoulder = harmonic_shoulder(f0 / delta_f, h->window.reach, SHOULDER_BINS);
-		for (uint32_t k = 1; k <= h->config.harmonics; k++) {
-			double fk = k * f0;
-			if (fk > f_end) break;
-			uint32_t search = (uint32_t)ceil(fk * SEARCH_RATIO / delta_f);
-			if (search < SEARCH_MIN_BINS) search = SEARCH_MIN_BINS;
-			harmonics_reading_t *r = &h->reads[k - 1];
-			r->readout = harmonic_readout(h->db, bins, delta_f, fk, search, shoulder, &h->window);
-			r->shown = harmonic_gate_update(&h->gates[k - 1], &r->readout, h->config.prominence_db,
-											h->config.prominence_db - h->config.hysteresis_db, h->config.readout_hold_s, dt);
-			h->read_count = k;
-		}
-	}
-
-	// each harmonic's phase relative to the fundamental's, averaged as a unit
-	// vector by the same fraction as the levels; a vector's direction is
-	// right from its first sample, so it needs no priming
-	if (h->read_count && h->reads[0].readout.peak) {
-		const float *spectrum = fft_analyzer_spectrum(fa, 0);
-		uint32_t p_1 = (uint32_t)lrint(h->reads[0].readout.frequency / delta_f);
-		float alpha = fft_analyzer_average_fraction(fa);
-		for (uint32_t k = 1; k <= h->read_count; k++) {
-			harmonics_reading_t *r = &h->reads[k - 1];
-			if (!r->readout.peak) continue;
-			uint32_t p_k = (uint32_t)lrint(r->readout.frequency / delta_f);
-			float theta = harmonic_phase(spectrum, n, p_k, p_1, k) * (float)(M_PI / 180.0);
-			h->phases[k - 1].re += alpha * (cosf(theta) - h->phases[k - 1].re);
-			h->phases[k - 1].im += alpha * (sinf(theta) - h->phases[k - 1].im);
-			r->phase_deg = atan2f(h->phases[k - 1].im, h->phases[k - 1].re) * (float)(180.0 / M_PI);
-		}
-	}
-
-	// the distortion counts what is shown
-	harmonic_readout_t reads[HARMONIC_MAX];
-	int shown[HARMONIC_MAX];
-	for (uint32_t k = 0; k < h->read_count; k++) {
-		reads[k] = h->reads[k].readout;
-		shown[k] = h->reads[k].shown;
-	}
-	h->has_thd = harmonic_thd(reads, shown, h->read_count, &h->thd) == 0;
+	harmonic_reader_update(h->reader, h->db, spectrum, n, fs / n, h->pitch_frequency, h->pitch_valid,
+						   fft_analyzer_average_fraction(fa), dt);
+	if (harmonic_reader_restarted(h->reader)) fft_analyzer_reset_power(fa);   // a new note: the average too
 	return 0;
 }
 
@@ -455,7 +389,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	SDL_RenderCopy(renderer, h->graticule, NULL, &dst);
 
 	// markers and numbers at the harmonics on the axis
-	uint32_t count = h->config.harmonics;
+	uint32_t count = h->config.reader.harmonics;
 	char text[LABEL_TEXT];
 	SDL_SET_RENDER_DRAW_COLOR(renderer, &h->config.minor_color);
 	for (uint32_t k = 1; k <= count; k++) {
@@ -469,9 +403,11 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	}
 
 	// the levels and phases relative to the fundamental's, while locked and the fundamental read
-	const harmonics_reading_t *h1 = h->read_count && h->reads[0].shown ? &h->reads[0] : NULL;
+	uint32_t read_count;
+	const harmonic_reading_t *reads = harmonic_reader_readings(h->reader, &read_count);
+	const harmonic_reading_t *h1 = read_count && reads[0].shown ? &reads[0] : NULL;
 	for (uint32_t k = 1; k <= count; k++) {
-		const harmonics_reading_t *r = k <= h->read_count ? &h->reads[k - 1] : NULL;
+		const harmonic_reading_t *r = k <= read_count ? &reads[k - 1] : NULL;
 		char degrees[LABEL_TEXT];
 		if (h1 && r && r->shown) {
 			snprintf(text, sizeof(text), "%.1f", r->readout.db - h1->readout.db);
@@ -494,7 +430,11 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	// the fundamental: its level and the distortion while locked and read
 	if (!h->pitch_valid) snprintf(text, sizeof(text), "%.1f Hz   H1 not found", f0);
 	else if (!h1) snprintf(text, sizeof(text), "%.1f Hz", f0);
-	else snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * h->thd);
+	else {
+		float thd = 0.0f;
+		harmonic_reader_thd(h->reader, &thd);
+		snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * thd);
+	}
 	label_set(&h->header, renderer, h->font, h->pitch_valid ? h->config.readout_color : h->config.held_color, text);
 	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);
 }
