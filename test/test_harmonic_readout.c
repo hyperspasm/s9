@@ -68,23 +68,24 @@ TEST readouts_match_golden(void) {
 
 		double delta_f = (double)HARMONICS_GOLDEN_FS / N;
 		uint32_t shoulder = harmonic_shoulder(g->f0 / delta_f, model.reach, HARMONICS_GOLDEN_SHOULDER);
-		harmonic_readout_t reads[64];
+		// the golden's found is a peak standing the golden's prominence above the floor
+		harmonic_readout_t reads[HARMONIC_MAX];
+		int found[HARMONIC_MAX];
 		for (unsigned k = 1; k <= g->count; k++) {
-			reads[k - 1] = harmonic_readout(db, BINS, delta_f, k * g->f0, HARMONICS_GOLDEN_SEARCH, shoulder,
-											(float)HARMONICS_GOLDEN_PROMINENCE, &model);
-			ASSERT_EQm(g->label, g->found[k - 1], reads[k - 1].found);
-			if (reads[k - 1].found) {
-				ASSERTm(g->label, reads[k - 1].peak && reads[k - 1].prominence >= HARMONICS_GOLDEN_PROMINENCE);
+			reads[k - 1] = harmonic_readout(db, BINS, delta_f, k * g->f0, HARMONICS_GOLDEN_SEARCH, shoulder, &model);
+			found[k - 1] = reads[k - 1].peak && reads[k - 1].prominence >= HARMONICS_GOLDEN_PROMINENCE;
+			ASSERT_EQm(g->label, g->found[k - 1], found[k - 1]);
+			if (found[k - 1]) {
 				ASSERT_IN_RANGEm(g->label, g->frequency[k - 1], (double)reads[k - 1].frequency, 2e-3);
 				ASSERT_IN_RANGEm(g->label, g->db[k - 1], (double)reads[k - 1].db, 1e-4);
 			}
 		}
 
 		// the phases, relative to the fundamental, where both were found
-		if (reads[0].found) {
+		if (found[0]) {
 			uint32_t p_1 = (uint32_t)lrint(reads[0].frequency / delta_f);
 			for (unsigned k = 1; k <= g->count; k++) {
-				if (!reads[k - 1].found) continue;
+				if (!found[k - 1]) continue;
 				uint32_t p_k = (uint32_t)lrint(reads[k - 1].frequency / delta_f);
 				float phase = harmonic_phase(fft_analyzer_spectrum(fa, 0), N, p_k, p_1, k);
 				ASSERT_IN_RANGEm(g->label, 0.0, angle_diff(phase, g->phase_deg[k - 1]), 0.01);
@@ -92,7 +93,7 @@ TEST readouts_match_golden(void) {
 		}
 
 		float thd;
-		int has_thd = harmonic_thd(reads, g->count, &thd);
+		int has_thd = harmonic_thd(reads, found, g->count, &thd);
 		ASSERT_EQm(g->label, g->thd >= 0.0, has_thd == 0);
 		if (has_thd == 0) ASSERT_IN_RANGEm(g->label, g->thd, (double)thd, g->thd * 1e-4 + 1e-7);
 
@@ -130,28 +131,30 @@ TEST calibration_and_range(void) {
 	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), BINS, N, db);
 
 	double delta_f = 44100.0 / N;
-	harmonic_readout_t r = harmonic_readout(db, BINS, delta_f, BIN * delta_f, 3, 8, 15.0f, &model);
-	ASSERT(r.found);
+	harmonic_readout_t r = harmonic_readout(db, BINS, delta_f, BIN * delta_f, 3, 8, &model);
+	ASSERT(r.peak);
+	ASSERT(r.prominence > 60.0f);
 	ASSERT_IN_RANGE(BIN * delta_f, (double)r.frequency, 1e-3);
 	ASSERT_IN_RANGE(0.0, (double)r.db, 1e-3);
-	ASSERT(!harmonic_readout(db, BINS, delta_f, (N / 2) * delta_f, 3, 8, 15.0f, &model).found);
-	ASSERT(!harmonic_readout(db, BINS, delta_f, 0.0, 3, 8, 15.0f, &model).found);
+	ASSERT(!harmonic_readout(db, BINS, delta_f, (N / 2) * delta_f, 3, 8, &model).peak);
+	ASSERT(!harmonic_readout(db, BINS, delta_f, 0.0, 3, 8, &model).peak);
 
 	free(x); free(db);
 	fft_analyzer_free(&fa);
 	PASS();
 }
 
-// Distortion is the harmonics' RMS over the fundamental's, from the
-// readouts found: two harmonics at -20 dB give 14.1%, and none without a
-// fundamental.
+// Distortion is the harmonics' RMS over the fundamental's, over the
+// readouts counted: two harmonics at -20 dB give 14.1%, and none without
+// a fundamental.
 TEST thd_from_readouts(void) {
-	harmonic_readout_t reads[4] = { { 1, 1, 40, 100, -6 }, { 1, 1, 40, 200, -26 }, { 0, 0, 0, 0, 0 }, { 1, 1, 40, 400, -26 } };
+	harmonic_readout_t reads[4] = { { 1, 40, 100, -6 }, { 1, 40, 200, -26 }, { 0, 0, 0, 0 }, { 1, 40, 400, -26 } };
+	int counted[4] = { 1, 1, 0, 1 };
 	float thd;
-	ASSERT_EQ(0, harmonic_thd(reads, 4, &thd));
+	ASSERT_EQ(0, harmonic_thd(reads, counted, 4, &thd));
 	ASSERT_IN_RANGE(0.1f * sqrtf(2.0f), thd, 1e-6f);
-	reads[0].found = 0;
-	ASSERT_EQ(-1, harmonic_thd(reads, 4, &thd));
+	counted[0] = 0;
+	ASSERT_EQ(-1, harmonic_thd(reads, counted, 4, &thd));
 	PASS();
 }
 
@@ -159,7 +162,7 @@ TEST thd_from_readouts(void) {
 // threshold, and closes only after the hold time below that.
 TEST gate_has_hysteresis_and_hold(void) {
 	harmonic_gate_t g = { 0 };
-	harmonic_readout_t r = { 1, 0, 0.0f, 0.0f, 0.0f };
+	harmonic_readout_t r = { 1, 0.0f, 0.0f, 0.0f };
 	float on = 10.0f, off = 7.0f, hold = 0.5f, dt = 0.1f;
 
 	r.prominence = 9.0f;

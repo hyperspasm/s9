@@ -81,18 +81,6 @@ static fft_analyzer_config_t analyzer_config(const harmonics_t *h) {
 	};
 }
 
-static pitch_conditioner_config_t conditioner_config(const harmonics_t *h) {
-	return (pitch_conditioner_config_t){
-		.gate_rms = h->config.gate_rms,
-		.clarity_on = h->config.clarity_on,
-		.clarity_off = h->config.clarity_off,
-		.hold_frames = h->config.hold_frames,
-		.octave_tolerance_cents = h->config.octave_tolerance_cents,
-		.smoothing = h->config.smoothing,
-		.deadband_cents = h->config.deadband_cents,
-	};
-}
-
 static graph_db_axis_t db_axis(const harmonics_t *h) {
 	return (graph_db_axis_t){
 		.min_db = h->config.min_db,
@@ -127,8 +115,7 @@ static void apply_config(harmonics_t *h) {
 
 	fft_analyzer_config_t ac = analyzer_config(h);
 	fft_analyzer_set_config(h->analyzer, &ac);
-	pitch_conditioner_config_t cc = conditioner_config(h);
-	pitch_conditioner_set_config(h->conditioner, &cc);
+	pitch_conditioner_set_config(h->conditioner, &h->config.tracker);
 }
 
 // -- lifecycle
@@ -167,8 +154,7 @@ harmonics_t *harmonics_new(const harmonics_config_t *config) {
 
 	h->conditioner = malloc(pitch_conditioner_alloc_size());
 	CHECK_ALLOC(h->conditioner, harmonics_free(&h); return NULL);
-	pitch_conditioner_config_t cc = conditioner_config(h);
-	pitch_conditioner_init(h->conditioner, &cc);
+	pitch_conditioner_init(h->conditioner, &h->config.tracker);
 	return h;
 }
 
@@ -298,7 +284,7 @@ static int analyze(harmonics_t *h) {
 			uint32_t search = (uint32_t)ceil(fk * SEARCH_RATIO / delta_f);
 			if (search < SEARCH_MIN_BINS) search = SEARCH_MIN_BINS;
 			harmonics_reading_t *r = &h->reads[k - 1];
-			r->readout = harmonic_readout(h->db, bins, delta_f, fk, search, shoulder, h->config.prominence_db, &h->window);
+			r->readout = harmonic_readout(h->db, bins, delta_f, fk, search, shoulder, &h->window);
 			r->shown = harmonic_gate_update(&h->gates[k - 1], &r->readout, h->config.prominence_db,
 											h->config.prominence_db - h->config.hysteresis_db, h->config.readout_hold_s, dt);
 			h->read_count = k;
@@ -324,12 +310,13 @@ static int analyze(harmonics_t *h) {
 	}
 
 	// the distortion counts what is shown
-	harmonic_readout_t shown[HARMONIC_MAX];
+	harmonic_readout_t reads[HARMONIC_MAX];
+	int shown[HARMONIC_MAX];
 	for (uint32_t k = 0; k < h->read_count; k++) {
-		shown[k] = h->reads[k].readout;
-		shown[k].found = h->reads[k].shown;
+		reads[k] = h->reads[k].readout;
+		shown[k] = h->reads[k].shown;
 	}
-	h->has_thd = harmonic_thd(shown, h->read_count, &h->thd) == 0;
+	h->has_thd = harmonic_thd(reads, shown, h->read_count, &h->thd) == 0;
 	return 0;
 }
 

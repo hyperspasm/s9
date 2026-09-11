@@ -36,7 +36,6 @@ void harmonic_window_compute(harmonic_window_t *w, const float *window, uint32_t
 
 typedef struct {
 	int peak;          // a local maximum lies there: frequency, db, and prominence are read
-	int found;         // and it stands the prominence asked for above the floor
 	float prominence;  // dB above the floor; -inf without a peak
 	float frequency;   // Hz
 	float db;
@@ -53,17 +52,16 @@ typedef struct {
 // fewer than one bin.
 uint32_t harmonic_shoulder(double spacing_bins, uint32_t reach, uint32_t shoulder);
 
-// The harmonic within search bins of centre_hz: the loudest bin there, when
-// it is a local maximum standing prominence dB above the floor, refined by
-// a parabola through its neighbours and corrected. The floor is, on each
+// The peak within search bins of centre_hz: the loudest bin there, when it
+// is a local maximum, refined by a parabola through its neighbours and
+// corrected, with how far it stands above the floor. The floor is, on each
 // side, the median of the shoulder bins starting the window's reach away;
 // the lower side's, so the skirt of a louder neighbour does not hide a
-// harmonic. delta_f is the bin spacing; db holds bins values. Not found
+// harmonic. delta_f is the bin spacing; db holds bins values. No peak
 // either when the nearest bin is the first or lies beyond the last a
 // parabola fits around.
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz,
-									uint32_t search, uint32_t shoulder, float prominence,
-									const harmonic_window_t *w);
+									uint32_t search, uint32_t shoulder, const harmonic_window_t *w);
 
 // Harmonic k's phase relative to the fundamental's, in degrees in
 // (-180, 180]: its phase less k times the fundamental's, which is the shape
@@ -72,10 +70,11 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 // symmetric window adds no phase of its own within its main lobe.
 float harmonic_phase(const float *spectrum, uint32_t n, uint32_t p_k, uint32_t p_1, uint32_t k);
 
-// Total harmonic distortion over readouts of harmonics 1..count: the RMS of
-// the harmonics found over the fundamental's, as a ratio. Returns 0, or -1
-// when the fundamental was not found.
-int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd);
+// Total harmonic distortion over readouts of harmonics 1..count: the RMS
+// of the harmonics counted over the fundamental's, as a ratio. counted
+// says which readouts are, one flag per harmonic. Returns 0, or -1 when
+// the fundamental is not counted.
+int harmonic_thd(const harmonic_readout_t *reads, const int *counted, uint32_t count, float *thd);
 
 // The gate behind one harmonic's label: it opens when the readout's
 // prominence reaches on_db, stays open while the prominence holds off_db,

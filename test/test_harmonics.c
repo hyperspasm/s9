@@ -85,7 +85,7 @@ TEST holds_then_drops_on_silence(void) {
 	float held = harmonics_get_pitch_frequency(h);
 
 	// the analysis window is long: the tone lingers in it for a while
-	uint32_t hold = harmonics_config(h)->hold_frames;
+	uint32_t hold = harmonics_config(h)->tracker.hold_frames;
 	int dropped_at = -1;
 	for (int i = 0; i < 120 && dropped_at < 0; i++) {
 		frame(h, &silence, &offset);

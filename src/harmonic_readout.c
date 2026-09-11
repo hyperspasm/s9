@@ -141,8 +141,8 @@ uint32_t harmonic_shoulder(double spacing_bins, uint32_t reach, uint32_t shoulde
 }
 
 harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta_f, double centre_hz, uint32_t search,
-									uint32_t shoulder, float prominence, const harmonic_window_t *w) {
-	harmonic_readout_t r = { 0, 0, -INFINITY, 0.0f, 0.0f };
+									uint32_t shoulder, const harmonic_window_t *w) {
+	harmonic_readout_t r = { 0, -INFINITY, 0.0f, 0.0f };
 	if (bins < 3) return r;
 	long last = (long)bins - 2;   // the highest bin a parabola can be centred on
 	long centre = lrint(centre_hz / delta_f);
@@ -160,7 +160,6 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 	if (!(y1 > y0 && y1 >= y2)) return r;
 	r.peak = 1;
 	r.prominence = (float)(y1 - floor_db(db, bins, p, w->reach, shoulder));
-	r.found = r.prominence >= prominence;
 	if (!isfinite(y0) || !isfinite(y1) || !isfinite(y2)) {
 		r.frequency = (float)(p * delta_f);
 		r.db = (float)y1;
@@ -206,11 +205,11 @@ float harmonic_phase(const float *spectrum, uint32_t n, uint32_t p_k, uint32_t p
 	return (float)deg;
 }
 
-int harmonic_thd(const harmonic_readout_t *reads, uint32_t count, float *thd) {
-	if (!count || !reads[0].found) return -1;
+int harmonic_thd(const harmonic_readout_t *reads, const int *counted, uint32_t count, float *thd) {
+	if (!count || !counted[0]) return -1;
 	double power = 0.0;
 	for (uint32_t k = 1; k < count; k++)
-		if (reads[k].found) power += pow(10.0, reads[k].db / 10.0);
+		if (counted[k]) power += pow(10.0, reads[k].db / 10.0);
 	*thd = (float)(sqrt(power) / pow(10.0, reads[0].db / 20.0));
 	return 0;
 }

@@ -5,6 +5,7 @@
 #include "s9_colors.h"
 #include "window_function.h"
 #include "harmonic_readout.h"
+#include "pitch.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
@@ -30,14 +31,7 @@ typedef struct {
 
 	// tracking the fundamental
 	float f_min, f_max;               // the fundamentals looked for, Hz
-	float gate_rms;                   // frames quieter than this are unpitched
-	float clarity_on, clarity_off;    // the clarity needed to become valid, and to stay valid
-	uint32_t hold_frames;             // unpitched frames tolerated before validity ends
-	float octave_tolerance_cents;     // an estimate this close to double or half the tracked value is
-	                                  // folded onto it
-	float smoothing;                  // per-frame move toward the estimate, 0..1
-	float deadband_cents;             // the reported value moves only when the tracked one differs by
-	                                  // more
+	pitch_conditioner_config_t tracker;
 
 	// reading the harmonics
 	float averaging_s;                // time constant of the average the levels and phases come from,
@@ -67,13 +61,15 @@ static const harmonics_config_t default_harmonics_config = {
 	.channel = S9_CHANNEL_ALL,
 	.f_min = 20.0f,
 	.f_max = 4000.0f,
-	.gate_rms = 0.01f,
-	.clarity_on = 0.9f,
-	.clarity_off = 0.8f,
-	.hold_frames = 3,
-	.octave_tolerance_cents = 30.0f,
-	.smoothing = 0.5f,
-	.deadband_cents = 5.0f,
+	.tracker = {
+		.gate_rms = 0.01f,
+		.clarity_on = 0.9f,
+		.clarity_off = 0.8f,
+		.hold_frames = 3,
+		.octave_tolerance_cents = 30.0f,
+		.smoothing = 0.5f,
+		.deadband_cents = 5.0f,
+	},
 	.averaging_s = 1.0f,
 	.prominence_db = 10.0f,
 	.hysteresis_db = 3.0f,
