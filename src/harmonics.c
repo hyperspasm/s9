@@ -50,7 +50,7 @@ struct harmonics {
 	float last_frequency;            // the frame before's, for noticing a new note
 	harmonics_reading_t reads[HARMONIC_MAX];   // the last frame's, for the harmonics on the axis
 	harmonic_gate_t gates[HARMONIC_MAX];
-	struct { float re, im; int primed; } phases[HARMONIC_MAX];   // each harmonic's relative phase as a unit vector, averaged
+	struct { float re, im; } phases[HARMONIC_MAX];   // each harmonic's relative phase as a unit vector, averaged
 	uint32_t read_count;
 	float thd;
 	int has_thd;
@@ -109,7 +109,10 @@ const harmonics_config_t *harmonics_config(const harmonics_t *h) {
 }
 
 void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config) {
+	harmonics_config_t before = h->config;
 	h->config = config ? *config : default_harmonics_config;
+	if (h->config.resolution_hz != before.resolution_hz || h->config.window_function != before.window_function)
+		h->window_len = 0;   // the analyzer's window changes with them; its model follows
 	if (h->config.harmonics < 1) h->config.harmonics = 1;
 	if (h->config.harmonics > HARMONIC_MAX) h->config.harmonics = HARMONIC_MAX;
 	if (!(h->config.resolution_hz > 0.0f)) h->config.resolution_hz = default_harmonics_config.resolution_hz;
@@ -122,14 +125,8 @@ static void apply_config(harmonics_t *h) {
 	if (!h->config_changed) return;
 	h->config_changed = 0;
 
-	fft_analyzer_config_t wanted = analyzer_config(h);
-	const fft_analyzer_config_t *current = fft_analyzer_config(h->analyzer);
-	if (wanted.resolution_hz != current->resolution_hz || wanted.window_function != current->window_function) {
-		fft_analyzer_set_config(h->analyzer, &wanted);
-		h->window_len = 0;
-	} else if (wanted.channel != current->channel || wanted.averaging_s != current->averaging_s) {
-		fft_analyzer_set_config(h->analyzer, &wanted);
-	}
+	fft_analyzer_config_t ac = analyzer_config(h);
+	fft_analyzer_set_config(h->analyzer, &ac);
 	pitch_conditioner_config_t cc = conditioner_config(h);
 	pitch_conditioner_set_config(h->conditioner, &cc);
 }
@@ -283,7 +280,7 @@ static int analyze(harmonics_t *h) {
 	h->last_frequency = (float)f0;
 
 	// the curve shows the latest transform; the harmonics are read from the average
-	harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), bins, n, h->live_db);
+	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), bins, n, h->live_db);
 	harmonic_power_db(fft_analyzer_power(fa, 0), bins, n, h->db);
 	double f_end = axis_end(h, f0, fs);
 	float dt = fft_analyzer_hop_seconds(fa);
@@ -308,27 +305,20 @@ static int analyze(harmonics_t *h) {
 		}
 	}
 
-	// each harmonic's phase relative to the fundamental's, averaged as a unit vector
+	// each harmonic's phase relative to the fundamental's, averaged as a unit
+	// vector by the same fraction as the levels; a vector's direction is
+	// right from its first sample, so it needs no priming
 	if (h->read_count && h->reads[0].readout.peak) {
-		const float *spectrum = (const float *)fft_analyzer_spectrum(fa, 0);
+		const float *spectrum = fft_analyzer_spectrum(fa, 0);
 		uint32_t p_1 = (uint32_t)lrint(h->reads[0].readout.frequency / delta_f);
-		float alpha = h->config.averaging_s > 0.0f ? 1.0f - expf(-dt / h->config.averaging_s) : 1.0f;
+		float alpha = fft_analyzer_average_fraction(fa);
 		for (uint32_t k = 1; k <= h->read_count; k++) {
 			harmonics_reading_t *r = &h->reads[k - 1];
 			if (!r->readout.peak) continue;
 			uint32_t p_k = (uint32_t)lrint(r->readout.frequency / delta_f);
 			float theta = harmonic_phase(spectrum, n, p_k, p_1, k) * (float)(M_PI / 180.0);
-			float re = cosf(theta), im = sinf(theta);
-			// the vector is replaced, not averaged, whenever the analyzer replaces its
-			// power average: while the history fills and after a reset
-			if (!h->phases[k - 1].primed || !fft_analyzer_averaging(fa)) {
-				h->phases[k - 1].re = re;
-				h->phases[k - 1].im = im;
-				h->phases[k - 1].primed = 1;
-			} else {
-				h->phases[k - 1].re += alpha * (re - h->phases[k - 1].re);
-				h->phases[k - 1].im += alpha * (im - h->phases[k - 1].im);
-			}
+			h->phases[k - 1].re += alpha * (cosf(theta) - h->phases[k - 1].re);
+			h->phases[k - 1].im += alpha * (sinf(theta) - h->phases[k - 1].im);
 			r->phase_deg = atan2f(h->phases[k - 1].im, h->phases[k - 1].re) * (float)(180.0 / M_PI);
 		}
 	}

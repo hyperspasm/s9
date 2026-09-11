@@ -27,9 +27,20 @@ static void feed(fft_analyzer_t *fa, const float *interleaved, uint32_t frames, 
 	fft_analyzer_update(fa);
 }
 
+static float bin_power(const fft_analyzer_t *fa, uint32_t index, uint32_t bin) {
+	const float *s = fft_analyzer_spectrum(fa, index);
+	return s[2 * bin] * s[2 * bin] + s[2 * bin + 1] * s[2 * bin + 1];
+}
+
 static float bin_amplitude(const fft_analyzer_t *fa, uint32_t index, uint32_t bin) {
-	const fftwf_complex *s = fft_analyzer_spectrum(fa, index);
-	return sqrtf(s[bin][0] * s[bin][0] + s[bin][1] * s[bin][1]) * 2.0f / fft_analyzer_fft_len(fa);
+	return sqrtf(bin_power(fa, index, bin)) * 2.0f / fft_analyzer_fft_len(fa);
+}
+
+// the configuration with one channel selected
+static void select_channel(fft_analyzer_t *fa, uint32_t channel) {
+	fft_analyzer_config_t config = *fft_analyzer_config(fa);
+	config.channel = channel;
+	fft_analyzer_set_config(fa, &config);
 }
 
 // The normalized autocorrelation of the golden's frame matches the oracle at every lag.
@@ -90,12 +101,12 @@ TEST mix_selects_a_channel_or_averages(void) {
 	ASSERT_IN_RANGE(0.8f, bin_amplitude(fa, 0, BIN0), 1e-3f);
 	ASSERT(bin_amplitude(fa, 0, BIN1) < 1e-3f);
 
-	fft_analyzer_set_channel(fa, 1);
+	select_channel(fa, 1);
 	fft_analyzer_update(fa);
 	ASSERT(bin_amplitude(fa, 0, BIN0) < 1e-3f);
 	ASSERT_IN_RANGE(0.4f, bin_amplitude(fa, 0, BIN1), 1e-3f);
 
-	fft_analyzer_set_channel(fa, S9_CHANNEL_ALL);
+	select_channel(fa, S9_CHANNEL_ALL);
 	fft_analyzer_update(fa);
 	ASSERT_IN_RANGE(0.4f, bin_amplitude(fa, 0, BIN0), 1e-3f);
 	ASSERT_IN_RANGE(0.2f, bin_amplitude(fa, 0, BIN1), 1e-3f);
@@ -140,7 +151,8 @@ TEST history_slides_by_whole_display_frames(void) {
 	PASS();
 }
 
-// A new configuration takes effect at the next update, at its own length.
+// A new length takes effect at the next update, restarting the history;
+// a new averaging time does not touch the history.
 TEST reconfigure_at_next_update(void) {
 	enum { N = 1024 };
 	float *x = malloc(sizeof(float) * N * 2);
@@ -157,6 +169,11 @@ TEST reconfigure_at_next_update(void) {
 	ASSERT_EQ(N, fft_analyzer_fft_len(fa));
 	feed(fa, x, N * 2, 1);
 	ASSERT_EQ(N * 2, fft_analyzer_fft_len(fa));
+	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, 200), 1e-3f);
+
+	config.averaging_s = 1.0f;
+	fft_analyzer_set_config(fa, &config);
+	fft_analyzer_update(fa);   // nothing new consumed: an untouched history reads the same
 	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, 200), 1e-3f);
 
 	free(x);
@@ -184,8 +201,7 @@ TEST power_average_follows_audio_time(void) {
 		});
 		for (int i = 0; i < 40; i++) feed(fa, x, hops[h], 1);   // long enough to settle
 		float steady = fft_analyzer_power(fa, 0)[BIN];
-		const fftwf_complex *sp = fft_analyzer_spectrum(fa, 0);
-		ASSERT_IN_RANGE(sp[BIN][0] * sp[BIN][0] + sp[BIN][1] * sp[BIN][1], steady, steady * 1e-4f);
+		ASSERT_IN_RANGE(bin_power(fa, 0, BIN), steady, steady * 1e-4f);
 
 		uint32_t updates = HOPS * N / hops[h];   // one time constant of silence
 		for (uint32_t i = 0; i < updates; i++) feed(fa, silence, hops[h], 1);
@@ -218,13 +234,11 @@ TEST power_average_waits_for_a_full_frame(void) {
 	});
 	for (int i = 0; i < 4; i++) {
 		feed(fa, x + i * HOP, HOP, 1);
-		ASSERT_FALSE(fft_analyzer_averaging(fa));
+		ASSERT_EQ_FMT(1.0f, fft_analyzer_average_fraction(fa), "%g");
 	}
-	const fftwf_complex *sp = fft_analyzer_spectrum(fa, 0);
-	float full = sp[BIN][0] * sp[BIN][0] + sp[BIN][1] * sp[BIN][1];
-	ASSERT_EQ_FMT(full, fft_analyzer_power(fa, 0)[BIN], "%g");
+	ASSERT_EQ_FMT(bin_power(fa, 0, BIN), fft_analyzer_power(fa, 0)[BIN], "%g");
 	feed(fa, x, HOP, 1);
-	ASSERT(fft_analyzer_averaging(fa));
+	ASSERT(fft_analyzer_average_fraction(fa) < 1.0f);
 
 	free(x);
 	fft_analyzer_free(&fa);

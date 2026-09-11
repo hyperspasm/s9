@@ -87,7 +87,7 @@ static S9_FORCE_INLINE void prepare_to_draw(spectrogram_t *sg, SDL_Renderer *ren
 }
 
 // this function receives a computed complex fft and fills the provided data buffer with dB magnitude values, distributed logarithmically (base 10) between min_freq and max_freq
-static void compute_plot_data(const fftwf_complex *fft, uint32_t fft_len, uint32_t sample_rate, uint32_t min_freq, uint32_t max_freq, float *data, uint32_t data_len) {
+static void compute_plot_data(const float *fft, uint32_t fft_len, uint32_t sample_rate, uint32_t min_freq, uint32_t max_freq, float *data, uint32_t data_len) {
 
 	// precompute values to optimize for loop
 	float bin_size_inv = (float)fft_len / (float)sample_rate;
@@ -120,8 +120,8 @@ static void compute_plot_data(const fftwf_complex *fft, uint32_t fft_len, uint32
 		// find the maximum magnitude within the relevant frequency range
 		float max_magnitude = 0.0f;
 		for (uint32_t bin = bin_start; bin <= bin_end; bin++) {
-			float real = fft[bin][0];
-			float imag = fft[bin][1];
+			float real = fft[2 * bin];
+			float imag = fft[2 * bin + 1];
 			float magnitude = real * real + imag * imag; // calculate magnitude squared
 			if (magnitude > max_magnitude) {
 				max_magnitude = magnitude;

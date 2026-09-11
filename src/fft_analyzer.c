@@ -2,6 +2,7 @@
 #include "s9.h"
 #include "ring_buffer.h"
 
+#include <fftw3.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,9 +10,8 @@
 #define QUEUE_DISPLAY_FRAMES 10   // audio held between updates, in display frames
 
 struct fft_analyzer {
-	fft_analyzer_config_t config;
-	fft_analyzer_config_t pending;   // applied at the next update
-	int reconfigure;
+	fft_analyzer_config_t config;    // as last set
+	fft_analyzer_config_t built;     // what the transform was set up for
 
 	int streaming;
 	s9_audio_stream_config_t stream;
@@ -31,7 +31,7 @@ struct fft_analyzer {
 	fftwf_plan plan;              // frame -> spectrum
 	float **power;                // transforms x (fft_len/2 + 1): the averaged power
 	int power_primed;             // the average holds a transform
-	int averaged;                 // the last update folded its transform into the average
+	float fraction;               // how far the last update moved the average toward its transform
 	uint32_t consumed;            // frames consumed since the transform was set up, until the history filled
 	float hop_s;                  // audio the last update consumed, seconds
 
@@ -107,7 +107,15 @@ static void compute_window_acf(fft_analyzer_t *fa) {
 	memcpy(fa->window_acf, fa->acf, sizeof(float) * fa->fft_len);
 }
 
+// whether the transform must be set up again for a configuration
+static int needs_rebuild(const fft_analyzer_config_t *built, const fft_analyzer_config_t *config) {
+	return config->fft_len != built->fft_len || config->resolution_hz != built->resolution_hz ||
+	       config->window_function != built->window_function || config->window_skew != built->window_skew ||
+	       config->mode != built->mode;
+}
+
 static int alloc_transform(fft_analyzer_t *fa) {
+	fa->built = fa->config;
 	uint32_t channels = fa->stream.channels;
 	fa->fft_len = fa->config.fft_len ? fa->config.fft_len
 	                                 : next_power_of_2((uint32_t)((float)fa->stream.sample_rate / fa->config.resolution_hz));
@@ -180,20 +188,11 @@ void fft_analyzer_free(fft_analyzer_t **fa) {
 }
 
 void fft_analyzer_set_config(fft_analyzer_t *fa, const fft_analyzer_config_t *config) {
-	fa->pending = *config;
-	fa->reconfigure = 1;
+	fa->config = *config;
 }
 
 const fft_analyzer_config_t *fft_analyzer_config(const fft_analyzer_t *fa) {
 	return &fa->config;
-}
-
-void fft_analyzer_set_channel(fft_analyzer_t *fa, uint32_t channel) {
-	fa->config.channel = channel;
-}
-
-uint32_t fft_analyzer_channel(const fft_analyzer_t *fa) {
-	return fa->config.channel;
 }
 
 // -- streaming
@@ -206,10 +205,6 @@ void fft_analyzer_prepare_to_stream(fft_analyzer_t *fa, const s9_audio_stream_co
 	free_transform(fa);
 	free_queue(fa);
 	fa->stream = *stream_config;
-	if (fa->reconfigure) {
-		fa->config = fa->pending;
-		fa->reconfigure = 0;
-	}
 	if (alloc_queue(fa) != 0 || alloc_transform(fa) != 0) {
 		free_transform(fa);
 		free_queue(fa);
@@ -254,9 +249,7 @@ static void mono_frame(const fft_analyzer_t *fa, uint32_t index, float *dst) {
 void fft_analyzer_update(fft_analyzer_t *fa) {
 	if (!fa->streaming) return;
 
-	if (fa->reconfigure) {
-		fa->config = fa->pending;
-		fa->reconfigure = 0;
+	if (needs_rebuild(&fa->built, &fa->config)) {
 		free_transform(fa);
 		if (alloc_transform(fa) != 0) {
 			free_transform(fa);
@@ -294,10 +287,12 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 	if (consume) memcpy(next + kept * channels, fa->input + dropped * channels, consume * bytes_per_frame);
 
 	// the fraction of the way the average moves toward this transform's
-	// power; all the way until the history has filled and the average holds
+	// power: all the way until the history has filled and the average holds
 	// a whole frame's transform
-	fa->averaged = fa->power_primed && was_full && fa->config.averaging_s > 0.0f;
-	float alpha = fa->averaged ? 1.0f - expf(-fa->hop_s / fa->config.averaging_s) : 1.0f;
+	fa->fraction = 1.0f;
+	if (fa->power_primed && was_full && fa->config.averaging_s > 0.0f)
+		fa->fraction = 1.0f - expf(-fa->hop_s / fa->config.averaging_s);
+	float alpha = fa->fraction;
 
 	uint32_t bins = fa->fft_len / 2 + 1;
 	for (uint32_t i = 0; i < fa->transforms; i++) {
@@ -319,8 +314,8 @@ uint32_t fft_analyzer_fft_len(const fft_analyzer_t *fa) { return fa->fft_len; }
 uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa) { return fa->stream.sample_rate; }
 uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa) { return fa->transforms; }
 
-const fftwf_complex *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index) {
-	return index < fa->transforms ? fa->spectra[index] : NULL;
+const float *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index) {
+	return index < fa->transforms ? (const float *)fa->spectra[index] : NULL;
 }
 
 const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index) {
@@ -331,8 +326,8 @@ void fft_analyzer_reset_power(fft_analyzer_t *fa) {
 	fa->power_primed = 0;
 }
 
-int fft_analyzer_averaging(const fft_analyzer_t *fa) {
-	return fa->averaged;
+float fft_analyzer_average_fraction(const fft_analyzer_t *fa) {
+	return fa->fraction;
 }
 
 float fft_analyzer_hop_seconds(const fft_analyzer_t *fa) { return fa->hop_s; }

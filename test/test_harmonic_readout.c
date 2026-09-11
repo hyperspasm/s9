@@ -64,7 +64,7 @@ TEST readouts_match_golden(void) {
 
 		harmonic_window_t model;
 		harmonic_window_compute(&model, fft_analyzer_window(fa), N);
-		harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), BINS, N, db);
+		harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), BINS, N, db);
 
 		double delta_f = (double)HARMONICS_GOLDEN_FS / N;
 		uint32_t shoulder = harmonic_shoulder(g->f0 / delta_f, model.reach, HARMONICS_GOLDEN_SHOULDER);
@@ -86,7 +86,7 @@ TEST readouts_match_golden(void) {
 			for (unsigned k = 1; k <= g->count; k++) {
 				if (!reads[k - 1].found) continue;
 				uint32_t p_k = (uint32_t)lrint(reads[k - 1].frequency / delta_f);
-				float phase = harmonic_phase((const float *)fft_analyzer_spectrum(fa, 0), N, p_k, p_1, k);
+				float phase = harmonic_phase(fft_analyzer_spectrum(fa, 0), N, p_k, p_1, k);
 				ASSERT_IN_RANGEm(g->label, 0.0, angle_diff(phase, g->phase_deg[k - 1]), 0.01);
 			}
 		}
@@ -127,7 +127,7 @@ TEST calibration_and_range(void) {
 	fft_analyzer_update(fa);
 	harmonic_window_t model;
 	harmonic_window_compute(&model, fft_analyzer_window(fa), N);
-	harmonic_magnitude_db((const float *)fft_analyzer_spectrum(fa, 0), BINS, N, db);
+	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), BINS, N, db);
 
 	double delta_f = 44100.0 / N;
 	harmonic_readout_t r = harmonic_readout(db, BINS, delta_f, BIN * delta_f, 3, 8, 15.0f, &model);
