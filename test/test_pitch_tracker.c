@@ -71,8 +71,8 @@ TEST holds_then_drops_on_silence(void) {
 	PASS();
 }
 
-// Reconfiguration while streaming keeps tracking: resolution, window, and
-// the channel analyzed.
+// Reconfiguration while streaming keeps tracking: the window's length and
+// function, and the channel analyzed.
 TEST reconfigures_while_streaming(void) {
 	pitch_tracker_t *t = streaming(NULL);
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
@@ -80,7 +80,7 @@ TEST reconfigures_while_streaming(void) {
 	for (int i = 0; i < 60; i++) frame(t, &saw, &offset);
 
 	pitch_tracker_config_t c = *pitch_tracker_config(t);
-	c.resolution_hz = 4.0f;
+	c.window_s = 0.1f;
 	c.window_function = WINDOW_FUNCTION_HANN;
 	c.channel = 1;
 	pitch_tracker_set_config(t, &c);

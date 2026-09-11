@@ -11,6 +11,7 @@
 struct pitch_tracker {
 	pitch_tracker_config_t config;
 	int config_changed;              // applied at the next update
+	uint32_t sample_rate;            // of the stream; 0 before streaming
 
 	fft_analyzer_t *analyzer;
 	pitch_conditioner_t *conditioner;
@@ -21,9 +22,17 @@ struct pitch_tracker {
 	float frequency;
 };
 
+// the longest power of two of samples within the window
+static uint32_t window_points(const pitch_tracker_t *t) {
+	uint32_t points = 2;
+	while (points * 2 <= t->config.window_s * (float)t->sample_rate) points *= 2;
+	return points;
+}
+
 static fft_analyzer_config_t analyzer_config(const pitch_tracker_t *t) {
 	return (fft_analyzer_config_t){
-		.resolution_hz = t->config.resolution_hz,
+		.fft_len = t->sample_rate ? window_points(t) : 0,
+		.resolution_hz = 1.0f,   // unused: the length is given
 		.window_function = t->config.window_function,
 		.window_skew = 0.0f,
 		.mode = FFT_ANALYZER_MIX,
@@ -38,7 +47,7 @@ const pitch_tracker_config_t *pitch_tracker_config(const pitch_tracker_t *t) {
 
 void pitch_tracker_set_config(pitch_tracker_t *t, const pitch_tracker_config_t *config) {
 	t->config = config ? *config : default_pitch_tracker_config;
-	if (!(t->config.resolution_hz > 0.0f)) t->config.resolution_hz = default_pitch_tracker_config.resolution_hz;
+	if (!(t->config.window_s > 0.0f)) t->config.window_s = default_pitch_tracker_config.window_s;
 	t->config_changed = 1;
 }
 
@@ -85,6 +94,9 @@ float pitch_tracker_frequency(const pitch_tracker_t *t) { return t->frequency; }
 // -- streaming
 
 void pitch_tracker_prepare_to_stream(pitch_tracker_t *t, const s9_audio_stream_config_t *stream_config) {
+	t->sample_rate = stream_config->sample_rate;
+	fft_analyzer_config_t ac = analyzer_config(t);
+	fft_analyzer_set_config(t->analyzer, &ac);
 	fft_analyzer_prepare_to_stream(t->analyzer, stream_config);
 	pitch_conditioner_reset(t->conditioner);
 	t->valid = false;

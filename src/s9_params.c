@@ -76,7 +76,7 @@ static bool get_pitch_valid(void *ctx) { return pitch_tracker_valid(ctx); }
 	static void set_##param(void *ctx, float val) { pitch_tracker_config_t c = *pitch_tracker_config(ctx); c.field = val; pitch_tracker_set_config(ctx, &c); } \
 	static float get_##param(void *ctx) { return pitch_tracker_config(ctx)->field; }
 
-PITCH_FLOAT(pitch_resolution, resolution_hz)
+PITCH_FLOAT(pitch_window, window_s)
 PITCH_FLOAT(pitch_f_min, f_min)
 PITCH_FLOAT(pitch_f_max, f_max)
 PITCH_FLOAT(pitch_gate_rms, conditioner.gate_rms)
@@ -89,8 +89,8 @@ PITCH_FLOAT(pitch_deadband, conditioner.deadband_cents)
 
 static void set_pitch_channel(void *ctx, int32_t val) { pitch_tracker_config_t c = *pitch_tracker_config(ctx); c.channel = channel_from_param(val); pitch_tracker_set_config(ctx, &c); }
 static int32_t get_pitch_channel(void *ctx) { return channel_to_param(pitch_tracker_config(ctx)->channel); }
-static void set_pitch_window(void *ctx, uint32_t val) { pitch_tracker_config_t c = *pitch_tracker_config(ctx); c.window_function = (window_function_t)val; pitch_tracker_set_config(ctx, &c); }
-static uint32_t get_pitch_window(void *ctx) { return (uint32_t)pitch_tracker_config(ctx)->window_function; }
+static void set_pitch_window_function(void *ctx, uint32_t val) { pitch_tracker_config_t c = *pitch_tracker_config(ctx); c.window_function = (window_function_t)val; pitch_tracker_set_config(ctx, &c); }
+static uint32_t get_pitch_window_function(void *ctx) { return (uint32_t)pitch_tracker_config(ctx)->window_function; }
 
 #endif /* PN_SCHEMA_ONLY */
 
@@ -117,8 +117,8 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm, void *tracker
 	p->pitch_params[S9_PITCH_FREQUENCY] = pn_float("frequency", tracker, NULL, PN_FN(get_pitch_frequency), 0.0f, 24000.0f, 0);
 	p->pitch_params[S9_PITCH_VALID]     = pn_bool("valid",      tracker, NULL, PN_FN(get_pitch_valid));
 	p->pitch_params[2]  = pn_int("channel",           tracker, PN_FN(set_pitch_channel),          PN_FN(get_pitch_channel),          -1, 31, 1);
-	p->pitch_params[3]  = pn_float("resolution",      tracker, PN_FN(set_pitch_resolution),       PN_FN(get_pitch_resolution),       1.0f, 50.0f, 0);
-	p->pitch_params[4]  = pn_enum("window",           tracker, PN_FN(set_pitch_window),           PN_FN(get_pitch_window),           window_function_names, WINDOW_FUNCTION_COUNT);
+	p->pitch_params[3]  = pn_float("window",          tracker, PN_FN(set_pitch_window),           PN_FN(get_pitch_window),           0.05f, 2.0f, 0);
+	p->pitch_params[4]  = pn_enum("window_function",  tracker, PN_FN(set_pitch_window_function),  PN_FN(get_pitch_window_function),  window_function_names, WINDOW_FUNCTION_COUNT);
 	p->pitch_params[5]  = pn_float("f_min",           tracker, PN_FN(set_pitch_f_min),            PN_FN(get_pitch_f_min),            10.0f, 1000.0f, 0);
 	p->pitch_params[6]  = pn_float("f_max",           tracker, PN_FN(set_pitch_f_max),            PN_FN(get_pitch_f_max),            100.0f, 10000.0f, 0);
 	p->pitch_params[7]  = pn_float("gate_rms",        tracker, PN_FN(set_pitch_gate_rms),         PN_FN(get_pitch_gate_rms),         0.0f, 1.0f, 0);

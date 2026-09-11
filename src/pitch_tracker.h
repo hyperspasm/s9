@@ -17,8 +17,9 @@
 typedef struct pitch_tracker pitch_tracker_t;
 
 typedef struct {
-	float resolution_hz;              // bin spacing of the transform; the transform is the power of two
-	                                  // at or above sample_rate / resolution_hz
+	float window_s;                   // the audio analyzed at a time, seconds: the transform is the longest
+	                                  // power of two of samples within it. Longer averages more cycles and
+	                                  // steadies the estimate on noisy input; shorter follows a change sooner
 	window_function_t window_function;
 	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
 	float f_min, f_max;               // the fundamentals looked for, Hz
@@ -26,7 +27,7 @@ typedef struct {
 } pitch_tracker_config_t;
 
 static const pitch_tracker_config_t default_pitch_tracker_config = {
-	.resolution_hz = 2.0f,
+	.window_s = 0.2f,
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
 	.channel = S9_CHANNEL_ALL,
 	.f_min = 20.0f,
