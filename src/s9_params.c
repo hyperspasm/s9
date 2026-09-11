@@ -60,7 +60,7 @@ HARM_FLOAT(harm_f_max, f_max)
 HARM_FLOAT(harm_gate_rms, tracker.gate_rms)
 HARM_FLOAT(harm_clarity_on, tracker.clarity_on)
 HARM_FLOAT(harm_clarity_off, tracker.clarity_off)
-HARM_INT(harm_hold_frames, tracker.hold_frames)
+HARM_FLOAT(harm_hold, tracker.hold_s)
 HARM_FLOAT(harm_octave_tolerance, tracker.octave_tolerance_cents)
 HARM_FLOAT(harm_smoothing, tracker.smoothing)
 HARM_FLOAT(harm_deadband, tracker.deadband_cents)
@@ -102,7 +102,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm) {
 	p->harm_params[6]  = pn_float("gate_rms",        harm, PN_FN(set_harm_gate_rms),         PN_FN(get_harm_gate_rms),         0.0f, 1.0f, 0);
 	p->harm_params[7]  = pn_float("clarity_on",      harm, PN_FN(set_harm_clarity_on),       PN_FN(get_harm_clarity_on),       0.0f, 1.0f, 0);
 	p->harm_params[8]  = pn_float("clarity_off",     harm, PN_FN(set_harm_clarity_off),      PN_FN(get_harm_clarity_off),      0.0f, 1.0f, 0);
-	p->harm_params[9]  = pn_int("hold_frames",       harm, PN_FN(set_harm_hold_frames),      PN_FN(get_harm_hold_frames),      0, 600, 1);
+	p->harm_params[9]  = pn_float("hold",            harm, PN_FN(set_harm_hold),             PN_FN(get_harm_hold),             0.0f, 2.0f, 0);
 	p->harm_params[10] = pn_float("octave_tolerance", harm, PN_FN(set_harm_octave_tolerance), PN_FN(get_harm_octave_tolerance), 0.0f, 200.0f, 0);
 	p->harm_params[11] = pn_float("smoothing",       harm, PN_FN(set_harm_smoothing),        PN_FN(get_harm_smoothing),        0.0f, 1.0f, 0);
 	p->harm_params[12] = pn_float("deadband",        harm, PN_FN(set_harm_deadband),         PN_FN(get_harm_deadband),         0.0f, 100.0f, 0);

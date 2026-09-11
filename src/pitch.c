@@ -76,8 +76,8 @@ pitch_estimate_t pitch_estimate(const float *nacf, uint32_t n, uint32_t lag_min,
 struct pitch_conditioner {
 	pitch_conditioner_config_t config;
 	int valid;
-	uint32_t hold;       // unpitched frames since the last accepted estimate
-	uint32_t folded;     // consecutive frames the octave guard folded
+	float hold_s;        // time without an accepted estimate
+	float folded_s;      // time the octave guard has been folding
 	int tracking;        // smoothed and reported hold a frequency
 	double smoothed;     // in cents
 	double reported;     // in cents
@@ -98,21 +98,25 @@ void pitch_conditioner_set_config(pitch_conditioner_t *pc, const pitch_condition
 
 void pitch_conditioner_reset(pitch_conditioner_t *pc) {
 	pc->valid = 0;
-	pc->hold = 0;
-	pc->folded = 0;
+	pc->hold_s = 0.0f;
+	pc->folded_s = 0.0f;
 	pc->tracking = 0;
 	pc->smoothed = 0.0;
 	pc->reported = 0.0;
 }
 
-int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarity, float rms, float sample_rate, float *frequency) {
+int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
+							 float dt_s, float *frequency) {
 	const pitch_conditioner_config_t *cfg = &pc->config;
 	double freq = period > 0.0f ? (double)sample_rate / (double)period : 0.0;
 	int accepted = rms >= cfg->gate_rms && freq > 0.0 &&
 	               ((!pc->valid && clarity >= cfg->clarity_on) || (pc->valid && clarity >= cfg->clarity_off));
 
 	if (!accepted) {
-		if (pc->valid && ++pc->hold > cfg->hold_frames) pc->valid = 0;
+		if (pc->valid) {
+			pc->hold_s += dt_s;
+			if (pc->hold_s > cfg->hold_s) pc->valid = 0;
+		}
 	} else {
 		double c = 1200.0 * log2(freq);
 		if (pc->valid) {
@@ -120,9 +124,10 @@ int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarit
 			if (fabs(d - 1200.0) <= cfg->octave_tolerance_cents) fold = -1200.0;
 			else if (fabs(d + 1200.0) <= cfg->octave_tolerance_cents) fold = 1200.0;
 			if (fold != 0.0) {
-				if (++pc->folded <= cfg->hold_frames) c += fold;
+				pc->folded_s += dt_s;
+				if (pc->folded_s <= cfg->hold_s) c += fold;
 			} else {
-				pc->folded = 0;
+				pc->folded_s = 0.0f;
 			}
 			pc->smoothed += cfg->smoothing * (c - pc->smoothed);
 		} else {
@@ -130,9 +135,9 @@ int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarit
 			pc->reported = c;
 			pc->valid = 1;
 			pc->tracking = 1;
-			pc->folded = 0;
+			pc->folded_s = 0.0f;
 		}
-		pc->hold = 0;
+		pc->hold_s = 0.0f;
 		if (fabs(pc->smoothed - pc->reported) > cfg->deadband_cents) pc->reported = pc->smoothed;
 	}
 

@@ -67,7 +67,7 @@ TEST conditioner_traces_match_golden(void) {
 	const pitch_golden_conditioner_config_t *c = &pitch_golden_conditioner_config;
 	pitch_conditioner_config_t config = {
 		.gate_rms = (float)c->gate_rms, .clarity_on = (float)c->clarity_on, .clarity_off = (float)c->clarity_off,
-		.hold_frames = c->hold_frames, .octave_tolerance_cents = (float)c->octave_tolerance_cents,
+		.hold_s = (float)c->hold_s, .octave_tolerance_cents = (float)c->octave_tolerance_cents,
 		.smoothing = (float)c->smoothing, .deadband_cents = (float)c->deadband_cents,
 	};
 	pitch_conditioner_t *pc = malloc(pitch_conditioner_alloc_size());
@@ -78,7 +78,7 @@ TEST conditioner_traces_match_golden(void) {
 			const pitch_golden_step_t *step = &trace->steps[k];
 			float frequency;
 			int valid = pitch_conditioner_update(pc, (float)step->period, (float)step->clarity, (float)step->rms,
-												 PITCH_GOLDEN_FS, &frequency);
+												 PITCH_GOLDEN_FS, (float)PITCH_GOLDEN_TRACE_DT, &frequency);
 			ASSERT_EQm(trace->label, step->valid, valid);
 			ASSERT_IN_RANGEm(trace->label, step->frequency, (double)frequency, step->frequency * 1e-5 + 1e-6);
 		}

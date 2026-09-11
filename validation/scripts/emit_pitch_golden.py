@@ -69,7 +69,9 @@ PICK_CASES = [
 
 # --- conditioner traces
 
-COND = pitch.ConditionerConfig(gate_rms=0.01, clarity_on=0.9, clarity_off=0.8, hold_frames=3,
+# frames of 1/60 s; a hold of 0.0625 s is three of them, exhausted by the fourth
+TRACE_DT = 1.0 / 60.0
+COND = pitch.ConditionerConfig(gate_rms=0.01, clarity_on=0.9, clarity_off=0.8, hold_s=0.0625,
                                octave_tolerance_cents=30.0, smoothing=0.5, deadband_cents=5.0)
 TRACES = [
     ("gate_and_hysteresis", [
@@ -201,10 +203,11 @@ def main():
     parts.append("")
 
     # conditioner
-    parts.append("/* Conditioner traces: the outputs frame by frame for a configuration */")
-    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off; unsigned hold_frames; double octave_tolerance_cents, smoothing, deadband_cents; } pitch_golden_conditioner_config_t;")
-    parts.append("static const pitch_golden_conditioner_config_t pitch_golden_conditioner_config = { %s, %s, %s, %u, %s, %s, %s };"
-                 % (c_double(COND.gate_rms), c_double(COND.clarity_on), c_double(COND.clarity_off), COND.hold_frames,
+    parts.append("/* Conditioner traces: the outputs frame by frame for a configuration, frames PITCH_GOLDEN_TRACE_DT seconds apart */")
+    parts.append("#define PITCH_GOLDEN_TRACE_DT %s" % c_double(TRACE_DT))
+    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing, deadband_cents; } pitch_golden_conditioner_config_t;")
+    parts.append("static const pitch_golden_conditioner_config_t pitch_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s };"
+                 % (c_double(COND.gate_rms), c_double(COND.clarity_on), c_double(COND.clarity_off), c_double(COND.hold_s),
                     c_double(COND.octave_tolerance_cents), c_double(COND.smoothing), c_double(COND.deadband_cents)))
     parts.append("typedef struct { double period, clarity, rms; int valid; double frequency; } pitch_golden_step_t;")
     parts.append("typedef struct { const char *label; const pitch_golden_step_t *steps; unsigned count; } pitch_golden_trace_t;")
@@ -213,7 +216,7 @@ def main():
         cond = pitch.Conditioner(COND)
         lines = []
         for period, clarity, rms in steps:
-            valid, freq = cond.update(period, clarity, rms, FS)
+            valid, freq = cond.update(period, clarity, rms, FS, TRACE_DT)
             lines.append("\t{ %s, %s, %s, %d, %s }," % (c_double(period), c_double(clarity), c_double(rms), 1 if valid else 0, c_double(freq)))
             print(f"  trace {label:<24} in ({period:6.1f}, {clarity:.2f}, {rms:.3f}) -> valid {int(valid)} freq {freq:9.4f}", file=sys.stderr)
         parts.append("static const pitch_golden_step_t pitch_golden_trace_%s[] = {\n%s\n};" % (label, "\n".join(lines)))

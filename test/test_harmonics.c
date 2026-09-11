@@ -73,8 +73,8 @@ TEST tracks_a_sawtooth(void) {
 	PASS();
 }
 
-// After the signal stops, the fundamental is held for hold_frames frames,
-// then reported invalid while its value stays.
+// After the signal stops, the fundamental is held for the hold time, then
+// reported invalid while its value stays.
 TEST holds_then_drops_on_silence(void) {
 	harmonics_t *h = streaming(NULL);
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
@@ -85,13 +85,13 @@ TEST holds_then_drops_on_silence(void) {
 	float held = harmonics_get_pitch_frequency(h);
 
 	// the analysis window is long: the tone lingers in it for a while
-	uint32_t hold = harmonics_config(h)->tracker.hold_frames;
+	int hold = (int)(harmonics_config(h)->tracker.hold_s * FS / FRAME);   // in display frames
 	int dropped_at = -1;
 	for (int i = 0; i < 120 && dropped_at < 0; i++) {
 		frame(h, &silence, &offset);
 		if (!harmonics_get_pitch_valid(h)) dropped_at = i;
 	}
-	ASSERT(dropped_at >= (int)hold);
+	ASSERT(dropped_at >= hold);
 	ASSERT_EQ_FMT(held, harmonics_get_pitch_frequency(h), "%g");
 
 	// no readings without the lock

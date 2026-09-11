@@ -29,8 +29,8 @@ typedef struct {
 	float gate_rms;                // frames quieter than this are unpitched
 	float clarity_on;              // clarity needed to become valid
 	float clarity_off;             // clarity needed to stay valid
-	uint32_t hold_frames;          // unpitched frames tolerated before validity ends, and octave
-	                               // disagreements tolerated before they are followed
+	float hold_s;                  // unpitched time tolerated before validity ends, and an octave
+	                               // disagreement tolerated before it is followed, seconds
 	float octave_tolerance_cents;  // an estimate this close to double or half the tracked value is
 	                               // folded onto it
 	float smoothing;               // the fraction of the way the tracked value moves toward each
@@ -42,8 +42,9 @@ typedef struct {
 // frequency follows the estimates through the smoother and the deadband;
 // while invalid, it holds its last value, so a display keeps a stable
 // picture. An estimate an octave from the tracked value is folded onto it,
-// an estimator's slip, for up to hold_frames frames; one that keeps
-// insisting is a new note and is followed. Caller-owned: allocate
+// an estimator's slip, for up to the hold time; one that keeps insisting is
+// a new note and is followed. Time is the audio time between updates, so
+// the frame rate does not matter. Caller-owned: allocate
 // pitch_conditioner_alloc_size() bytes, aligned as malloc aligns, and init
 // them.
 typedef struct pitch_conditioner pitch_conditioner_t;
@@ -57,10 +58,11 @@ void pitch_conditioner_reset(pitch_conditioner_t *pc);
 // new thresholds from the next update on; the tracked fundamental stays
 void pitch_conditioner_set_config(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config);
 
-// One frame: period in samples (0 when none), its clarity, and the frame's
-// RMS. Returns whether the fundamental is valid; *frequency receives the
-// reported fundamental in Hz, 0 before the first valid frame.
+// One frame: period in samples (0 when none), its clarity, the frame's
+// RMS, and the audio time since the last frame. Returns whether the
+// fundamental is valid; *frequency receives the reported fundamental in Hz,
+// 0 before the first valid frame.
 int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
-							 float *frequency);
+							 float dt_s, float *frequency);
 
 #endif /* pitch_h */

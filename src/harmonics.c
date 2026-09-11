@@ -254,7 +254,8 @@ static int analyze(harmonics_t *h) {
 	if (fft_analyzer_nacf(fa, 0, h->nacf, lags) == 0)
 		e = pitch_estimate(h->nacf, lags, lag_min, lag_max, PEAK_TOLERANCE);
 	float rms = fft_analyzer_rms(fa, 0);
-	h->pitch_valid = pitch_conditioner_update(h->conditioner, e.period, e.clarity, rms, fs, &h->pitch_frequency);
+	float dt = fft_analyzer_hop_seconds(fa);
+	h->pitch_valid = pitch_conditioner_update(h->conditioner, e.period, e.clarity, rms, fs, dt, &h->pitch_frequency);
 
 	// a new note: the average and the labels start over
 	double f0 = h->pitch_frequency, delta_f = fs / n;
@@ -269,7 +270,6 @@ static int analyze(harmonics_t *h) {
 	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), bins, n, h->live_db);
 	harmonic_power_db(fft_analyzer_power(fa, 0), bins, n, h->db);
 	double f_end = axis_end(h, f0, fs);
-	float dt = fft_analyzer_hop_seconds(fa);
 	h->read_count = 0;
 	if (!h->pitch_valid) {
 		// without a lock there are no readings; when it returns, each label

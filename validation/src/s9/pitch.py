@@ -96,15 +96,17 @@ def cents(freq):
 
 
 class ConditionerConfig:
-    def __init__(self, gate_rms, clarity_on, clarity_off, hold_frames, octave_tolerance_cents,
+    def __init__(self, gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents,
                  smoothing, deadband_cents):
         self.gate_rms = gate_rms                    # frames quieter than this are unpitched
         self.clarity_on = clarity_on                # clarity needed to become valid
         self.clarity_off = clarity_off              # clarity needed to stay valid
-        self.hold_frames = hold_frames              # unpitched frames tolerated before validity ends, and octave disagreements before they are followed
+        self.hold_s = hold_s                        # unpitched time tolerated before validity ends, and an octave
+                                                    # disagreement tolerated before it is followed, seconds
         self.octave_tolerance_cents = octave_tolerance_cents  # an estimate this close to double or half is folded
-        self.smoothing = smoothing                  # per-frame one-pole coefficient toward the estimate, in cents
-        self.deadband_cents = deadband_cents        # the reported value moves only when the smoothed one differs by more
+        self.smoothing = smoothing                  # the fraction of the way the tracked value moves toward each
+                                                    # estimate, 0..1; the smoothing is done in cents
+        self.deadband_cents = deadband_cents        # the reported value moves only when the tracked one differs by more
 
 
 class Conditioner:
@@ -113,19 +115,20 @@ class Conditioner:
     While valid, the frequency follows the estimates through the smoother and
     the deadband; while invalid, it holds its last value, so a display can
     keep a stable picture. An estimate an octave from the tracked value is
-    folded onto it, an estimator's slip, for up to hold_frames frames; one
-    that keeps insisting is a new note and is followed.
+    folded onto it, an estimator's slip, for up to the hold time; one that
+    keeps insisting is a new note and is followed. Time is the audio time
+    between updates, so the frame rate does not matter.
     """
 
     def __init__(self, config):
         self.cfg = config
         self.valid = False
-        self.hold = 0
-        self.folded = 0          # consecutive frames the octave guard folded
+        self.hold_s = 0.0        # time without an accepted estimate
+        self.folded_s = 0.0      # time the octave guard has been folding
         self.smoothed = None
         self.reported = None
 
-    def update(self, period, clarity, rms, sample_rate):
+    def update(self, period, clarity, rms, sample_rate, dt):
         cfg = self.cfg
         freq = sample_rate / period if period > 0.0 else 0.0
         candidate = None
@@ -135,8 +138,8 @@ class Conditioner:
 
         if candidate is None:
             if self.valid:
-                self.hold += 1
-                if self.hold > cfg.hold_frames:
+                self.hold_s += dt
+                if self.hold_s > cfg.hold_s:
                     self.valid = False
         else:
             c = cents(candidate)
@@ -148,18 +151,18 @@ class Conditioner:
                 elif abs(d + 1200.0) <= cfg.octave_tolerance_cents:
                     fold = 1200.0
                 if fold != 0.0:
-                    self.folded += 1
-                    if self.folded <= cfg.hold_frames:
+                    self.folded_s += dt
+                    if self.folded_s <= cfg.hold_s:
                         c += fold
                 else:
-                    self.folded = 0
+                    self.folded_s = 0.0
                 self.smoothed += cfg.smoothing * (c - self.smoothed)
             else:
                 self.smoothed = c
                 self.reported = c
                 self.valid = True
-                self.folded = 0
-            self.hold = 0
+                self.folded_s = 0.0
+            self.hold_s = 0.0
             if abs(self.smoothed - self.reported) > cfg.deadband_cents:
                 self.reported = self.smoothed
 
