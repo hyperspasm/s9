@@ -140,6 +140,10 @@ add_test(NAME harmonic_reader COMMAND test_harmonic_reader)
 
 add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/periodic.c
+    ${CMAKE_SOURCE_DIR}/src/oscilloscope.c
+    ${CMAKE_SOURCE_DIR}/src/osc_sampler.c
+    ${CMAKE_SOURCE_DIR}/src/scope_display.c
+    ${CMAKE_SOURCE_DIR}/src/graticule.c
     ${CMAKE_SOURCE_DIR}/src/harmonics.c
     ${CMAKE_SOURCE_DIR}/src/fundamental.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c

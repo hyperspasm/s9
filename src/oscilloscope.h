@@ -9,6 +9,9 @@
 
 typedef struct oscilloscope oscilloscope_t;
 
+// divisions across the screen: a sweep is this many times time_per_div
+#define OSCILLOSCOPE_DIVISIONS 10
+
 typedef struct {
 	SDL_Color trace_color;
 	float trace_width;

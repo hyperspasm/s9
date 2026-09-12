@@ -3,20 +3,26 @@
 
 #include <stdlib.h>
 
+#define WAVEFORM_HOLDOFF 0.9f    // of a cycle: after a sweep the next trigger is the crossing that starts
+                                 // the next cycle, not one a harmonic makes within it
+
 struct periodic {
 	periodic_config_t config;
 	int config_changed;              // applied at the next frame
 
 	fundamental_t *tracker;
 	harmonics_t *harmonics;
+	oscilloscope_t *waveform;
 };
 
 periodic_config_t periodic_default_config(void) {
 	periodic_config_t c = {
 		.channel = S9_CHANNEL_ALL,
 		.view = PERIODIC_VIEW_HARMONICS,
+		.initial_f0 = 1000.0f,
 		.tracker = default_fundamental_config,
 		.harmonics = default_harmonics_config,
+		.waveform = { .display = default_oscilloscope_config, .cycles = 1, .amp_per_div = 0.2f },
 	};
 	return c;
 }
@@ -28,6 +34,9 @@ const periodic_config_t *periodic_config(const periodic_t *p) {
 void periodic_set_config(periodic_t *p, const periodic_config_t *config) {
 	p->config = config ? *config : periodic_default_config();
 	if ((unsigned)p->config.view >= PERIODIC_VIEW_COUNT) p->config.view = PERIODIC_VIEW_HARMONICS;
+	if (!(p->config.initial_f0 > 0.0f)) p->config.initial_f0 = periodic_default_config().initial_f0;
+	if (p->config.waveform.cycles < 1) p->config.waveform.cycles = 1;
+	if (p->config.waveform.cycles > PERIODIC_CYCLES_MAX) p->config.waveform.cycles = PERIODIC_CYCLES_MAX;
 	p->config_changed = 1;
 }
 
@@ -38,13 +47,33 @@ static fundamental_config_t tracker_config(const periodic_t *p) {
 	return c;
 }
 
+// the harmonics view's configuration, on this component's assumed fundamental
+static harmonics_config_t harmonics_config_of(const periodic_t *p) {
+	harmonics_config_t c = p->config.harmonics;
+	c.initial_f0 = p->config.initial_f0;
+	return c;
+}
+
+// the waveform view: this component's channel, a rising zero crossing, and
+// no free-running sweep, so the trace holds when the signal stops
+static void apply_waveform_settings(periodic_t *p) {
+	oscilloscope_set_config(p->waveform, &p->config.waveform.display);
+	oscilloscope_set_channel(p->waveform, p->config.channel);
+	oscilloscope_set_amp_per_div(p->waveform, p->config.waveform.amp_per_div);
+	oscilloscope_set_trig_auto(p->waveform, false);
+	oscilloscope_set_trig_slope(p->waveform, 1);
+	oscilloscope_set_trig_thresh(p->waveform, 0.0f);
+}
+
 // hand a changed configuration to the tracker and the views
 static void apply_config(periodic_t *p) {
 	if (!p->config_changed) return;
 	p->config_changed = 0;
 	fundamental_config_t tc = tracker_config(p);
 	fundamental_set_config(p->tracker, &tc);
-	harmonics_set_config(p->harmonics, &p->config.harmonics);
+	harmonics_config_t hc = harmonics_config_of(p);
+	harmonics_set_config(p->harmonics, &hc);
+	apply_waveform_settings(p);
 }
 
 periodic_t *periodic_new(const periodic_config_t *config) {
@@ -58,13 +87,18 @@ periodic_t *periodic_new(const periodic_config_t *config) {
 	fundamental_config_t tc = tracker_config(p);
 	p->tracker = fundamental_new(&tc);
 	CHECK_ALLOC(p->tracker, periodic_free(&p); return NULL);
-	p->harmonics = harmonics_new(&p->config.harmonics, p->tracker);
+	harmonics_config_t hc = harmonics_config_of(p);
+	p->harmonics = harmonics_new(&hc, p->tracker);
 	CHECK_ALLOC(p->harmonics, periodic_free(&p); return NULL);
+	p->waveform = oscilloscope_new(&p->config.waveform.display);
+	CHECK_ALLOC(p->waveform, periodic_free(&p); return NULL);
+	apply_waveform_settings(p);
 	return p;
 }
 
 void periodic_free(periodic_t **p) {
 	if (p && *p) {
+		oscilloscope_free(&(*p)->waveform);
 		harmonics_free(&(*p)->harmonics);
 		fundamental_free(&(*p)->tracker);
 		free(*p);
@@ -88,15 +122,18 @@ int periodic_thd(const periodic_t *p, float *thd) {
 void periodic_prepare_to_stream(periodic_t *p, const s9_audio_stream_config_t *stream_config) {
 	fundamental_prepare_to_stream(p->tracker, stream_config);
 	harmonics_prepare_to_stream(p->harmonics, stream_config);
+	oscilloscope_prepare_to_stream(p->waveform, stream_config);
 }
 
 void periodic_stop_streaming(periodic_t *p) {
+	oscilloscope_stop_streaming(p->waveform);
 	harmonics_stop_streaming(p->harmonics);
 	fundamental_stop_streaming(p->tracker);
 }
 
 void periodic_enqueue_audio_data(periodic_t *p, const void *data, uint32_t size) {
 	fundamental_enqueue_audio_data(p->tracker, data, size);
+	oscilloscope_enqueue_audio_data(p->waveform, data, size);
 }
 
 // -- the frame
@@ -109,6 +146,16 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 	case PERIODIC_VIEW_HARMONICS:
 		harmonics_render(p->harmonics, renderer);
 		break;
+	case PERIODIC_VIEW_WAVEFORM: {
+		// the sweep spans whole cycles of the fundamental, the last tracked or the one assumed
+		float f0 = fundamental_frequency(p->tracker);
+		if (!(f0 > 0.0f)) f0 = p->config.initial_f0;
+		float period = 1.0f / f0;
+		oscilloscope_set_time_per_div(p->waveform, p->config.waveform.cycles * period / OSCILLOSCOPE_DIVISIONS);
+		oscilloscope_set_trig_holdoff(p->waveform, WAVEFORM_HOLDOFF * period);
+		oscilloscope_render(p->waveform, renderer);
+		break;
+	}
 	default:
 		break;
 	}

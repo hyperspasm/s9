@@ -149,6 +149,27 @@ TEST noise_is_drawn_without_readings(void) {
 	PASS();
 }
 
+// The waveform view draws a sawtooth swept over one cycle of the tracked
+// fundamental, and keeps drawing when the cycles change.
+TEST waveform_view_draws_cycles(void) {
+	periodic_t *p = streaming();
+	periodic_config_t c = *periodic_config(p);
+	c.view = PERIODIC_VIEW_WAVEFORM;
+	periodic_set_config(p, &c);
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
+	unsigned offset = 0;
+	for (int i = 0; i < 120; i++) frame(p, &saw, &offset);
+	ASSERT(periodic_valid(p));
+	ASSERT(lit_pixels() > 10000);
+
+	c.waveform.cycles = 3;
+	periodic_set_config(p, &c);
+	for (int i = 0; i < 30; i++) frame(p, &saw, &offset);
+	ASSERT(lit_pixels() > 10000);
+	periodic_free(&p);
+	PASS();
+}
+
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
@@ -170,5 +191,6 @@ int main(int argc, char **argv) {
 	RUN_TEST(readings_go_with_the_lock);
 	RUN_TEST(reconfigures_while_streaming);
 	RUN_TEST(noise_is_drawn_without_readings);
+	RUN_TEST(waveform_view_draws_cycles);
 	GREATEST_MAIN_END();
 }

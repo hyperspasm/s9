@@ -4,8 +4,8 @@
 #include "harmonic_readout.h"
 #ifdef PN_SCHEMA_ONLY
 // the view names, without the component behind them
-typedef enum { PERIODIC_VIEW_HARMONICS, PERIODIC_VIEW_COUNT } periodic_view_t;
-static const char *const periodic_view_names[PERIODIC_VIEW_COUNT] = { [PERIODIC_VIEW_HARMONICS] = "harmonics" };
+typedef enum { PERIODIC_VIEW_HARMONICS, PERIODIC_VIEW_WAVEFORM, PERIODIC_VIEW_COUNT } periodic_view_t;
+static const char *const periodic_view_names[PERIODIC_VIEW_COUNT] = { [PERIODIC_VIEW_HARMONICS] = "harmonics", [PERIODIC_VIEW_WAVEFORM] = "waveform" };
 #endif
 
 #ifndef PN_SCHEMA_ONLY
@@ -76,6 +76,8 @@ PERIODIC_INT(harm_harmonics, harmonics.reader.harmonics)
 PERIODIC_FLOAT(harm_prominence, harmonics.reader.prominence_db)
 PERIODIC_FLOAT(harm_hysteresis, harmonics.reader.hysteresis_db)
 PERIODIC_FLOAT(harm_readout_hold, harmonics.reader.hold_s)
+PERIODIC_INT(waveform_cycles, waveform.cycles)
+PERIODIC_FLOAT(waveform_amp_per_div, waveform.amp_per_div)
 
 static void set_periodic_channel(void *ctx, int32_t val) { periodic_config_t c = *periodic_config(ctx); c.channel = channel_from_param(val); periodic_set_config(ctx, &c); }
 static int32_t get_periodic_channel(void *ctx) { return channel_to_param(periodic_config(ctx)->channel); }
@@ -119,10 +121,15 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	harm[2] = pn_float("hysteresis",     periodic, PN_FN(set_harm_hysteresis),   PN_FN(get_harm_hysteresis),   0.0f, 30.0f, 0);
 	harm[3] = pn_float("readout_hold",   periodic, PN_FN(set_harm_readout_hold), PN_FN(get_harm_readout_hold), 0.0f, 5.0f, 0);
 
+	pn_param_t *wave = p->periodic_waveform_params;
+	wave[0] = pn_int("cycles",         periodic, PN_FN(set_waveform_cycles),      PN_FN(get_waveform_cycles),      1, 8, 1);
+	wave[1] = pn_float("amp_per_div",  periodic, PN_FN(set_waveform_amp_per_div), PN_FN(get_waveform_amp_per_div), 0.001f, 10.0f, 0);
+
 	p->periodic_params[0] = pn_int("channel", periodic, PN_FN(set_periodic_channel), PN_FN(get_periodic_channel), -1, 31, 1);
 	p->periodic_params[1] = pn_enum("view",   periodic, PN_FN(set_periodic_view),    PN_FN(get_periodic_view),    periodic_view_names, PERIODIC_VIEW_COUNT);
 	p->periodic_params[2] = pn_group("fundamental", fundamental, S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS);
 	p->periodic_params[3] = pn_group("harmonics", harm, S9_PERIODIC_HARMONICS_NUM_PARAMS);
+	p->periodic_params[4] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
 
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 

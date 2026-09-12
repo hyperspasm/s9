@@ -8,9 +8,10 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS                7
-#define S9_PERIODIC_NUM_PARAMS           4   // channel, view, and the fundamental and harmonics groups
-#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS     14
-#define S9_PERIODIC_HARMONICS_NUM_PARAMS 4
+#define S9_PERIODIC_NUM_PARAMS             5   // channel, view, and the fundamental, harmonics, and waveform groups
+#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 14
+#define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
+#define S9_PERIODIC_WAVEFORM_NUM_PARAMS    2
 #define S9_DEBUG_NUM_PARAMS              1
 
 // The root's children, in declared order
@@ -32,6 +33,7 @@ typedef struct {
 	pn_param_t osc_params[S9_OSC_NUM_PARAMS];
 	pn_param_t periodic_fundamental_params[S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS];   // indexed by s9_fundamental_param_t
 	pn_param_t periodic_harmonics_params[S9_PERIODIC_HARMONICS_NUM_PARAMS];
+	pn_param_t periodic_waveform_params[S9_PERIODIC_WAVEFORM_NUM_PARAMS];
 	pn_param_t periodic_params[S9_PERIODIC_NUM_PARAMS];
 	pn_param_t debug_params[S9_DEBUG_NUM_PARAMS];
 	pn_param_t root_children[S9_ROOT_COUNT];  // indexed by s9_root_child_t

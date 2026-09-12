@@ -4,36 +4,48 @@
 #include "s9_dsp.h"
 #include "fundamental.h"
 #include "harmonics.h"
+#include "oscilloscope.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
 // The analyzer of a periodic signal. It assumes the audio is a steady
 // periodic signal, tracks its fundamental, and shows one view of it at a
-// time: its harmonics now, its waveform locked to one cycle to come. The
-// tracker and the views are its own, and all of them analyze the one
-// channel it is set to.
+// time: its harmonics, or its waveform with the sweep locked to whole
+// cycles of the fundamental. The tracker and the views are its own, and
+// all of them analyze the one channel it is set to.
 
 typedef enum {
 	PERIODIC_VIEW_HARMONICS,
+	PERIODIC_VIEW_WAVEFORM,
 	PERIODIC_VIEW_COUNT,
 } periodic_view_t;
 
 static const char *const periodic_view_names[PERIODIC_VIEW_COUNT] = {
 	[PERIODIC_VIEW_HARMONICS] = "harmonics",
+	[PERIODIC_VIEW_WAVEFORM]  = "waveform",
 };
+
+#define PERIODIC_CYCLES_MAX 8
 
 typedef struct periodic periodic_t;
 
 typedef struct {
 	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
 	periodic_view_t view;
-	fundamental_config_t tracker;   // its channel is overridden by this component's
-	harmonics_config_t harmonics;
+	float initial_f0;                 // the fundamental assumed before the tracker has locked, Hz
+	fundamental_config_t tracker;     // its channel is overridden by this component's
+	harmonics_config_t harmonics;     // its initial_f0 likewise
+	struct {
+		oscilloscope_config_t display;
+		uint32_t cycles;              // of the fundamental across the sweep, at most PERIODIC_CYCLES_MAX
+		float amp_per_div;
+	} waveform;                       // the sweep's length, trigger, and channel are set from the fundamental
 } periodic_config_t;
 
-// the defaults: every channel averaged, the harmonics view, and the
-// tracker's and the view's own defaults
+// the defaults: every channel averaged, the harmonics view, a fundamental
+// of 1 kHz until one is tracked, one cycle across the waveform, and the
+// tracker's and the views' own defaults
 periodic_config_t periodic_default_config(void);
 
 // create a periodic analyzer; NULL takes the default configuration

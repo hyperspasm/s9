@@ -379,7 +379,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 
 	if(osc->pixel_buffer && osc->sampler) {
 		const SDL_Rect *frame = scope_display_frame_rect(osc->display);
-		float pixel_rate = (float)frame->w / (osc->settings.time_per_div * 10.0f);
+		float pixel_rate = (float)frame->w / (osc->settings.time_per_div * OSCILLOSCOPE_DIVISIONS);
 		float gain = 1.0f / (osc->settings.amp_per_div * 5.0f);
 		uint32_t sweep_width = (uint32_t)frame->w;
 		float vertical_factor = frame->h * 0.5f * -1.f;
@@ -391,7 +391,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		float fast_mode_threshold = ceilf(fast_mode_min_time / frame_period) * frame_period;
 		uint32_t path_hold_frames = (uint32_t)ceilf(FAST_MODE_HOLD_TIME / frame_period);
 
-		typeof(osc->render_mode) mode = (osc->settings.time_per_div * 10.0f < fast_mode_threshold)
+		typeof(osc->render_mode) mode = (osc->settings.time_per_div * OSCILLOSCOPE_DIVISIONS < fast_mode_threshold)
 			? osc_mode_fast : osc_mode_slow;
 
 		if(osc->render_mode != mode) {
