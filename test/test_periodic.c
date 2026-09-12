@@ -1,9 +1,9 @@
-// The harmonic analyzer end to end: audio in through the tracker's and the
-// component's own paths, frames rendered on SDL's software renderer, the
-// readings out. Runs without a display. What the readings are made of is
-// tested on the reader, and the tracking on the tracker.
+// The periodic analyzer end to end: audio in, frames rendered on SDL's
+// software renderer, the fundamental and the harmonics view's readings out.
+// Runs without a display. What the readings are made of is tested on the
+// reader, and the tracking on the tracker.
 #include "greatest.h"
-#include "harmonics.h"
+#include "periodic.h"
 #include "test_signals.h"
 
 #include <SDL2/SDL.h>
@@ -20,42 +20,26 @@
 static SDL_Surface *surface;
 static SDL_Renderer *renderer;
 
-// the tracker and the component it feeds, streaming
-typedef struct {
-	pitch_tracker_t *tracker;
-	harmonics_t *h;
-} rig_t;
-
-static rig_t streaming(void) {
-	rig_t r;
-	s9_audio_stream_config_t stream = {
+static periodic_t *streaming(void) {
+	periodic_t *p = periodic_new(NULL);
+	periodic_prepare_to_stream(p, &(s9_audio_stream_config_t){
 		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 2,
 		.buffer_frames = 256, .samples_per_display_frame = FRAME,
-	};
-	r.tracker = pitch_tracker_new(NULL);
-	r.h = harmonics_new(NULL, r.tracker);
-	pitch_tracker_prepare_to_stream(r.tracker, &stream);
-	harmonics_prepare_to_stream(r.h, &stream);
-	return r;
+	});
+	return p;
 }
 
-static void rig_free(rig_t *r) {
-	harmonics_free(&r->h);
-	pitch_tracker_free(&r->tracker);
-}
-
-// one display frame: its audio to both, the tracker's update, then the rendering
-static void frame(rig_t *r, const test_signal_t *s, unsigned *offset) {
+// one display frame: its audio, both channels alike, then the rendering
+static void frame(periodic_t *p, const test_signal_t *s, unsigned *offset) {
 	float *mono = malloc(sizeof(float) * (*offset + FRAME)), stereo[FRAME * 2];
 	test_signal_generate(s, mono, *offset + FRAME, FS);
 	for (unsigned i = 0; i < FRAME; i++) stereo[2 * i] = stereo[2 * i + 1] = mono[*offset + i];
 	free(mono);
 	*offset += FRAME;
-	pitch_tracker_enqueue_audio_data(r->tracker, stereo, sizeof(stereo));
-	pitch_tracker_update(r->tracker);
+	periodic_enqueue_audio_data(p, stereo, sizeof(stereo));
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
-	harmonics_render(r->h, renderer);
+	periodic_render(p, renderer);
 }
 
 static unsigned lit_pixels(void) {
@@ -79,14 +63,14 @@ static double angle_diff(double a, double b) {
 // generator's harmonics are sines, the even ones negated, so harmonic k
 // sits at -90 + 90k degrees, plus 180 when even.
 TEST sawtooth_is_drawn_and_read(void) {
-	rig_t r = streaming();
+	periodic_t *p = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
 	unsigned offset = 0;
-	for (int i = 0; i < 120; i++) frame(&r, &saw, &offset);
+	for (int i = 0; i < 120; i++) frame(p, &saw, &offset);
 	ASSERT(lit_pixels() > 10000);
 
 	uint32_t count;
-	const harmonic_reading_t *reads = harmonics_readings(r.h, &count);
+	const harmonic_reading_t *reads = periodic_readings(p, &count);
 	ASSERT_EQ(10u, count);
 	for (uint32_t k = 1; k <= count; k++) {
 		ASSERT(reads[k - 1].shown);
@@ -95,74 +79,73 @@ TEST sawtooth_is_drawn_and_read(void) {
 		ASSERT_IN_RANGE(0.0, angle_diff(reads[k - 1].phase_deg, expected), 1.0);
 	}
 	float thd;
-	ASSERT_EQ(0, harmonics_get_thd(r.h, &thd));
+	ASSERT_EQ(0, periodic_thd(p, &thd));
 	ASSERT_IN_RANGE(0.7415, (double)thd, 0.01);
-	rig_free(&r);
+	periodic_free(&p);
 	PASS();
 }
 
 // Once the tracker loses the note, the readings go with it.
 TEST readings_go_with_the_lock(void) {
-	rig_t r = streaming();
+	periodic_t *p = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
 	test_signal_t silence = { SIGNAL_SILENCE, 0, 0, 0, 0, 0, 0, 0 };
 	unsigned offset = 0;
-	for (int i = 0; i < 120; i++) frame(&r, &saw, &offset);
-	for (int i = 0; i < 120; i++) frame(&r, &silence, &offset);
-	ASSERT(!pitch_tracker_valid(r.tracker));
+	for (int i = 0; i < 120; i++) frame(p, &saw, &offset);
+	for (int i = 0; i < 120; i++) frame(p, &silence, &offset);
+	ASSERT(!periodic_valid(p));
 
 	uint32_t count;
-	harmonics_readings(r.h, &count);
+	periodic_readings(p, &count);
 	ASSERT_EQ(0u, count);
 	float thd;
-	ASSERT_EQ(-1, harmonics_get_thd(r.h, &thd));
-	rig_free(&r);
+	ASSERT_EQ(-1, periodic_thd(p, &thd));
+	periodic_free(&p);
 	PASS();
 }
 
 // Reconfiguration while streaming keeps reading: the tracker's window and
 // its function, and the harmonic count, which is clamped to what fits.
 TEST reconfigures_while_streaming(void) {
-	rig_t r = streaming();
+	periodic_t *p = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
 	unsigned offset = 0;
-	for (int i = 0; i < 60; i++) frame(&r, &saw, &offset);
+	for (int i = 0; i < 60; i++) frame(p, &saw, &offset);
 
-	pitch_tracker_config_t tc = *pitch_tracker_config(r.tracker);
-	tc.window_s = 0.4f;
-	tc.window_function = WINDOW_FUNCTION_HANN;
-	pitch_tracker_set_config(r.tracker, &tc);
-	harmonics_config_t c = *harmonics_config(r.h);
-	c.reader.harmonics = 20;
-	harmonics_set_config(r.h, &c);
-	for (int i = 0; i < 90; i++) frame(&r, &saw, &offset);
+	periodic_config_t c = *periodic_config(p);
+	c.tracker.window_s = 0.4f;
+	c.tracker.window_function = WINDOW_FUNCTION_HANN;
+	c.harmonics.reader.harmonics = 20;
+	periodic_set_config(p, &c);
+	for (int i = 0; i < 90; i++) frame(p, &saw, &offset);
 	uint32_t count;
-	const harmonic_reading_t *reads = harmonics_readings(r.h, &count);
+	const harmonic_reading_t *reads = periodic_readings(p, &count);
 	ASSERT_EQ(20u, count);
 	ASSERT(reads[0].shown);
 
-	c.reader.harmonics = 200;
-	harmonics_set_config(r.h, &c);
-	ASSERT(harmonics_config(r.h)->reader.harmonics < 200);
-	frame(&r, &saw, &offset);
-	rig_free(&r);
+	c.harmonics.reader.harmonics = 200;   // clamped to what fits, once applied at the frame
+	periodic_set_config(p, &c);
+	frame(p, &saw, &offset);
+	periodic_readings(p, &count);
+	ASSERT(count < 200);
+	periodic_free(&p);
 	PASS();
 }
 
 // Without a fundamental the spectrum is still drawn, on the configured
 // axis, with no readings.
 TEST noise_is_drawn_without_readings(void) {
-	rig_t r = streaming();
+	periodic_t *p = streaming();
 	test_signal_t noise = { SIGNAL_NOISE, 0, 0, 0.5, 0, 0, 12345, 0 };
 	unsigned offset = 0;
 	uint32_t count;
 	for (int i = 0; i < 60; i++) {
-		frame(&r, &noise, &offset);
-		harmonics_readings(r.h, &count);
+		frame(p, &noise, &offset);
+		periodic_readings(p, &count);
 		ASSERT_EQ(0u, count);
 	}
 	ASSERT(lit_pixels() > 10000);
-	rig_free(&r);
+	periodic_free(&p);
 	PASS();
 }
 

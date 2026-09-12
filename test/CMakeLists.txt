@@ -138,7 +138,8 @@ target_include_directories(test_harmonic_reader PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_harmonic_reader PkgConfig::SDL2 PkgConfig::FFTW3F m)
 add_test(NAME harmonic_reader COMMAND test_harmonic_reader)
 
-add_executable(test_harmonics test_harmonics.c
+add_executable(test_periodic test_periodic.c
+    ${CMAKE_SOURCE_DIR}/src/periodic.c
     ${CMAKE_SOURCE_DIR}/src/harmonics.c
     ${CMAKE_SOURCE_DIR}/src/pitch_tracker.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
@@ -153,9 +154,9 @@ add_executable(test_harmonics test_harmonics.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
-target_include_directories(test_harmonics PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_harmonics PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
-add_test(NAME harmonics COMMAND test_harmonics)
+target_include_directories(test_periodic PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_periodic PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+add_test(NAME periodic COMMAND test_periodic)
 
 add_executable(test_www test_www.c)
 target_link_libraries(test_www s9_www)

@@ -11,7 +11,7 @@ static int write_stdout(const uint8_t *buf, uint32_t len, void *ctx) {
 
 int main(void) {
 	s9_params_t params;
-	pn_param_t *root = s9_params_build(&params, NULL, NULL, NULL);
+	pn_param_t *root = s9_params_build(&params, NULL, NULL);
 
 	const pn_param_t *offender = NULL;
 	pn_schema_result_t result = pn_schema_validate(root, &offender);
