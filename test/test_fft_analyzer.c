@@ -3,7 +3,7 @@
 #include "greatest.h"
 #include "fft_analyzer.h"
 #include "test_signals.h"
-#include "pitch_golden.h"
+#include "period_golden.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -45,20 +45,20 @@ static void select_channel(fft_analyzer_t *fa, uint32_t channel) {
 
 // The normalized autocorrelation of the golden's frame matches the oracle at every lag.
 TEST nacf_matches_golden(void) {
-	const pitch_golden_signal_t *g = &pitch_golden_nacf_signal;
+	const period_golden_signal_t *g = &period_golden_nacf_signal;
 	test_signal_t s = { g->kind, g->freq, g->freq2, g->amp, g->phase, g->harmonics, g->seed, 0 };
-	float *x = malloc(sizeof(float) * PITCH_GOLDEN_NACF_N);
-	test_signal_generate(&s, x, PITCH_GOLDEN_NACF_N, FS);
+	float *x = malloc(sizeof(float) * PERIOD_GOLDEN_NACF_N);
+	test_signal_generate(&s, x, PERIOD_GOLDEN_NACF_N, FS);
 
-	fft_analyzer_t *fa = make(PITCH_GOLDEN_NACF_N, FFT_ANALYZER_MIX, 0,
-							  (window_function_t)pitch_golden_nacf_window.function, (float)pitch_golden_nacf_window.skew, 1);
-	feed(fa, x, PITCH_GOLDEN_NACF_N, 1);
+	fft_analyzer_t *fa = make(PERIOD_GOLDEN_NACF_N, FFT_ANALYZER_MIX, 0,
+							  (window_function_t)period_golden_nacf_window.function, (float)period_golden_nacf_window.skew, 1);
+	feed(fa, x, PERIOD_GOLDEN_NACF_N, 1);
 
-	float *nacf = malloc(sizeof(float) * PITCH_GOLDEN_NACF_LAGS);
-	ASSERT_EQ(0, fft_analyzer_nacf(fa, 0, nacf, PITCH_GOLDEN_NACF_LAGS));
+	float *nacf = malloc(sizeof(float) * PERIOD_GOLDEN_NACF_LAGS);
+	ASSERT_EQ(0, fft_analyzer_nacf(fa, 0, nacf, PERIOD_GOLDEN_NACF_LAGS));
 	ASSERT_IN_RANGE(1.0f, nacf[0], 1e-6f);
-	for (uint32_t t = 0; t < PITCH_GOLDEN_NACF_LAGS; t++)
-		ASSERT_IN_RANGEm("lag", pitch_golden_nacf[t], (double)nacf[t], 5e-4);
+	for (uint32_t t = 0; t < PERIOD_GOLDEN_NACF_LAGS; t++)
+		ASSERT_IN_RANGEm("lag", period_golden_nacf[t], (double)nacf[t], 5e-4);
 
 	free(nacf);
 	free(x);

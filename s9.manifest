@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=ea64bfbc
+# pn manifest v1 s9 fnv1a32=7d66c418
 s9/mode enum full|scope|spectrum|periodic
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -9,20 +9,20 @@ s9/osc/trig_holdoff float 0x00000000 0x3f800000 0x00000000
 s9/osc/channel int -1 31 1
 s9/periodic/channel int -1 31 1
 s9/periodic/view enum harmonics
-s9/periodic/pitch/frequency float 0x00000000 0x46bb8000 0x00000000
-s9/periodic/pitch/valid bool
-s9/periodic/pitch/window float 0x3d4ccccd 0x40000000 0x00000000
-s9/periodic/pitch/window_function enum bartlett|hann|welch|hamming|blackman_harris|blackman|rectangular
-s9/periodic/pitch/averaging float 0x00000000 0x41200000 0x00000000
-s9/periodic/pitch/f_min float 0x41200000 0x447a0000 0x00000000
-s9/periodic/pitch/f_max float 0x42c80000 0x461c4000 0x00000000
-s9/periodic/pitch/gate_rms float 0x00000000 0x3f800000 0x00000000
-s9/periodic/pitch/clarity_on float 0x00000000 0x3f800000 0x00000000
-s9/periodic/pitch/clarity_off float 0x00000000 0x3f800000 0x00000000
-s9/periodic/pitch/hold float 0x00000000 0x40000000 0x00000000
-s9/periodic/pitch/octave_tolerance float 0x00000000 0x43480000 0x00000000
-s9/periodic/pitch/smoothing float 0x00000000 0x40a00000 0x00000000
-s9/periodic/pitch/deadband float 0x00000000 0x42c80000 0x00000000
+s9/periodic/fundamental/frequency float 0x00000000 0x46bb8000 0x00000000
+s9/periodic/fundamental/valid bool
+s9/periodic/fundamental/window float 0x3d4ccccd 0x40000000 0x00000000
+s9/periodic/fundamental/window_function enum bartlett|hann|welch|hamming|blackman_harris|blackman|rectangular
+s9/periodic/fundamental/averaging float 0x00000000 0x41200000 0x00000000
+s9/periodic/fundamental/f_min float 0x41200000 0x447a0000 0x00000000
+s9/periodic/fundamental/f_max float 0x42c80000 0x461c4000 0x00000000
+s9/periodic/fundamental/gate_rms float 0x00000000 0x3f800000 0x00000000
+s9/periodic/fundamental/clarity_on float 0x00000000 0x3f800000 0x00000000
+s9/periodic/fundamental/clarity_off float 0x00000000 0x3f800000 0x00000000
+s9/periodic/fundamental/hold float 0x00000000 0x40000000 0x00000000
+s9/periodic/fundamental/octave_tolerance float 0x00000000 0x43480000 0x00000000
+s9/periodic/fundamental/smoothing float 0x00000000 0x40a00000 0x00000000
+s9/periodic/fundamental/deadband float 0x00000000 0x42c80000 0x00000000
 s9/periodic/harmonics/harmonics int 1 64 1
 s9/periodic/harmonics/prominence float 0x00000000 0x42700000 0x00000000
 s9/periodic/harmonics/hysteresis float 0x00000000 0x41f00000 0x00000000

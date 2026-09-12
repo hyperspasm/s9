@@ -1,11 +1,11 @@
-#include "pitch.h"
+#include "period.h"
 
 #include <math.h>
 
 // -- estimation
 
-static pitch_estimate_t refine(const float *nacf, uint32_t n, uint32_t p) {
-	pitch_estimate_t e;
+static period_estimate_t refine(const float *nacf, uint32_t n, uint32_t p) {
+	period_estimate_t e;
 	double value;
 	if (p < 1 || p + 1 >= n) {
 		e.period = (float)p;
@@ -36,8 +36,8 @@ static int region_peak(const float *nacf, uint32_t *i, uint32_t lag_min, uint32_
 	return found;
 }
 
-pitch_estimate_t pitch_estimate(const float *nacf, uint32_t n, uint32_t lag_min, uint32_t lag_max, float tolerance) {
-	pitch_estimate_t none = { 0.0f, 0.0f };
+period_estimate_t period_estimate(const float *nacf, uint32_t n, uint32_t lag_min, uint32_t lag_max, float tolerance) {
+	period_estimate_t none = { 0.0f, 0.0f };
 	if (n < 2) return none;
 	if (lag_max > n - 1) lag_max = n - 1;
 
@@ -73,8 +73,8 @@ pitch_estimate_t pitch_estimate(const float *nacf, uint32_t n, uint32_t lag_min,
 
 // -- conditioning
 
-struct pitch_conditioner {
-	pitch_conditioner_config_t config;
+struct period_conditioner {
+	period_conditioner_config_t config;
 	int valid;
 	float hold_s;        // time without an accepted estimate
 	float folded_s;      // time the octave guard has been folding
@@ -83,20 +83,20 @@ struct pitch_conditioner {
 	double reported;     // in cents
 };
 
-size_t pitch_conditioner_alloc_size(void) {
-	return sizeof(pitch_conditioner_t);
+size_t period_conditioner_alloc_size(void) {
+	return sizeof(period_conditioner_t);
 }
 
-void pitch_conditioner_init(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config) {
+void period_conditioner_init(period_conditioner_t *pc, const period_conditioner_config_t *config) {
 	pc->config = *config;
-	pitch_conditioner_reset(pc);
+	period_conditioner_reset(pc);
 }
 
-void pitch_conditioner_set_config(pitch_conditioner_t *pc, const pitch_conditioner_config_t *config) {
+void period_conditioner_set_config(period_conditioner_t *pc, const period_conditioner_config_t *config) {
 	pc->config = *config;
 }
 
-void pitch_conditioner_reset(pitch_conditioner_t *pc) {
+void period_conditioner_reset(period_conditioner_t *pc) {
 	pc->valid = 0;
 	pc->hold_s = 0.0f;
 	pc->folded_s = 0.0f;
@@ -105,9 +105,9 @@ void pitch_conditioner_reset(pitch_conditioner_t *pc) {
 	pc->reported = 0.0;
 }
 
-int pitch_conditioner_update(pitch_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
+int period_conditioner_update(period_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
 							 float dt_s, float *frequency) {
-	const pitch_conditioner_config_t *cfg = &pc->config;
+	const period_conditioner_config_t *cfg = &pc->config;
 	double freq = period > 0.0f ? (double)sample_rate / (double)period : 0.0;
 	int accepted = rms >= cfg->gate_rms && freq > 0.0 &&
 	               ((!pc->valid && clarity >= cfg->clarity_on) || (pc->valid && clarity >= cfg->clarity_off));

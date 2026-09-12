@@ -1,4 +1,4 @@
-"""Pitch estimation from a windowed frame, and the conditioning of the
+"""Period estimation from a windowed frame, and the conditioning of the
 per-frame estimates into a clean fundamental.
 
 The estimate works on the normalized autocorrelation of the frame: the
@@ -98,10 +98,10 @@ def cents(freq):
 class ConditionerConfig:
     def __init__(self, gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents,
                  smoothing_s, deadband_cents):
-        self.gate_rms = gate_rms                    # frames quieter than this are unpitched
+        self.gate_rms = gate_rms                    # frames quieter than this have no fundamental
         self.clarity_on = clarity_on                # clarity needed to become valid
         self.clarity_off = clarity_off              # clarity needed to stay valid
-        self.hold_s = hold_s                        # unpitched time tolerated before validity ends, and an octave
+        self.hold_s = hold_s                        # time without a fundamental tolerated before validity ends, and an octave
                                                     # disagreement tolerated before it is followed, seconds
         self.octave_tolerance_cents = octave_tolerance_cents  # an estimate this close to double or half is folded
         self.smoothing_s = smoothing_s              # time constant of the tracked value's move toward the estimates,

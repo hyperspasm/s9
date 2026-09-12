@@ -8,8 +8,8 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS                7
-#define S9_PERIODIC_NUM_PARAMS           4   // channel, view, and the pitch and harmonics groups
-#define S9_PERIODIC_PITCH_NUM_PARAMS     14
+#define S9_PERIODIC_NUM_PARAMS           4   // channel, view, and the fundamental and harmonics groups
+#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS     14
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS 4
 #define S9_DEBUG_NUM_PARAMS              1
 
@@ -22,15 +22,15 @@ typedef enum {
 	S9_ROOT_COUNT,
 } s9_root_child_t;
 
-// The periodic analyzer's "pitch" group's children that the app pushes, in declared order
+// The periodic analyzer's "fundamental" group's children that the app pushes, in declared order
 typedef enum {
-	S9_PITCH_FREQUENCY,
-	S9_PITCH_VALID,
-} s9_pitch_param_t;
+	S9_FUNDAMENTAL_FREQUENCY,
+	S9_FUNDAMENTAL_VALID,
+} s9_fundamental_param_t;
 
 typedef struct {
 	pn_param_t osc_params[S9_OSC_NUM_PARAMS];
-	pn_param_t periodic_pitch_params[S9_PERIODIC_PITCH_NUM_PARAMS];   // indexed by s9_pitch_param_t
+	pn_param_t periodic_fundamental_params[S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS];   // indexed by s9_fundamental_param_t
 	pn_param_t periodic_harmonics_params[S9_PERIODIC_HARMONICS_NUM_PARAMS];
 	pn_param_t periodic_params[S9_PERIODIC_NUM_PARAMS];
 	pn_param_t debug_params[S9_DEBUG_NUM_PARAMS];

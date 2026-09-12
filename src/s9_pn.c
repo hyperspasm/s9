@@ -16,10 +16,10 @@ struct s9_pn {
 	char *manifest;
 	uint32_t manifest_len;
 
-	// the pitch last pushed to clients
+	// the fundamental last pushed to clients
 	periodic_t *periodic;
-	bool pitch_valid;
-	float pitch_frequency;
+	bool fundamental_valid;
+	float fundamental_frequency;
 };
 
 // -- manifest text
@@ -134,25 +134,25 @@ void s9_pn_free(s9_pn_t **pn) {
 	}
 }
 
-// The tracked pitch changes on its own, so its parameters are pushed
+// The tracked fundamental changes on its own, so its parameters are pushed
 // whenever their values move.
-static void notify_pitch(s9_pn_t *pn) {
+static void notify_fundamental(s9_pn_t *pn) {
 	bool valid = periodic_valid(pn->periodic);
 	float frequency = periodic_frequency(pn->periodic);
-	if (valid != pn->pitch_valid) {
-		pn->pitch_valid = valid;
-		pn_param_notify(&pn->params.periodic_pitch_params[S9_PITCH_VALID]);
+	if (valid != pn->fundamental_valid) {
+		pn->fundamental_valid = valid;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_VALID]);
 	}
-	if (frequency != pn->pitch_frequency) {
-		pn->pitch_frequency = frequency;
-		pn_param_notify(&pn->params.periodic_pitch_params[S9_PITCH_FREQUENCY]);
+	if (frequency != pn->fundamental_frequency) {
+		pn->fundamental_frequency = frequency;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_FREQUENCY]);
 	}
 }
 
 void s9_pn_update(s9_pn_t *pn) {
 	if (!pn) return;
 	if (pn->ws) s9_ws_update(pn->ws);
-	notify_pitch(pn);
+	notify_fundamental(pn);
 }
 
 void s9_pn_notify_mode(s9_pn_t *pn) {

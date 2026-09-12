@@ -2,7 +2,7 @@
 #define periodic_h
 
 #include "s9_dsp.h"
-#include "pitch_tracker.h"
+#include "fundamental.h"
 #include "harmonics.h"
 
 #include <SDL2/SDL.h>
@@ -28,7 +28,7 @@ typedef struct periodic periodic_t;
 typedef struct {
 	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
 	periodic_view_t view;
-	pitch_tracker_config_t tracker;   // its channel is overridden by this component's
+	fundamental_config_t tracker;   // its channel is overridden by this component's
 	harmonics_config_t harmonics;
 } periodic_config_t;
 

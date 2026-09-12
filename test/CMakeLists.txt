@@ -88,17 +88,17 @@ target_include_directories(test_fft_analyzer PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_fft_analyzer PkgConfig::SDL2 PkgConfig::FFTW3F m)
 add_test(NAME fft_analyzer COMMAND test_fft_analyzer)
 
-add_executable(test_pitch test_pitch.c
-    ${CMAKE_SOURCE_DIR}/src/pitch.c
+add_executable(test_period test_period.c
+    ${CMAKE_SOURCE_DIR}/src/period.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
-target_include_directories(test_pitch PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_pitch PkgConfig::SDL2 PkgConfig::FFTW3F m)
-add_test(NAME pitch COMMAND test_pitch)
+target_include_directories(test_period PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_period PkgConfig::SDL2 PkgConfig::FFTW3F m)
+add_test(NAME period COMMAND test_period)
 
 add_executable(test_harmonic_readout test_harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
@@ -112,18 +112,18 @@ target_include_directories(test_harmonic_readout PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_harmonic_readout PkgConfig::SDL2 PkgConfig::FFTW3F m)
 add_test(NAME harmonic_readout COMMAND test_harmonic_readout)
 
-add_executable(test_pitch_tracker test_pitch_tracker.c
-    ${CMAKE_SOURCE_DIR}/src/pitch_tracker.c
-    ${CMAKE_SOURCE_DIR}/src/pitch.c
+add_executable(test_fundamental test_fundamental.c
+    ${CMAKE_SOURCE_DIR}/src/fundamental.c
+    ${CMAKE_SOURCE_DIR}/src/period.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
-target_include_directories(test_pitch_tracker PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_pitch_tracker PkgConfig::SDL2 PkgConfig::FFTW3F m)
-add_test(NAME pitch_tracker COMMAND test_pitch_tracker)
+target_include_directories(test_fundamental PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_fundamental PkgConfig::SDL2 PkgConfig::FFTW3F m)
+add_test(NAME fundamental COMMAND test_fundamental)
 
 add_executable(test_harmonic_reader test_harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
@@ -141,10 +141,10 @@ add_test(NAME harmonic_reader COMMAND test_harmonic_reader)
 add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/periodic.c
     ${CMAKE_SOURCE_DIR}/src/harmonics.c
-    ${CMAKE_SOURCE_DIR}/src/pitch_tracker.c
+    ${CMAKE_SOURCE_DIR}/src/fundamental.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
-    ${CMAKE_SOURCE_DIR}/src/pitch.c
+    ${CMAKE_SOURCE_DIR}/src/period.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/graph_axis.c
     ${CMAKE_SOURCE_DIR}/src/draw_sdl.c

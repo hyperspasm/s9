@@ -4,12 +4,12 @@
 #include "s9_dsp.h"
 #include "s9_colors.h"
 #include "harmonic_reader.h"
-#include "pitch_tracker.h"
+#include "fundamental.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-// The harmonic analyzer: a pitch tracker's latest spectrum on a linear axis
+// The harmonic analyzer: a fundamental tracker's latest spectrum on a linear axis
 // scaled to the fundamental it finds, with a marker at each harmonic. While
 // the tracker is locked, each harmonic that stands out from the floor
 // carries its level and its phase relative to the fundamental's, and the
@@ -66,7 +66,7 @@ static const harmonics_config_t default_harmonics_config = {
 // create harmonics reading a tracker's spectrum and fundamental; the
 // tracker must be updated before each frame is rendered. NULL takes the
 // default configuration
-harmonics_t *harmonics_new(const harmonics_config_t *config, pitch_tracker_t *tracker);
+harmonics_t *harmonics_new(const harmonics_config_t *config, fundamental_t *tracker);
 
 // destroy harmonics
 void harmonics_free(harmonics_t **h);

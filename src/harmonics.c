@@ -26,7 +26,7 @@ struct harmonics {
 	harmonics_config_t config;
 	int config_changed;              // applied at the next frame
 
-	pitch_tracker_t *tracker;        // whose spectrum and fundamental the harmonics are of
+	fundamental_t *tracker;        // whose spectrum and fundamental the harmonics are of
 	harmonic_reader_t *reader;
 	uint32_t buffer_len;             // the transform length db and live_db are sized for
 	float *db;                       // the averaged spectrum, per bin: what the readings come from
@@ -34,8 +34,8 @@ struct harmonics {
 	uint32_t reader_window_len;      // the transform length the reader's window model is for; 0 before any
 	window_function_t reader_window_function;   // and its function
 
-	bool pitch_valid;
-	float pitch_frequency;
+	bool fundamental_valid;
+	float fundamental_frequency;
 
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
@@ -104,7 +104,7 @@ static void free_drawing(harmonics_t *h) {
 	h->renderer = NULL;
 }
 
-harmonics_t *harmonics_new(const harmonics_config_t *config, pitch_tracker_t *tracker) {
+harmonics_t *harmonics_new(const harmonics_config_t *config, fundamental_t *tracker) {
 	CHECK_PARAMETER(tracker != NULL, return NULL);
 	harmonics_t *h = malloc(sizeof(harmonics_t));
 	CHECK_ALLOC(h, return NULL);
@@ -144,8 +144,8 @@ int harmonics_get_thd(const harmonics_t *h, float *thd) {
 void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t *stream_config) {
 	(void)stream_config;   // the tracker has the audio
 	harmonic_reader_reset(h->reader);
-	h->pitch_valid = false;
-	h->pitch_frequency = 0.0f;
+	h->fundamental_valid = false;
+	h->fundamental_frequency = 0.0f;
 	h->reader_window_len = 0;
 }
 
@@ -158,7 +158,7 @@ void harmonics_stop_streaming(harmonics_t *h) {
 
 // the axis' fundamental: the tracker's, or the configured one before it has locked
 static double axis_f0(const harmonics_t *h) {
-	return h->pitch_frequency > 0.0f ? h->pitch_frequency : h->config.initial_f0;
+	return h->fundamental_frequency > 0.0f ? h->fundamental_frequency : h->config.initial_f0;
 }
 
 // the axis' right edge: the harmonics across, within the band
@@ -169,9 +169,9 @@ static double axis_end(const harmonics_t *h, double f0, double fs) {
 
 // the tracker's fundamental, and the harmonics read from its averaged spectrum
 static int analyze(harmonics_t *h) {
-	pitch_tracker_t *t = h->tracker;
-	uint32_t n = pitch_tracker_fft_len(t), bins = n / 2 + 1;
-	float fs = (float)pitch_tracker_sample_rate(t);
+	fundamental_t *t = h->tracker;
+	uint32_t n = fundamental_fft_len(t), bins = n / 2 + 1;
+	float fs = (float)fundamental_sample_rate(t);
 
 	if (h->buffer_len != n) {
 		free(h->db); free(h->live_db);
@@ -182,23 +182,23 @@ static int analyze(harmonics_t *h) {
 		CHECK_ALLOC(h->live_db, return -1);
 	}
 	// the reader's model of the window follows the tracker's window
-	window_function_t function = pitch_tracker_window_function(t);
+	window_function_t function = fundamental_window_function(t);
 	if (h->reader_window_len != n || h->reader_window_function != function) {
-		harmonic_reader_set_window(h->reader, pitch_tracker_window(t), n);
+		harmonic_reader_set_window(h->reader, fundamental_window(t), n);
 		h->reader_window_len = n;
 		h->reader_window_function = function;
 	}
 
-	h->pitch_valid = pitch_tracker_valid(t);
-	h->pitch_frequency = pitch_tracker_frequency(t);
+	h->fundamental_valid = fundamental_valid(t);
+	h->fundamental_frequency = fundamental_frequency(t);
 
 	// the curve shows the latest transform; the harmonics are read from the average
-	const float *bins_re_im = pitch_tracker_bins(t);
+	const float *bins_re_im = fundamental_bins(t);
 	harmonic_magnitude_db(bins_re_im, bins, n, h->live_db);
-	harmonic_power_db(pitch_tracker_power(t), bins, n, h->db);
-	harmonic_reader_update(h->reader, h->db, bins_re_im, n, fs / n, h->pitch_frequency, h->pitch_valid,
-						   pitch_tracker_average_fraction(t), pitch_tracker_hop_seconds(t));
-	if (harmonic_reader_restarted(h->reader)) pitch_tracker_restart_average(t);   // a new note: the average too
+	harmonic_power_db(fundamental_power(t), bins, n, h->db);
+	harmonic_reader_update(h->reader, h->db, bins_re_im, n, fs / n, h->fundamental_frequency, h->fundamental_valid,
+						   fundamental_average_fraction(t), fundamental_hop_seconds(t));
+	if (harmonic_reader_restarted(h->reader)) fundamental_restart_average(t);   // a new note: the average too
 	return 0;
 }
 
@@ -308,8 +308,8 @@ static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t b
 }
 
 static void draw(harmonics_t *h, SDL_Renderer *renderer) {
-	uint32_t n = pitch_tracker_fft_len(h->tracker), bins = n / 2 + 1;
-	double fs = pitch_tracker_sample_rate(h->tracker);
+	uint32_t n = fundamental_fft_len(h->tracker), bins = n / 2 + 1;
+	double fs = fundamental_sample_rate(h->tracker);
 	double delta_f = fs / n;
 	double f0 = axis_f0(h);
 	double f_end = axis_end(h, f0, fs);
@@ -375,19 +375,19 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	}
 
 	// the fundamental: its level and the distortion while locked and read
-	if (!h->pitch_valid) snprintf(text, sizeof(text), "%.1f Hz   H1 not found", f0);
+	if (!h->fundamental_valid) snprintf(text, sizeof(text), "%.1f Hz   H1 not found", f0);
 	else if (!h1) snprintf(text, sizeof(text), "%.1f Hz", f0);
 	else {
 		float thd = 0.0f;
 		harmonic_reader_thd(h->reader, &thd);
 		snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * thd);
 	}
-	label_set(&h->header, renderer, h->font, h->pitch_valid ? h->config.readout_color : h->config.held_color, text);
+	label_set(&h->header, renderer, h->font, h->fundamental_valid ? h->config.readout_color : h->config.held_color, text);
 	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);
 }
 
 void harmonics_render(harmonics_t *h, SDL_Renderer *renderer) {
-	if (!pitch_tracker_streaming(h->tracker)) return;
+	if (!fundamental_streaming(h->tracker)) return;
 	apply_config(h);
 	prepare_to_draw(h, renderer);
 	if (!h->graticule || !h->plot) return;

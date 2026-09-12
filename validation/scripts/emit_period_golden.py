@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Emit test/golden/pitch_golden.h: the normalized autocorrelation of a
-windowed frame at every lag, pitch estimates for synthetic signals, peak
+"""Emit test/golden/period_golden.h: the normalized autocorrelation of a
+windowed frame at every lag, period estimates for synthetic signals, peak
 picking on constructed functions, and conditioner traces.
 
-    python validation/scripts/emit_pitch_golden.py
+    python validation/scripts/emit_period_golden.py
 """
 import math
 import os
@@ -12,7 +12,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from s9 import pitch, signals, window  # noqa: E402
+from s9 import period, signals, window  # noqa: E402
 from _emit import c_array, c_double, c_string, header, repo_path  # noqa: E402
 
 FS = 44100
@@ -73,7 +73,7 @@ PICK_CASES = [
 # frames of 1/60 s; a hold of 0.0625 s is three of them, exhausted by the
 # fourth; the smoothing time constant is the one that moves halfway per frame
 TRACE_DT = 1.0 / 60.0
-COND = pitch.ConditionerConfig(gate_rms=0.01, clarity_on=0.9, clarity_off=0.8, hold_s=0.0625,
+COND = period.ConditionerConfig(gate_rms=0.01, clarity_on=0.9, clarity_off=0.8, hold_s=0.0625,
                                octave_tolerance_cents=30.0, smoothing_s=TRACE_DT / math.log(2.0), deadband_cents=5.0)
 TRACES = [
     ("gate_and_hysteresis", [
@@ -146,90 +146,90 @@ def signal_fields(spec):
 def main():
     parts = []
 
-    parts.append("#define PITCH_GOLDEN_FS %d" % FS)
+    parts.append("#define PERIOD_GOLDEN_FS %d" % FS)
     parts.append("")
     parts.append("/* A signal as the C test generates it (kind: 0 sine, 1 sawtooth, 2 square, 3 twin, 4 noise, 5 silence) */")
-    parts.append("typedef struct { int kind; double freq, freq2, amp, phase; unsigned harmonics, seed; } pitch_golden_signal_t;")
+    parts.append("typedef struct { int kind; double freq, freq2, amp, phase; unsigned harmonics, seed; } period_golden_signal_t;")
     parts.append("/* A window as create_window_function() builds it */")
-    parts.append("typedef struct { int function; double skew; int normalize; } pitch_golden_window_t;")
+    parts.append("typedef struct { int function; double skew; int normalize; } period_golden_window_t;")
     parts.append("")
 
     # normalized autocorrelation
     frame, w = make_frame(NACF_N, NACF_SIGNAL, NACF_WINDOW)
-    nacf = pitch.nacf_from_frame(frame, w)
+    nacf = period.nacf_from_frame(frame, w)
     s = signal_fields(NACF_SIGNAL)
     parts.append("/* The normalized autocorrelation of one windowed frame at lags 0..%d */" % (NACF_LAGS - 1))
-    parts.append("#define PITCH_GOLDEN_NACF_N %d" % NACF_N)
-    parts.append("#define PITCH_GOLDEN_NACF_LAGS %d" % NACF_LAGS)
-    parts.append("static const pitch_golden_signal_t pitch_golden_nacf_signal = { %d, %s, %s, %s, %s, %u, %u };"
+    parts.append("#define PERIOD_GOLDEN_NACF_N %d" % NACF_N)
+    parts.append("#define PERIOD_GOLDEN_NACF_LAGS %d" % NACF_LAGS)
+    parts.append("static const period_golden_signal_t period_golden_nacf_signal = { %d, %s, %s, %s, %s, %u, %u };"
                  % (s["kind"], c_double(s["freq"]), c_double(s["freq2"]), c_double(s["amp"]), c_double(s["phase"]), s["harmonics"], s["seed"]))
-    parts.append("static const pitch_golden_window_t pitch_golden_nacf_window = { %d, %s, %d };"
+    parts.append("static const period_golden_window_t period_golden_nacf_window = { %d, %s, %d };"
                  % (NACF_WINDOW["function"], c_double(NACF_WINDOW["skew"]), NACF_WINDOW["normalize"]))
-    parts.append(c_array("pitch_golden_nacf", nacf[:NACF_LAGS]))
+    parts.append(c_array("period_golden_nacf", nacf[:NACF_LAGS]))
     parts.append("")
 
     # estimates
     parts.append("/* Estimates for synthetic signals: the chain from samples to (period, clarity).")
-    parts.append(" * pitched is 0 where the signal has no period; there only clarity < 0.5 is asserted. */")
-    parts.append("typedef struct { const char *label; pitch_golden_signal_t signal; unsigned n; pitch_golden_window_t window;"
-                 " unsigned lag_min, lag_max; double tolerance; double period, clarity; int pitched; } pitch_golden_estimate_t;")
+    parts.append(" * periodic is 0 where the signal has no period; there only clarity < 0.5 is asserted. */")
+    parts.append("typedef struct { const char *label; period_golden_signal_t signal; unsigned n; period_golden_window_t window;"
+                 " unsigned lag_min, lag_max; double tolerance; double period, clarity; int periodic; } period_golden_estimate_t;")
     rows = []
     for label, spec in EST_CASES:
         frame, w = make_frame(EST_N, spec, EST_WINDOW)
-        period, clarity = pitch.estimate(pitch.nacf_from_frame(frame, w), LAG_MIN, LAG_MAX, TOLERANCE)
-        pitched = 1 if clarity >= 0.5 else 0
+        est_period, clarity = period.estimate(period.nacf_from_frame(frame, w), LAG_MIN, LAG_MAX, TOLERANCE)
+        periodic = 1 if clarity >= 0.5 else 0
         s = signal_fields(spec)
         rows.append("\t{ %s, { %d, %s, %s, %s, %s, %u, %u }, %d, { %d, %s, %d }, %d, %d, %s, %s, %s, %d },"
                     % (c_string(label), s["kind"], c_double(s["freq"]), c_double(s["freq2"]), c_double(s["amp"]), c_double(s["phase"]),
                        s["harmonics"], s["seed"], EST_N, EST_WINDOW["function"], c_double(EST_WINDOW["skew"]), EST_WINDOW["normalize"],
-                       LAG_MIN, LAG_MAX, c_double(TOLERANCE), c_double(period), c_double(clarity), pitched))
-        print(f"  estimate {label:<16} period {period:10.4f}  clarity {clarity:.4f}  freq {FS / period if period else 0:9.3f}", file=sys.stderr)
-    parts.append("static const pitch_golden_estimate_t pitch_golden_estimates[] = {\n" + "\n".join(rows) + "\n};")
-    parts.append("#define PITCH_GOLDEN_ESTIMATE_COUNT %d" % len(rows))
+                       LAG_MIN, LAG_MAX, c_double(TOLERANCE), c_double(est_period), c_double(clarity), periodic))
+        print(f"  estimate {label:<16} period {est_period:10.4f}  clarity {clarity:.4f}  freq {FS / est_period if est_period else 0:9.3f}", file=sys.stderr)
+    parts.append("static const period_golden_estimate_t period_golden_estimates[] = {\n" + "\n".join(rows) + "\n};")
+    parts.append("#define PERIOD_GOLDEN_ESTIMATE_COUNT %d" % len(rows))
     parts.append("")
 
     # picking
     parts.append("/* Peak picking on constructed functions */")
-    parts.append("#define PITCH_GOLDEN_PICK_N %d" % PICK_N)
-    parts.append("typedef struct { const char *label; const double *nacf; unsigned lag_min, lag_max; double tolerance; double period, clarity; int pitched; } pitch_golden_pick_t;")
+    parts.append("#define PERIOD_GOLDEN_PICK_N %d" % PICK_N)
+    parts.append("typedef struct { const char *label; const double *nacf; unsigned lag_min, lag_max; double tolerance; double period, clarity; int periodic; } period_golden_pick_t;")
     rows = []
     for label, peaks, lag_min, lag_max, tolerance in PICK_CASES:
         f = constructed(peaks)
-        period, clarity = pitch.estimate(f, lag_min, lag_max, tolerance)
-        parts.append(c_array("pitch_golden_pick_%s" % label, f, per_line=8))
-        rows.append("\t{ %s, pitch_golden_pick_%s, %d, %d, %s, %s, %s, %d },"
-                    % (c_string(label), label, lag_min, lag_max, c_double(tolerance), c_double(period), c_double(clarity), 1 if period > 0 else 0))
-        print(f"  pick {label:<18} period {period:8.3f}  clarity {clarity:.4f}", file=sys.stderr)
-    parts.append("static const pitch_golden_pick_t pitch_golden_picks[] = {\n" + "\n".join(rows) + "\n};")
-    parts.append("#define PITCH_GOLDEN_PICK_COUNT %d" % len(rows))
+        est_period, clarity = period.estimate(f, lag_min, lag_max, tolerance)
+        parts.append(c_array("period_golden_pick_%s" % label, f, per_line=8))
+        rows.append("\t{ %s, period_golden_pick_%s, %d, %d, %s, %s, %s, %d },"
+                    % (c_string(label), label, lag_min, lag_max, c_double(tolerance), c_double(est_period), c_double(clarity), 1 if est_period > 0 else 0))
+        print(f"  pick {label:<18} period {est_period:8.3f}  clarity {clarity:.4f}", file=sys.stderr)
+    parts.append("static const period_golden_pick_t period_golden_picks[] = {\n" + "\n".join(rows) + "\n};")
+    parts.append("#define PERIOD_GOLDEN_PICK_COUNT %d" % len(rows))
     parts.append("")
 
     # conditioner
-    parts.append("/* Conditioner traces: the outputs frame by frame for a configuration, frames PITCH_GOLDEN_TRACE_DT seconds apart */")
-    parts.append("#define PITCH_GOLDEN_TRACE_DT %s" % c_double(TRACE_DT))
-    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } pitch_golden_conditioner_config_t;")
-    parts.append("static const pitch_golden_conditioner_config_t pitch_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s };"
+    parts.append("/* Conditioner traces: the outputs frame by frame for a configuration, frames PERIOD_GOLDEN_TRACE_DT seconds apart */")
+    parts.append("#define PERIOD_GOLDEN_TRACE_DT %s" % c_double(TRACE_DT))
+    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;")
+    parts.append("static const period_golden_conditioner_config_t period_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s };"
                  % (c_double(COND.gate_rms), c_double(COND.clarity_on), c_double(COND.clarity_off), c_double(COND.hold_s),
                     c_double(COND.octave_tolerance_cents), c_double(COND.smoothing_s), c_double(COND.deadband_cents)))
-    parts.append("typedef struct { double period, clarity, rms; int valid; double frequency; } pitch_golden_step_t;")
-    parts.append("typedef struct { const char *label; const pitch_golden_step_t *steps; unsigned count; } pitch_golden_trace_t;")
+    parts.append("typedef struct { double period, clarity, rms; int valid; double frequency; } period_golden_step_t;")
+    parts.append("typedef struct { const char *label; const period_golden_step_t *steps; unsigned count; } period_golden_trace_t;")
     rows = []
     for label, steps in TRACES:
-        cond = pitch.Conditioner(COND)
+        cond = period.Conditioner(COND)
         lines = []
-        for period, clarity, rms in steps:
-            valid, freq = cond.update(period, clarity, rms, FS, TRACE_DT)
-            lines.append("\t{ %s, %s, %s, %d, %s }," % (c_double(period), c_double(clarity), c_double(rms), 1 if valid else 0, c_double(freq)))
-            print(f"  trace {label:<24} in ({period:6.1f}, {clarity:.2f}, {rms:.3f}) -> valid {int(valid)} freq {freq:9.4f}", file=sys.stderr)
-        parts.append("static const pitch_golden_step_t pitch_golden_trace_%s[] = {\n%s\n};" % (label, "\n".join(lines)))
-        rows.append("\t{ %s, pitch_golden_trace_%s, %d }," % (c_string(label), label, len(steps)))
-    parts.append("static const pitch_golden_trace_t pitch_golden_traces[] = {\n" + "\n".join(rows) + "\n};")
-    parts.append("#define PITCH_GOLDEN_TRACE_COUNT %d" % len(rows))
+        for step_period, clarity, rms in steps:
+            valid, freq = cond.update(step_period, clarity, rms, FS, TRACE_DT)
+            lines.append("\t{ %s, %s, %s, %d, %s }," % (c_double(step_period), c_double(clarity), c_double(rms), 1 if valid else 0, c_double(freq)))
+            print(f"  trace {label:<24} in ({step_period:6.1f}, {clarity:.2f}, {rms:.3f}) -> valid {int(valid)} freq {freq:9.4f}", file=sys.stderr)
+        parts.append("static const period_golden_step_t period_golden_trace_%s[] = {\n%s\n};" % (label, "\n".join(lines)))
+        rows.append("\t{ %s, period_golden_trace_%s, %d }," % (c_string(label), label, len(steps)))
+    parts.append("static const period_golden_trace_t period_golden_traces[] = {\n" + "\n".join(rows) + "\n};")
+    parts.append("#define PERIOD_GOLDEN_TRACE_COUNT %d" % len(rows))
 
-    out = repo_path("test", "golden", "pitch_golden.h")
+    out = repo_path("test", "golden", "period_golden.h")
     with open(out, "w") as f:
-        f.write(header("S9_TEST_PITCH_GOLDEN_H", "emit_pitch_golden.py",
-                       "Pitch: the normalized autocorrelation of a frame, estimates for synthetic signals, peak picking, and conditioner traces.",
+        f.write(header("S9_TEST_PERIOD_GOLDEN_H", "emit_period_golden.py",
+                       "Period: the normalized autocorrelation of a frame, estimates for synthetic signals, peak picking, and conditioner traces.",
                        "\n".join(parts)))
     print(f"wrote {out}", file=sys.stderr)
 
