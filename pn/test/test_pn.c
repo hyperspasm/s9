@@ -58,7 +58,7 @@ static int tests_failed = 0;
 // === CRC tests ===
 
 static int test_crc_empty(void) {
-	uint8_t dummy;
+	uint8_t dummy = 0;
 	ASSERT_EQ(pn_crc16(&dummy, 0), 0xFFFF);
 	return 0;
 }
