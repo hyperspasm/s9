@@ -33,6 +33,9 @@ void oscilloscope_free(oscilloscope_t **osc);
 // render oscilloscope
 void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer);
 
+// replace the configuration; NULL takes the default
+void oscilloscope_set_config(oscilloscope_t *osc, const oscilloscope_config_t *config);
+
 // settings
 void oscilloscope_set_time_per_div(oscilloscope_t *osc, float seconds);
 float oscilloscope_get_time_per_div(const oscilloscope_t *osc);
