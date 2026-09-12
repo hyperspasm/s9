@@ -13,6 +13,8 @@ struct periodic {
 	fundamental_t *tracker;
 	harmonics_t *harmonics;
 	oscilloscope_t *waveform;
+	int waveform_fed;                // audio goes to the waveform's sampler only while it is the view:
+	                                 // nothing drains it otherwise, and it would overflow
 };
 
 periodic_config_t periodic_default_config(void) {
@@ -74,6 +76,7 @@ static void apply_config(periodic_t *p) {
 	harmonics_config_t hc = harmonics_config_of(p);
 	harmonics_set_config(p->harmonics, &hc);
 	apply_waveform_settings(p);
+	p->waveform_fed = p->config.view == PERIODIC_VIEW_WAVEFORM;
 }
 
 periodic_t *periodic_new(const periodic_config_t *config) {
@@ -93,6 +96,7 @@ periodic_t *periodic_new(const periodic_config_t *config) {
 	p->waveform = oscilloscope_new(&p->config.waveform.display);
 	CHECK_ALLOC(p->waveform, periodic_free(&p); return NULL);
 	apply_waveform_settings(p);
+	p->waveform_fed = p->config.view == PERIODIC_VIEW_WAVEFORM;
 	return p;
 }
 
@@ -133,7 +137,7 @@ void periodic_stop_streaming(periodic_t *p) {
 
 void periodic_enqueue_audio_data(periodic_t *p, const void *data, uint32_t size) {
 	fundamental_enqueue_audio_data(p->tracker, data, size);
-	oscilloscope_enqueue_audio_data(p->waveform, data, size);
+	if (p->waveform_fed) oscilloscope_enqueue_audio_data(p->waveform, data, size);
 }
 
 // -- the frame
