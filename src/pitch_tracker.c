@@ -37,7 +37,7 @@ static fft_analyzer_config_t analyzer_config(const pitch_tracker_t *t) {
 		.window_skew = 0.0f,
 		.mode = FFT_ANALYZER_MIX,
 		.channel = t->config.channel,
-		.averaging_s = 0.0f,
+		.averaging_s = t->config.averaging_s,
 	};
 }
 
@@ -90,6 +90,18 @@ void pitch_tracker_free(pitch_tracker_t **t) {
 
 bool pitch_tracker_valid(const pitch_tracker_t *t) { return t->valid; }
 float pitch_tracker_frequency(const pitch_tracker_t *t) { return t->frequency; }
+
+int pitch_tracker_streaming(const pitch_tracker_t *t) { return fft_analyzer_streaming(t->analyzer); }
+uint32_t pitch_tracker_fft_len(const pitch_tracker_t *t) { return fft_analyzer_fft_len(t->analyzer); }
+uint32_t pitch_tracker_sample_rate(const pitch_tracker_t *t) { return fft_analyzer_sample_rate(t->analyzer); }
+const float *pitch_tracker_bins(const pitch_tracker_t *t) { return fft_analyzer_spectrum(t->analyzer, 0); }
+const float *pitch_tracker_power(const pitch_tracker_t *t) { return fft_analyzer_power(t->analyzer, 0); }
+float pitch_tracker_average_fraction(const pitch_tracker_t *t) { return fft_analyzer_average_fraction(t->analyzer); }
+const float *pitch_tracker_window(const pitch_tracker_t *t) { return fft_analyzer_window(t->analyzer); }
+window_function_t pitch_tracker_window_function(const pitch_tracker_t *t) { return fft_analyzer_config(t->analyzer)->window_function; }
+float pitch_tracker_hop_seconds(const pitch_tracker_t *t) { return fft_analyzer_hop_seconds(t->analyzer); }
+
+void pitch_tracker_restart_average(pitch_tracker_t *t) { fft_analyzer_reset_power(t->analyzer); }
 
 // -- streaming
 

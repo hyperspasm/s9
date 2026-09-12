@@ -52,7 +52,6 @@ static void frame(rig_t *r, const test_signal_t *s, unsigned *offset) {
 	free(mono);
 	*offset += FRAME;
 	pitch_tracker_enqueue_audio_data(r->tracker, stereo, sizeof(stereo));
-	harmonics_enqueue_audio_data(r->h, stereo, sizeof(stereo));
 	pitch_tracker_update(r->tracker);
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
@@ -121,17 +120,19 @@ TEST readings_go_with_the_lock(void) {
 	PASS();
 }
 
-// Reconfiguration while streaming keeps reading: resolution, window, and
-// the harmonic count, which is clamped to what fits.
+// Reconfiguration while streaming keeps reading: the tracker's window and
+// its function, and the harmonic count, which is clamped to what fits.
 TEST reconfigures_while_streaming(void) {
 	rig_t r = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
 	unsigned offset = 0;
 	for (int i = 0; i < 60; i++) frame(&r, &saw, &offset);
 
+	pitch_tracker_config_t tc = *pitch_tracker_config(r.tracker);
+	tc.window_s = 0.4f;
+	tc.window_function = WINDOW_FUNCTION_HANN;
+	pitch_tracker_set_config(r.tracker, &tc);
 	harmonics_config_t c = *harmonics_config(r.h);
-	c.resolution_hz = 4.0f;
-	c.window_function = WINDOW_FUNCTION_HANN;
 	c.reader.harmonics = 20;
 	harmonics_set_config(r.h, &c);
 	for (int i = 0; i < 90; i++) frame(&r, &saw, &offset);

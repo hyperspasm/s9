@@ -8,8 +8,8 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS   7
-#define S9_HARM_NUM_PARAMS  8
-#define S9_PITCH_NUM_PARAMS 14
+#define S9_HARM_NUM_PARAMS  4
+#define S9_PITCH_NUM_PARAMS 15
 #define S9_DEBUG_NUM_PARAMS 1
 
 // The root's children, in declared order

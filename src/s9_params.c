@@ -55,17 +55,9 @@ static int32_t get_channel(void *ctx) { return channel_to_param(oscilloscope_get
 	static int32_t get_##param(void *ctx) { return (int32_t)harmonics_config(ctx)->field; }
 
 HARM_INT(harm_harmonics, reader.harmonics)
-HARM_FLOAT(harm_resolution, resolution_hz)
 HARM_FLOAT(harm_prominence, reader.prominence_db)
-HARM_FLOAT(harm_averaging, averaging_s)
 HARM_FLOAT(harm_hysteresis, reader.hysteresis_db)
 HARM_FLOAT(harm_readout_hold, reader.hold_s)
-
-static void set_harm_channel(void *ctx, int32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.channel = channel_from_param(val); harmonics_set_config(ctx, &c); }
-static int32_t get_harm_channel(void *ctx) { return channel_to_param(harmonics_config(ctx)->channel); }
-
-static void set_harm_window(void *ctx, uint32_t val) { harmonics_config_t c = *harmonics_config(ctx); c.window_function = (window_function_t)val; harmonics_set_config(ctx, &c); }
-static uint32_t get_harm_window(void *ctx) { return (uint32_t)harmonics_config(ctx)->window_function; }
 
 // -- pitch tracker callbacks: what it tracks, read only, and each field of its configuration
 
@@ -77,6 +69,7 @@ static bool get_pitch_valid(void *ctx) { return pitch_tracker_valid(ctx); }
 	static float get_##param(void *ctx) { return pitch_tracker_config(ctx)->field; }
 
 PITCH_FLOAT(pitch_window, window_s)
+PITCH_FLOAT(pitch_averaging, averaging_s)
 PITCH_FLOAT(pitch_f_min, f_min)
 PITCH_FLOAT(pitch_f_max, f_max)
 PITCH_FLOAT(pitch_gate_rms, conditioner.gate_rms)
@@ -105,14 +98,10 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm, void *tracker
 	p->osc_params[5] = pn_float("trig_holdoff", osc, PN_FN(set_trig_holdoff), PN_FN(get_trig_holdoff), 0.0f, 1.0f, 0);
 	p->osc_params[6] = pn_int("channel",        osc, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
 
-	p->harm_params[0]  = pn_int("channel",           harm, PN_FN(set_harm_channel),          PN_FN(get_harm_channel),          -1, 31, 1);
-	p->harm_params[1]  = pn_int("harmonics",         harm, PN_FN(set_harm_harmonics),        PN_FN(get_harm_harmonics),        1, HARMONIC_MAX, 1);
-	p->harm_params[2]  = pn_float("resolution",      harm, PN_FN(set_harm_resolution),       PN_FN(get_harm_resolution),       1.0f, 50.0f, 0);
-	p->harm_params[3]  = pn_enum("window",           harm, PN_FN(set_harm_window),           PN_FN(get_harm_window),           window_function_names, WINDOW_FUNCTION_COUNT);
-	p->harm_params[4]  = pn_float("prominence",      harm, PN_FN(set_harm_prominence),       PN_FN(get_harm_prominence),       0.0f, 60.0f, 0);
-	p->harm_params[5]  = pn_float("averaging",       harm, PN_FN(set_harm_averaging),        PN_FN(get_harm_averaging),        0.0f, 10.0f, 0);
-	p->harm_params[6]  = pn_float("hysteresis",      harm, PN_FN(set_harm_hysteresis),       PN_FN(get_harm_hysteresis),       0.0f, 30.0f, 0);
-	p->harm_params[7]  = pn_float("readout_hold",    harm, PN_FN(set_harm_readout_hold),     PN_FN(get_harm_readout_hold),     0.0f, 5.0f, 0);
+	p->harm_params[0]  = pn_int("harmonics",         harm, PN_FN(set_harm_harmonics),        PN_FN(get_harm_harmonics),        1, HARMONIC_MAX, 1);
+	p->harm_params[1]  = pn_float("prominence",      harm, PN_FN(set_harm_prominence),       PN_FN(get_harm_prominence),       0.0f, 60.0f, 0);
+	p->harm_params[2]  = pn_float("hysteresis",      harm, PN_FN(set_harm_hysteresis),       PN_FN(get_harm_hysteresis),       0.0f, 30.0f, 0);
+	p->harm_params[3]  = pn_float("readout_hold",    harm, PN_FN(set_harm_readout_hold),     PN_FN(get_harm_readout_hold),     0.0f, 5.0f, 0);
 
 	p->pitch_params[S9_PITCH_FREQUENCY] = pn_float("frequency", tracker, NULL, PN_FN(get_pitch_frequency), 0.0f, 24000.0f, 0);
 	p->pitch_params[S9_PITCH_VALID]     = pn_bool("valid",      tracker, NULL, PN_FN(get_pitch_valid));
@@ -128,6 +117,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *harm, void *tracker
 	p->pitch_params[11] = pn_float("octave_tolerance", tracker, PN_FN(set_pitch_octave_tolerance), PN_FN(get_pitch_octave_tolerance), 0.0f, 200.0f, 0);
 	p->pitch_params[12] = pn_float("smoothing",       tracker, PN_FN(set_pitch_smoothing),        PN_FN(get_pitch_smoothing),        0.0f, 5.0f, 0);
 	p->pitch_params[13] = pn_float("deadband",        tracker, PN_FN(set_pitch_deadband),         PN_FN(get_pitch_deadband),         0.0f, 100.0f, 0);
+	p->pitch_params[14] = pn_float("averaging",       tracker, PN_FN(set_pitch_averaging),        PN_FN(get_pitch_averaging),        0.0f, 10.0f, 0);
 
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 

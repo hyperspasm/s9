@@ -3,37 +3,29 @@
 
 #include "s9_dsp.h"
 #include "s9_colors.h"
-#include "window_function.h"
 #include "harmonic_reader.h"
 #include "pitch_tracker.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-// The harmonic analyzer: the latest spectrum on a linear axis scaled to the
-// fundamental a pitch tracker finds, with a marker at each harmonic. While
+// The harmonic analyzer: a pitch tracker's latest spectrum on a linear axis
+// scaled to the fundamental it finds, with a marker at each harmonic. While
 // the tracker is locked, each harmonic that stands out from the floor
 // carries its level and its phase relative to the fundamental's, and the
 // fundamental's own level and the distortion the harmonics add up to sit
 // above. The axis keeps the last locked fundamental, or a configured one
 // before there is any, so the spectrum is always on a scale. The curve is
-// live; the readings come from the spectrum averaged over a short time, so
-// they settle rather than jitter.
+// live; the readings come from the tracker's power average, so they settle
+// rather than jitter. The tracker is the audio's; this component takes none.
 
 typedef struct harmonics harmonics_t;
 
 typedef struct {
-	// analysis
-	float resolution_hz;              // bin spacing; the transform is the power of two at or above
-	                                  // sample_rate / resolution_hz
-	window_function_t window_function;
-	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
-
 	// reading the harmonics
-	float averaging_s;                // time constant of the average the levels and phases come from,
-	                                  // seconds; it restarts on a new note. Noise reaches a prominence
-	                                  // of about 10 dB after a second of averaging, 15 dB with none
-	harmonic_reader_config_t reader;  // its harmonics are the markers across the graph
+	harmonic_reader_config_t reader;  // its harmonics are the markers across the graph. Noise reaches a
+	                                  // prominence of about 10 dB after a second of the tracker's
+	                                  // averaging, 15 dB with none
 
 	// display
 	float initial_f0;                 // the axis' fundamental before the tracker has locked, Hz
@@ -48,10 +40,6 @@ typedef struct {
 } harmonics_config_t;
 
 static const harmonics_config_t default_harmonics_config = {
-	.resolution_hz = 2.0f,
-	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
-	.channel = S9_CHANNEL_ALL,
-	.averaging_s = 1.0f,
 	.reader = {
 		.harmonics = 10,
 		.search_min_bins = 3,
@@ -75,9 +63,9 @@ static const harmonics_config_t default_harmonics_config = {
 	.held_color = S9_SLATE,
 };
 
-// create harmonics reading the fundamental of a tracker, which must be
-// updated before each frame is rendered; NULL takes the default
-// configuration
+// create harmonics reading a tracker's spectrum and fundamental; the
+// tracker must be updated before each frame is rendered. NULL takes the
+// default configuration
 harmonics_t *harmonics_new(const harmonics_config_t *config, pitch_tracker_t *tracker);
 
 // destroy harmonics
@@ -98,13 +86,10 @@ const harmonic_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *cou
 // when the fundamental is not shown.
 int harmonics_get_thd(const harmonics_t *h, float *thd);
 
-// stop audio streaming
+// stop streaming: the readings are dropped
 void harmonics_stop_streaming(harmonics_t *h);
 
-// prepare for audio streaming
+// prepare for streaming: the readings start over
 void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t *stream_config);
-
-// call on a background thread to enqueue audio data
-void harmonics_enqueue_audio_data(harmonics_t *h, const void *data, uint32_t size);
 
 #endif /* harmonics_h */

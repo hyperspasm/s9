@@ -3,7 +3,6 @@
 #include "s9_font.h"
 #include "draw_sdl.h"
 #include "graph_axis.h"
-#include "fft_analyzer.h"
 #include "harmonic_readout.h"
 
 #include <math.h>
@@ -27,13 +26,13 @@ struct harmonics {
 	harmonics_config_t config;
 	int config_changed;              // applied at the next frame
 
-	pitch_tracker_t *tracker;        // whose fundamental the harmonics are of
-	fft_analyzer_t *analyzer;
+	pitch_tracker_t *tracker;        // whose spectrum and fundamental the harmonics are of
 	harmonic_reader_t *reader;
 	uint32_t buffer_len;             // the transform length db and live_db are sized for
 	float *db;                       // the averaged spectrum, per bin: what the readings come from
 	float *live_db;                  // the latest transform's, per bin: what the curve shows
-	uint32_t reader_window_len;      // the transform length the reader's window is; 0 before any
+	uint32_t reader_window_len;      // the transform length the reader's window model is for; 0 before any
+	window_function_t reader_window_function;   // and its function
 
 	bool pitch_valid;
 	float pitch_frequency;
@@ -53,17 +52,6 @@ struct harmonics {
 
 // -- configuration
 
-static fft_analyzer_config_t analyzer_config(const harmonics_t *h) {
-	return (fft_analyzer_config_t){
-		.resolution_hz = h->config.resolution_hz,
-		.window_function = h->config.window_function,
-		.window_skew = 0.0f,
-		.mode = FFT_ANALYZER_MIX,
-		.channel = h->config.channel,
-		.averaging_s = h->config.averaging_s,
-	};
-}
-
 static graph_db_axis_t db_axis(const harmonics_t *h) {
 	return (graph_db_axis_t){
 		.min_db = h->config.min_db,
@@ -80,24 +68,17 @@ const harmonics_config_t *harmonics_config(const harmonics_t *h) {
 }
 
 void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config) {
-	harmonics_config_t before = h->config;
 	h->config = config ? *config : default_harmonics_config;
-	if (h->config.resolution_hz != before.resolution_hz || h->config.window_function != before.window_function)
-		h->reader_window_len = 0;   // the analyzer's window changes with them; the reader's follows
 	if (h->config.reader.harmonics < 1) h->config.reader.harmonics = 1;
 	if (h->config.reader.harmonics > HARMONIC_MAX) h->config.reader.harmonics = HARMONIC_MAX;
-	if (!(h->config.resolution_hz > 0.0f)) h->config.resolution_hz = default_harmonics_config.resolution_hz;
 	if (!(h->config.plot_width >= 1.0f)) h->config.plot_width = default_harmonics_config.plot_width;
 	h->config_changed = 1;
 }
 
-// hand a changed configuration to the analyzer and the reader
+// hand a changed configuration to the reader
 static void apply_config(harmonics_t *h) {
 	if (!h->config_changed) return;
 	h->config_changed = 0;
-
-	fft_analyzer_config_t ac = analyzer_config(h);
-	fft_analyzer_set_config(h->analyzer, &ac);
 	harmonic_reader_set_config(h->reader, &h->config.reader);
 }
 
@@ -133,10 +114,6 @@ harmonics_t *harmonics_new(const harmonics_config_t *config, pitch_tracker_t *tr
 	harmonics_set_config(h, config);
 	h->config_changed = 0;
 
-	fft_analyzer_config_t ac = analyzer_config(h);
-	h->analyzer = fft_analyzer_new(&ac);
-	CHECK_ALLOC(h->analyzer, free(h); return NULL);
-
 	h->reader = malloc(harmonic_reader_alloc_size());
 	CHECK_ALLOC(h->reader, harmonics_free(&h); return NULL);
 	harmonic_reader_init(h->reader, &h->config.reader);
@@ -146,7 +123,6 @@ harmonics_t *harmonics_new(const harmonics_config_t *config, pitch_tracker_t *tr
 void harmonics_free(harmonics_t **h) {
 	if (h && *h) {
 		free_drawing(*h);
-		fft_analyzer_free(&(*h)->analyzer);
 		free((*h)->reader);
 		free((*h)->db);
 		free((*h)->live_db);
@@ -166,7 +142,7 @@ int harmonics_get_thd(const harmonics_t *h, float *thd) {
 // -- streaming
 
 void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t *stream_config) {
-	fft_analyzer_prepare_to_stream(h->analyzer, stream_config);
+	(void)stream_config;   // the tracker has the audio
 	harmonic_reader_reset(h->reader);
 	h->pitch_valid = false;
 	h->pitch_frequency = 0.0f;
@@ -174,12 +150,8 @@ void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t 
 }
 
 void harmonics_stop_streaming(harmonics_t *h) {
-	fft_analyzer_stop_streaming(h->analyzer);
+	harmonic_reader_reset(h->reader);
 	h->renderer = NULL;
-}
-
-void harmonics_enqueue_audio_data(harmonics_t *h, const void *data, uint32_t size) {
-	fft_analyzer_enqueue_audio_data(h->analyzer, data, size);
 }
 
 // -- analysis
@@ -195,11 +167,11 @@ static double axis_end(const harmonics_t *h, double f0, double fs) {
 	return f_end > fs / 2.0 ? fs / 2.0 : f_end;
 }
 
-// the tracker's fundamental, and the harmonics read from the averaged spectrum
+// the tracker's fundamental, and the harmonics read from its averaged spectrum
 static int analyze(harmonics_t *h) {
-	fft_analyzer_t *fa = h->analyzer;
-	uint32_t n = fft_analyzer_fft_len(fa), bins = n / 2 + 1;
-	float fs = (float)fft_analyzer_sample_rate(fa);
+	pitch_tracker_t *t = h->tracker;
+	uint32_t n = pitch_tracker_fft_len(t), bins = n / 2 + 1;
+	float fs = (float)pitch_tracker_sample_rate(t);
 
 	if (h->buffer_len != n) {
 		free(h->db); free(h->live_db);
@@ -209,22 +181,24 @@ static int analyze(harmonics_t *h) {
 		CHECK_ALLOC(h->db, return -1);
 		CHECK_ALLOC(h->live_db, return -1);
 	}
-	if (h->reader_window_len != n) {
-		harmonic_reader_set_window(h->reader, fft_analyzer_window(fa), n);
+	// the reader's model of the window follows the tracker's window
+	window_function_t function = pitch_tracker_window_function(t);
+	if (h->reader_window_len != n || h->reader_window_function != function) {
+		harmonic_reader_set_window(h->reader, pitch_tracker_window(t), n);
 		h->reader_window_len = n;
+		h->reader_window_function = function;
 	}
 
-	h->pitch_valid = pitch_tracker_valid(h->tracker);
-	h->pitch_frequency = pitch_tracker_frequency(h->tracker);
-	float dt = fft_analyzer_hop_seconds(fa);
+	h->pitch_valid = pitch_tracker_valid(t);
+	h->pitch_frequency = pitch_tracker_frequency(t);
 
 	// the curve shows the latest transform; the harmonics are read from the average
-	const float *spectrum = fft_analyzer_spectrum(fa, 0);
-	harmonic_magnitude_db(spectrum, bins, n, h->live_db);
-	harmonic_power_db(fft_analyzer_power(fa, 0), bins, n, h->db);
-	harmonic_reader_update(h->reader, h->db, spectrum, n, fs / n, h->pitch_frequency, h->pitch_valid,
-						   fft_analyzer_average_fraction(fa), dt);
-	if (harmonic_reader_restarted(h->reader)) fft_analyzer_reset_power(fa);   // a new note: the average too
+	const float *bins_re_im = pitch_tracker_bins(t);
+	harmonic_magnitude_db(bins_re_im, bins, n, h->live_db);
+	harmonic_power_db(pitch_tracker_power(t), bins, n, h->db);
+	harmonic_reader_update(h->reader, h->db, bins_re_im, n, fs / n, h->pitch_frequency, h->pitch_valid,
+						   pitch_tracker_average_fraction(t), pitch_tracker_hop_seconds(t));
+	if (harmonic_reader_restarted(h->reader)) pitch_tracker_restart_average(t);   // a new note: the average too
 	return 0;
 }
 
@@ -334,9 +308,8 @@ static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t b
 }
 
 static void draw(harmonics_t *h, SDL_Renderer *renderer) {
-	fft_analyzer_t *fa = h->analyzer;
-	uint32_t n = fft_analyzer_fft_len(fa), bins = n / 2 + 1;
-	double fs = fft_analyzer_sample_rate(fa);
+	uint32_t n = pitch_tracker_fft_len(h->tracker), bins = n / 2 + 1;
+	double fs = pitch_tracker_sample_rate(h->tracker);
 	double delta_f = fs / n;
 	double f0 = axis_f0(h);
 	double f_end = axis_end(h, f0, fs);
@@ -414,13 +387,10 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 }
 
 void harmonics_render(harmonics_t *h, SDL_Renderer *renderer) {
-	if (!fft_analyzer_streaming(h->analyzer)) return;
+	if (!pitch_tracker_streaming(h->tracker)) return;
 	apply_config(h);
 	prepare_to_draw(h, renderer);
 	if (!h->graticule || !h->plot) return;
-
-	fft_analyzer_update(h->analyzer);
-	if (!fft_analyzer_streaming(h->analyzer)) return;   // a failed reconfiguration ends the stream
 	if (analyze(h) != 0) return;
 	draw(h, renderer);
 }

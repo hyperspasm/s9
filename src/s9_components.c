@@ -95,7 +95,6 @@ s9_components_t *s9_components_new(void) {
 		.instance = harmonics,
 		.destroy = (void (*)(void **))harmonics_free,
 		.render = (void (*)(void *, SDL_Renderer *))harmonics_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))harmonics_enqueue_audio_data,
 		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))harmonics_prepare_to_stream,
 		.stop_streaming = (void (*)(void *))harmonics_stop_streaming,
 	};
