@@ -54,6 +54,16 @@ typedef struct {
 // fewer than one bin.
 uint32_t harmonic_shoulder(double spacing_bins, uint32_t reach, uint32_t shoulder);
 
+// The floor beside bin p: on each side, the median of the shoulder bins
+// starting reach bins away; the lower side's, so the skirt of a louder
+// neighbour does not hide a peak. -inf without any usable bin.
+double harmonic_floor_db(const float *db, uint32_t bins, long p, uint32_t reach, uint32_t shoulder);
+
+// A local maximum at bin p, 1 <= p <= bins - 2, refined by a parabola
+// through its neighbours less the window's bias: its frequency and level.
+// An empty neighbour leaves it at its bin.
+void harmonic_refine(const float *db, long p, double delta_f, const harmonic_window_t *w, double *frequency, double *level);
+
 // The peak within search bins of centre_hz: the loudest bin there, when it
 // is a local maximum, refined by a parabola through its neighbours and
 // corrected, with how far it stands above the floor. The floor is, on each

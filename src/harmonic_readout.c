@@ -120,8 +120,8 @@ static int median_db(const float *db, long lo, long hi, double *median) {
 	return 1;
 }
 
-// the floor around bin p: the lower of the two sides' shoulder medians, or -inf without any usable bin
-static double floor_db(const float *db, uint32_t bins, long p, uint32_t reach, uint32_t shoulder) {
+double harmonic_floor_db(const float *db, uint32_t bins, long p, uint32_t reach, uint32_t shoulder) {
+	if (shoulder > HARMONIC_SHOULDER_MAX) shoulder = HARMONIC_SHOULDER_MAX;
 	double floor = INFINITY, side;
 	int any = 0;
 	long lo = p - (long)reach - (long)shoulder + 1, hi = p - (long)reach;
@@ -159,20 +159,27 @@ harmonic_readout_t harmonic_readout(const float *db, uint32_t bins, double delta
 	double y0 = db[p - 1], y1 = db[p], y2 = db[p + 1];
 	if (!(y1 > y0 && y1 >= y2)) return r;
 	r.peak = 1;
-	r.prominence = (float)(y1 - floor_db(db, bins, p, w->reach, shoulder));
-	if (!isfinite(y0) || !isfinite(y1) || !isfinite(y2)) {
-		r.frequency = (float)(p * delta_f);
-		r.db = (float)y1;
-		return r;
-	}
+	r.prominence = (float)(y1 - harmonic_floor_db(db, bins, p, w->reach, shoulder));
+	double frequency, level;
+	harmonic_refine(db, p, delta_f, w, &frequency, &level);
+	r.frequency = (float)frequency;
+	r.db = (float)level;
+	return r;
+}
 
+void harmonic_refine(const float *db, long p, double delta_f, const harmonic_window_t *w, double *frequency, double *level) {
+	double y0 = db[p - 1], y1 = db[p], y2 = db[p + 1];
+	if (!isfinite(y0) || !isfinite(y1) || !isfinite(y2)) {
+		*frequency = p * delta_f;
+		*level = y1;
+		return;
+	}
 	double d, peak;
 	parabola(y0, y1, y2, &d, &peak);
 	double a = fabs(d) < OFFSET_MAX ? fabs(d) : OFFSET_MAX;
 	double off = d - copysign(table_at(w->offset_bias, a), d);
-	r.frequency = (float)((p + off) * delta_f);
-	r.db = (float)(peak - table_at(w->db_bias, a));
-	return r;
+	*frequency = (p + off) * delta_f;
+	*level = peak - table_at(w->db_bias, a);
 }
 
 int harmonic_gate_update(harmonic_gate_t *g, const harmonic_readout_t *r, float on_db, float off_db, float hold_s, float dt_s) {

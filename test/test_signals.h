@@ -59,6 +59,22 @@ static inline void test_signal_generate(const test_signal_t *s, float *out, uint
 	}
 }
 
+// A table of partials, count (frequency, amplitude, phase) triples, summed in
+// order each times amp, plus noise of noise_amp from the seed when positive:
+// signals.partials() and generate() in the oracle.
+static inline void test_signal_partials(const double *table, unsigned count, double amp, unsigned seed, double noise_amp,
+                                        float *out, uint32_t n, double fs) {
+	uint32_t added = seed;
+	for (uint32_t i = 0; i < n; i++) {
+		double t = (double)i / fs;
+		double x = 0.0;
+		for (unsigned k = 0; k < count; k++)
+			x += (amp * table[3 * k + 1]) * sin(2.0 * M_PI * table[3 * k] * t + table[3 * k + 2]);
+		out[i] = (float)x;
+		if (noise_amp > 0.0) out[i] += test_signal_noise(&added, noise_amp);
+	}
+}
+
 static inline double test_signal_rms(const float *x, uint32_t n) {
 	double sum = 0.0;
 	for (uint32_t i = 0; i < n; i++) sum += (double)x[i] * x[i];
