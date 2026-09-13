@@ -17,6 +17,8 @@ typedef struct {
 	int trig_slope;       // 1 = rising, -1 = falling
 	float trig_thresh;    // -1.0 to 1.0
 	float trig_holdoff;   // seconds
+	float trig_lock_hz;   // the component the trigger is locked to, or 0 for the signal's own crossings
+	uint32_t trig_lock_cycles;   // over which its phase is measured
 	uint32_t channel;     // channel index, or S9_CHANNEL_ALL to sum
 } oscilloscope_settings_t;
 
@@ -27,6 +29,8 @@ static const oscilloscope_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,
+	.trig_lock_hz = 0.0f,
+	.trig_lock_cycles = 2,
 	.channel = S9_CHANNEL_ALL,
 };
 
@@ -433,10 +437,13 @@ float oscilloscope_get_amp_per_div(const oscilloscope_t *osc) {
 static void push_trigger_settings(oscilloscope_t *osc) {
 	if (!osc->sampler) return;
 	osc_sampler_set_settings(osc->sampler, &(osc_sampler_settings_t){
-		.trigger_mode = osc->settings.trig_auto ? osc_trig_mode_auto : osc_trig_mode_normal,
+		.trigger_mode = osc->settings.trig_lock_hz > 0.0f ? osc_trig_mode_phase
+		              : osc->settings.trig_auto ? osc_trig_mode_auto : osc_trig_mode_normal,
 		.trig_slope = osc->settings.trig_slope,
 		.trig_thresh = osc->settings.trig_thresh,
 		.trig_holdoff = osc->settings.trig_holdoff,
+		.trig_frequency = osc->settings.trig_lock_hz,
+		.trig_cycles = osc->settings.trig_lock_cycles,
 		.channel = osc->settings.channel,
 	});
 }
@@ -475,6 +482,24 @@ void oscilloscope_set_trig_holdoff(oscilloscope_t *osc, float seconds) {
 
 float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc) {
 	return osc->settings.trig_holdoff;
+}
+
+void oscilloscope_set_trig_lock(oscilloscope_t *osc, float frequency_hz) {
+	osc->settings.trig_lock_hz = frequency_hz;
+	push_trigger_settings(osc);
+}
+
+float oscilloscope_get_trig_lock(const oscilloscope_t *osc) {
+	return osc->settings.trig_lock_hz;
+}
+
+void oscilloscope_set_trig_lock_cycles(oscilloscope_t *osc, uint32_t cycles) {
+	osc->settings.trig_lock_cycles = cycles ? cycles : 1;
+	push_trigger_settings(osc);
+}
+
+uint32_t oscilloscope_get_trig_lock_cycles(const oscilloscope_t *osc) {
+	return osc->settings.trig_lock_cycles;
 }
 
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel) {

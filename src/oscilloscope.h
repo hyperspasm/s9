@@ -49,6 +49,15 @@ void oscilloscope_set_trig_thresh(oscilloscope_t *osc, float thresh);
 float oscilloscope_get_trig_thresh(const oscilloscope_t *osc);
 void oscilloscope_set_trig_holdoff(oscilloscope_t *osc, float seconds);
 float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc);
+// Lock the trigger to the phase of the component at a frequency: each sweep
+// starts where that component crosses zero in the slope's direction,
+// whatever the rest of the signal is doing. 0 returns the trigger to the
+// signal's own threshold crossings. The phase is measured over the given
+// number of the component's cycles.
+void oscilloscope_set_trig_lock(oscilloscope_t *osc, float frequency_hz);
+float oscilloscope_get_trig_lock(const oscilloscope_t *osc);
+void oscilloscope_set_trig_lock_cycles(oscilloscope_t *osc, uint32_t cycles);
+uint32_t oscilloscope_get_trig_lock_cycles(const oscilloscope_t *osc);
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel);
 uint32_t oscilloscope_get_channel(const oscilloscope_t *osc);
 

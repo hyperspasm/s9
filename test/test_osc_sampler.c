@@ -772,6 +772,46 @@ static void test_read_continuity_across_calls(void) {
 	printf(" ok\n"); \
 } while(0)
 
+
+// ---- phase-locked trigger ----
+
+// A fundamental with a third harmonic of its own phase: the waveform does
+// not cross zero where the fundamental does. Locked to the fundamental,
+// the sweep starts at the fundamental's rising crossing, sample 240 for
+// 200 Hz at 48 kHz, and the next sweep starts a whole number of cycles on.
+static float composite(uint32_t n) {
+	double t = (double)n / SAMPLE_RATE;
+	return (float)(sin(2.0 * M_PI * 200.0 * t) + 0.5 * sin(2.0 * M_PI * 600.0 * t + 1.0));
+}
+
+static void test_phase_lock(void) {
+	osc_sampler_t *s = osc_sampler_new(SAMPLE_RATE, 16384);
+	assert(s != NULL);
+	osc_sampler_set_settings(s, &(osc_sampler_settings_t){
+		.trigger_mode = osc_trig_mode_phase, .trig_slope = 1, .trig_thresh = 0.0f, .trig_holdoff = 0.0f,
+		.trig_frequency = 200.0f, .trig_cycles = 2, .channel = 0,
+	});
+	float *x = malloc(sizeof(float) * 8000);
+	for (uint32_t n = 0; n < 8000; n++) x[n] = composite(n);
+	assert(osc_sampler_enqueue(s, x, 8000, 1) == 8000);
+
+	float out[100];
+	int triggered = 0;
+	uint32_t got = osc_sampler_read_pixels(s, out, 100, (float)SAMPLE_RATE, 1.0f, &triggered);
+	assert(triggered && got == 100);
+	assert(out[0] > 0.3f);   // the waveform is well off zero where the fundamental crosses
+	for (uint32_t i = 0; i < 100; i++) assert(fabsf(out[i] - composite(240 + i)) < 0.02f);
+
+	osc_sampler_sweep_complete(s);
+	float next[100];
+	got = osc_sampler_read_pixels(s, next, 100, (float)SAMPLE_RATE, 1.0f, &triggered);
+	assert(triggered && got == 100);
+	for (uint32_t i = 0; i < 100; i++) assert(fabsf(next[i] - out[i]) < 0.02f);
+
+	free(x);
+	osc_sampler_free(&s);
+}
+
 int main(void) {
 	if (SDL_Init(SDL_INIT_TIMER) != 0) {
 		fprintf(stderr, "Unable to initialize SDL: %s\n", SDL_GetError());
@@ -785,6 +825,9 @@ int main(void) {
 	RUN_TEST(test_new_minimum_buffer);
 	RUN_TEST(test_new_buffer_too_small);
 	RUN_TEST(test_free_null_safety);
+
+	// phase-locked trigger
+	RUN_TEST(test_phase_lock);
 
 	// enqueue
 	RUN_TEST(test_enqueue_mono);

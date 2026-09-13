@@ -29,6 +29,8 @@ static const osc_sampler_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,  // 10µs
+	.trig_frequency = 0.0f,
+	.trig_cycles = 2,
 	.channel = UINT32_MAX, // sum all channels
 };
 
@@ -194,6 +196,59 @@ static S9_FORCE_INLINE int auto_trigger_tick(osc_sampler_t *s) {
 	return 1;
 }
 
+// whether the phase mode is in force: it needs a frequency to lock to
+static S9_FORCE_INLINE int phase_mode(const osc_sampler_t *s) {
+	return s->settings.trigger_mode == osc_trig_mode_phase && s->settings.trig_frequency > 0.0f;
+}
+
+// The phase of the component at the trigger frequency at buffer index at,
+// measured over the length samples from there on: a rectangular window's
+// transform at that one frequency. Over whole cycles the window is
+// orthogonal to the component's harmonics, so they do not move the phase;
+// the caller makes length whole cycles. For x = A cos(w n + phi) the sum
+// of x e^(-i w n) is (A length / 2) e^(i phi), so its argument is phi.
+static double phase_at(const osc_sampler_t *s, uint32_t at, uint32_t length) {
+	double w = 2.0 * M_PI * (double)s->settings.trig_frequency / (double)s->sample_rate;
+	double c = cos(w), sn = sin(w);
+	double cr = 1.0, ci = 0.0, re = 0.0, im = 0.0;
+	for (uint32_t n = 0; n < length; n++) {
+		if ((n & 255) == 0) {
+			// restart the rotation from an exact value so its rounding does not accumulate
+			cr = cos(w * n);
+			ci = sin(w * n);
+		}
+		double x = s->input_buf[(at + n) & s->buf_mask];
+		re += x * cr;
+		im -= x * ci;
+		double next = cr * c - ci * sn;
+		ci = cr * sn + ci * c;
+		cr = next;
+	}
+	return atan2(im, re);
+}
+
+// The phase mode's trigger: from the scan position, the next zero crossing
+// of the locked component in the slope's direction, as a fractional number
+// of samples ahead. Returns -1 when too few samples are there to measure
+// the phase.
+static int phase_trigger(const osc_sampler_t *s, uint32_t read_ix_local, uint32_t avail, double *ahead) {
+	double samples_per_cycle = (double)s->sample_rate / (double)s->settings.trig_frequency;
+	uint32_t cycles = s->settings.trig_cycles ? s->settings.trig_cycles : 1;
+	uint32_t length = (uint32_t)lround(cycles * samples_per_cycle);
+	uint32_t room = s->buf_mask - s->N - 2;   // the most the buffer can hold besides the resampler's window
+	if (length > room) length = room;
+	if (length < 2) length = 2;
+	if (avail < length + s->N + 1) return -1;
+
+	uint32_t half_N = s->N / 2;
+	double phi = phase_at(s, read_ix_local + half_N, length);
+	double target = s->settings.trig_slope > 0 ? -M_PI / 2.0 : M_PI / 2.0;   // cos(theta) crosses zero rising at -pi/2
+	double turn = fmod(target - phi, 2.0 * M_PI);
+	if (turn < 0.0) turn += 2.0 * M_PI;
+	*ahead = turn / (2.0 * M_PI) * samples_per_cycle;
+	return 0;
+}
+
 // scan input samples through the trigger state machine
 // consumes samples until we transition to trig_state_sweep or run out of data
 // on transition to sweep: read_ix and position are set for the resampler
@@ -230,6 +285,11 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 			break;
 
 		case trig_state_pre_trigger:
+			if (phase_mode(s)) {
+				// nothing to arm: the locked component's phase says where the crossing is
+				s->trig_state = trig_state_trigger;
+				break;
+			}
 			// need N+1 samples: N for potential resampler window + 1 for scan
 			if (avail < s->N + 1) goto done;
 			{
@@ -249,6 +309,18 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 			break;
 
 		case trig_state_trigger:
+			if (phase_mode(s)) {
+				double ahead;
+				if (phase_trigger(s, read_ix_local, avail, &ahead) != 0) goto done;
+				// the sweep starts ahead samples past the scan position: whole ones
+				// move the resampler's window, the fraction is its offset
+				uint32_t whole = (uint32_t)ahead;
+				read_ix_local = (read_ix_local + whole) & s->buf_mask;
+				s->position = (float)(ahead - whole);
+				s->ratio = 0.0f;  // force resample_read to recalculate cutoff
+				s->trig_state = trig_state_sweep;
+				goto done;
+			}
 			// need N+1 samples: N for resampler window + 1 for crossing check
 			if (avail < s->N + 1) goto done;
 			{

@@ -3,9 +3,6 @@
 
 #include <stdlib.h>
 
-#define WAVEFORM_HOLDOFF 0.9f    // of a cycle: after a sweep the next trigger is the crossing that starts
-                                 // the next cycle, not one a harmonic makes within it
-
 struct periodic {
 	periodic_config_t config;
 	int config_changed;              // applied at the next frame
@@ -56,15 +53,17 @@ static harmonics_config_t harmonics_config_of(const periodic_t *p) {
 	return c;
 }
 
-// the waveform view: this component's channel, a rising zero crossing, and
-// no free-running sweep, so the trace holds when the signal stops
+// the waveform view: this component's channel, each sweep starting as the
+// fundamental crosses zero rising, so whole cycles fill it however the
+// harmonics shape the waveform, and no free-running sweep, so the trace
+// holds when the signal stops
 static void apply_waveform_settings(periodic_t *p) {
 	oscilloscope_set_config(p->waveform, &p->config.waveform.display);
 	oscilloscope_set_channel(p->waveform, p->config.channel);
 	oscilloscope_set_amp_per_div(p->waveform, p->config.waveform.amp_per_div);
 	oscilloscope_set_trig_auto(p->waveform, false);
 	oscilloscope_set_trig_slope(p->waveform, 1);
-	oscilloscope_set_trig_thresh(p->waveform, 0.0f);
+	oscilloscope_set_trig_holdoff(p->waveform, 0.0f);
 }
 
 // hand a changed configuration to the tracker and the views
@@ -154,9 +153,8 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 		// the sweep spans whole cycles of the fundamental, the last tracked or the one assumed
 		float f0 = fundamental_frequency(p->tracker);
 		if (!(f0 > 0.0f)) f0 = p->config.initial_f0;
-		float period = 1.0f / f0;
-		oscilloscope_set_time_per_div(p->waveform, p->config.waveform.cycles * period / OSCILLOSCOPE_DIVISIONS);
-		oscilloscope_set_trig_holdoff(p->waveform, WAVEFORM_HOLDOFF * period);
+		oscilloscope_set_time_per_div(p->waveform, p->config.waveform.cycles / f0 / OSCILLOSCOPE_DIVISIONS);
+		oscilloscope_set_trig_lock(p->waveform, f0);
 		oscilloscope_render(p->waveform, renderer);
 		break;
 	}

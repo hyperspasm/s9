@@ -4,15 +4,18 @@
 #include <stdint.h>
 
 typedef enum {
-	osc_trig_mode_normal,
-	osc_trig_mode_auto,
+	osc_trig_mode_normal,     // sweep from the signal's next crossing of the threshold
+	osc_trig_mode_auto,       // as normal, but sweep anyway when no crossing comes in time
+	osc_trig_mode_phase,      // sweep from the next zero crossing of the component at trig_frequency
 } osc_trigger_mode_t;
 
 typedef struct {
 	osc_trigger_mode_t trigger_mode;
 	int trig_slope;           // 1 = rising, -1 = falling
-	float trig_thresh;        // -1.0 to 1.0
+	float trig_thresh;        // -1.0 to 1.0; not used by the phase mode, which crosses zero
 	float trig_holdoff;       // seconds
+	float trig_frequency;     // Hz, the phase mode's component; a value of 0 or less makes the mode normal
+	uint32_t trig_cycles;     // of that component, over which its phase is measured; at least 1
 	uint32_t channel;         // channel index to extract, or >= n_channels to sum all
 } osc_sampler_settings_t;
 
