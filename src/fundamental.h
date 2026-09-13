@@ -96,14 +96,18 @@ float fundamental_uncertainty_cents(const fundamental_t *t);
 // The transform as of the last update, for readers of the spectrum. The
 // bins are the latest transform as (re, im) pairs, fft_len/2 + 1 of them,
 // unscaled: a sine of amplitude a under the normalized window has magnitude
-// a * fft_len / 2 at its bin. The power is |X|^2 per bin averaged over the
-// configured time, each update moving it toward the latest transform's by
-// the fraction reported, 1 while the history was still filling or after a
-// restart. The window is fft_len values summing to fft_len.
+// a * fft_len / 2 at its bin. The magnitudes are the same bins in dB
+// relative to a full-scale sine, as harmonic_magnitude_db writes them, what
+// the fundamental was estimated from; NULL before the first update. The
+// power is |X|^2 per bin averaged over the configured time, each update
+// moving it toward the latest transform's by the fraction reported, 1 while
+// the history was still filling or after a restart. The window is fft_len
+// values summing to fft_len.
 int fundamental_streaming(const fundamental_t *t);
 uint32_t fundamental_fft_len(const fundamental_t *t);
 uint32_t fundamental_sample_rate(const fundamental_t *t);
 const float *fundamental_bins(const fundamental_t *t);
+const float *fundamental_magnitude_db(const fundamental_t *t);
 const float *fundamental_power(const fundamental_t *t);
 float fundamental_average_fraction(const fundamental_t *t);
 const float *fundamental_window(const fundamental_t *t);

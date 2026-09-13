@@ -101,6 +101,7 @@ int fundamental_streaming(const fundamental_t *t) { return fft_analyzer_streamin
 uint32_t fundamental_fft_len(const fundamental_t *t) { return fft_analyzer_fft_len(t->analyzer); }
 uint32_t fundamental_sample_rate(const fundamental_t *t) { return fft_analyzer_sample_rate(t->analyzer); }
 const float *fundamental_bins(const fundamental_t *t) { return fft_analyzer_spectrum(t->analyzer, 0); }
+const float *fundamental_magnitude_db(const fundamental_t *t) { return t->buffer_len ? t->db : NULL; }
 const float *fundamental_power(const fundamental_t *t) { return fft_analyzer_power(t->analyzer, 0); }
 float fundamental_average_fraction(const fundamental_t *t) { return fft_analyzer_average_fraction(t->analyzer); }
 const float *fundamental_window(const fundamental_t *t) { return fft_analyzer_window(t->analyzer); }

@@ -21,9 +21,8 @@ struct harmonics {
 
 	fundamental_t *tracker;        // whose spectrum and fundamental the harmonics are of
 	harmonic_reader_t *reader;
-	uint32_t buffer_len;             // the transform length db and live_db are sized for
+	uint32_t buffer_len;             // the transform length db is sized for
 	float *db;                       // the averaged spectrum, per bin: what the readings come from
-	float *live_db;                  // the latest transform's, per bin: what the curve shows
 	uint32_t reader_window_len;      // the transform length the reader's window model is for; 0 before any
 	window_function_t reader_window_function;   // and its function
 
@@ -112,7 +111,6 @@ void harmonics_free(harmonics_t **h) {
 		free_drawing(*h);
 		free((*h)->reader);
 		free((*h)->db);
-		free((*h)->live_db);
 		free(*h);
 		*h = NULL;
 	}
@@ -161,12 +159,10 @@ static int analyze(harmonics_t *h) {
 	float fs = (float)fundamental_sample_rate(t);
 
 	if (h->buffer_len != n) {
-		free(h->db); free(h->live_db);
+		free(h->db);
 		h->db = malloc(sizeof(float) * bins);
-		h->live_db = malloc(sizeof(float) * bins);
-		h->buffer_len = h->db && h->live_db ? n : 0;
+		h->buffer_len = h->db ? n : 0;
 		CHECK_ALLOC(h->db, return -1);
-		CHECK_ALLOC(h->live_db, return -1);
 	}
 	// the reader's model of the window follows the tracker's window
 	window_function_t function = fundamental_window_function(t);
@@ -179,9 +175,9 @@ static int analyze(harmonics_t *h) {
 	h->fundamental_valid = fundamental_valid(t);
 	h->fundamental_frequency = fundamental_frequency(t);
 
-	// the curve shows the latest transform; the harmonics are read from the average
+	// the curve shows the tracker's latest magnitudes; the harmonics are read from the average
+	if (!fundamental_magnitude_db(t)) return -1;
 	const float *bins_re_im = fundamental_bins(t);
-	harmonic_magnitude_db(bins_re_im, bins, n, h->live_db);
 	harmonic_power_db(fundamental_power(t), bins, n, h->db);
 	harmonic_reader_update(h->reader, h->db, bins_re_im, n, fs / n, h->fundamental_frequency, h->fundamental_valid,
 						   fundamental_average_fraction(t), fundamental_hop_seconds(t));
@@ -252,7 +248,7 @@ static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 // loudest bin in each column, or the level between bins where a column
 // holds none
 static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t bins) {
-	const float *db = h->live_db;
+	const float *db = fundamental_magnitude_db(h->tracker);
 	int w = h->plot_rect.w;
 	float floor_db = (float)h->config.min_db - 10.0f;   // off the bottom of the plot
 	for (int i = 0; i < w; i++) {
