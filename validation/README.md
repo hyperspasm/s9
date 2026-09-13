@@ -14,7 +14,9 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 ## Package (`src/s9/`)
 
 - `window.py` — s9's window functions (`src/window_function.c`), including the skew warp and the float32 normalization, reproduced to the bit so that goldens computed on windowed signals apply to the C.
-- `signals.py` — deterministic float32 test signals: sines, band-limited sawtooth and square, twin tones, xorshift noise, silence. The C tests generate the same samples from the same parameters.
+- `signals.py` — deterministic float32 test signals: sines, band-limited sawtooth and square, twin tones, xorshift noise, silence, and the sum of a table of partials. The C tests generate the same samples from the same parameters.
+- `recipes.py` — partial tables that trouble a fundamental estimator: a vowel with a weak fundamental and formants, the same with harmonics missing or only the odd ones, a sub-oscillator's real subharmonic series, aliases folded about another rate, mains hum, a stretched string, a detuned unison.
+- `harmonic_series.py` — the fundamental of the harmonic series in a spectrum: prominent partials refined less the window's bias, the largest frequency of which every strong partial is a multiple, a sub-multiple only when the weaker partials fill its extra slots and carry power, a weighted least squares of f_k = k f0, with harmonicity, the partial count, and an uncertainty.
 - `period.py` — the normalized autocorrelation of a windowed frame from its spectrum, the period as the first peak within a tolerance of the highest with parabolic refinement, and the conditioner that turns per-frame estimates into a fundamental with a validity: gate, clarity hysteresis, hold, octave guard, smoothing, dead band.
 - `pll.py` — a phase-locked loop over the times of a periodic event: a clock with a period and a phase that follows measured times by one time constant, critically damped, re-seating on a slip.
 - `harmonics.py` — per-harmonic readouts from a spectrum: the peak nearest each harmonic when it stands a prominence above the floor beside it, its level refined by a parabola less the window's bias, its phase relative to the fundamental, and the distortion the harmonics add up to.
@@ -26,9 +28,17 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 python validation/scripts/emit_period_golden.py
 python validation/scripts/emit_harmonics_golden.py
 python validation/scripts/emit_pll_golden.py
+python validation/scripts/emit_harmonic_series_golden.py
 ```
 
 Each writes a header under `test/golden/`. Regenerate and commit when an algorithm or its cases change.
+
+```sh
+# Measure the harmonic series estimator against what each signal should give
+python validation/scripts/measure_harmonic_series.py [--quiet] [--vectors DIR]
+```
+
+Synthetic signals from the recipes at fundamentals across the range, with promises (within so many cents, the right octave, a real subharmonic series taken, an unsteady signal flagged) that fail the run, and limits that are only reported; with `--vectors`, a directory of WAV files whose `manifest.csv` names each file's fundamental in columns `file` and `f0_hz`, at four positions in each. Recordings are not kept in the repository.
 
 ```sh
 # Measure how the readout rules behave on noise, to choose their defaults

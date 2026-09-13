@@ -1,15 +1,16 @@
 """Deterministic float32 test signals, as the C tests generate them.
 
 Samples are computed in double and rounded once to float32. Additive shapes
-sum their harmonics in double before rounding. Noise comes from xorshift32
+sum their harmonics in double before rounding, and a table of partials
+(recipes.py makes them) is summed the same way. Noise comes from xorshift32
 so both sides produce the same samples from the same seed.
 """
 import math
 
 import numpy as np
 
-SINE, SAWTOOTH, SQUARE, TWIN, NOISE, SILENCE = range(6)
-KIND_NAMES = ["sine", "sawtooth", "square", "twin", "noise", "silence"]
+SINE, SAWTOOTH, SQUARE, TWIN, NOISE, SILENCE, PARTIALS = range(7)
+KIND_NAMES = ["sine", "sawtooth", "square", "twin", "noise", "silence", "partials"]
 
 
 def sine(n, fs, freq, amp=1.0, phase=0.0):
@@ -57,7 +58,17 @@ def silence(n):
     return np.zeros(n, dtype=np.float32)
 
 
-def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10, seed=1, noise_amp=0.0):
+def partials(n, fs, table, amp=1.0):
+    """The sum of a table of (frequency, amplitude, phase) partials, times amp: with a
+    table of unit RMS, as recipes.py makes them, amp is the signal's RMS."""
+    t = np.arange(n, dtype=np.float64) / fs
+    x = np.zeros(n, dtype=np.float64)
+    for f, a, p in table:
+        x += (amp * a) * np.sin(2.0 * math.pi * f * t + p)
+    return x.astype(np.float32)
+
+
+def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10, seed=1, noise_amp=0.0, table=None):
     """A signal of the kind, with noise of amplitude noise_amp from seed added
     when that is positive: each part rounded to float32, then their sum."""
     if kind == SINE:
@@ -72,6 +83,8 @@ def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10,
         x = noise(n, seed, amp)
     elif kind == SILENCE:
         x = silence(n)
+    elif kind == PARTIALS:
+        x = partials(n, fs, table, amp)
     else:
         raise ValueError(kind)
     if noise_amp > 0.0:
