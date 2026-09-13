@@ -41,14 +41,21 @@ The web interface at `/` is [www/app.js](www/app.js): a control for every parame
 
 ### Dependencies
 
-**macOS:**
-```bash
-brew install sdl2 sdl2_ttf fftw libwebsockets
-```
+The build needs a C compiler, CMake, pkg-config, and four libraries: SDL2, SDL2_ttf, FFTW (single precision), and libwebsockets. pn's protobuf sources are committed, so nothing generates code at build time. The pn submodule must be checked out.
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt install libsdl2-dev libsdl2-ttf-dev libfftw3-dev libwebsockets-dev
+sudo apt install build-essential cmake pkg-config git libsdl2-dev libsdl2-ttf-dev libfftw3-dev libwebsockets-dev
+```
+
+**macOS:**
+```bash
+brew install cmake pkg-config sdl2 sdl2_ttf fftw libwebsockets
+```
+
+**After cloning:**
+```bash
+git submodule update --init
 ```
 
 ### Compile
@@ -58,6 +65,24 @@ mkdir build && cd build
 cmake ..
 make
 ```
+
+### Test
+
+```bash
+ctest --test-dir build
+```
+
+The C tests need nothing beyond the build. Two tests use more when it is there and are skipped otherwise: the JavaScript pn client's tests run under Node (`apt install nodejs` or `brew install node`), and the websocket hub's test drives it from pn's Python package, which lives in a venv (below).
+
+### Python tooling
+
+Three parts of the tree are Python, each with its own venv made by its own script; none is needed to build or run s9:
+
+- [pn/python](pn/python), the pn implementation in Python with the `pn-manifest` tool and the hub test: `pn/make_venv.sh`.
+- [python](python), the Stream Deck controller: `python/make_venv.sh`.
+- [validation](validation), the numeric oracle that generates the golden tables the DSP tests check against: `validation/make_venv.sh`.
+
+They need `python3-venv` (`apt install python3-venv`; Homebrew's Python includes it). A venv is bound to the Python that made it, so after a Python upgrade delete it and run its script again.
 
 ### Xcode (macOS)
 
