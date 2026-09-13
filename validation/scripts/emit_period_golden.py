@@ -73,7 +73,7 @@ PICK_CASES = [
 # frames of 1/60 s; a hold of 0.0625 s is three of them, exhausted by the
 # fourth; the smoothing time constant is the one that moves halfway per frame
 TRACE_DT = 1.0 / 60.0
-COND = period.ConditionerConfig(gate_rms=0.01, clarity_on=0.9, clarity_off=0.8, hold_s=0.0625,
+COND = period.ConditionerConfig(gate_rms=0.01, harmonicity_on=0.9, harmonicity_off=0.8, hold_s=0.0625,
                                octave_tolerance_cents=30.0, smoothing_s=TRACE_DT / math.log(2.0), deadband_cents=5.0)
 TRACES = [
     ("gate_and_hysteresis", [
@@ -207,20 +207,20 @@ def main():
     # conditioner
     parts.append("/* Conditioner traces: the outputs frame by frame for a configuration, frames PERIOD_GOLDEN_TRACE_DT seconds apart */")
     parts.append("#define PERIOD_GOLDEN_TRACE_DT %s" % c_double(TRACE_DT))
-    parts.append("typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;")
+    parts.append("typedef struct { double gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;")
     parts.append("static const period_golden_conditioner_config_t period_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s };"
-                 % (c_double(COND.gate_rms), c_double(COND.clarity_on), c_double(COND.clarity_off), c_double(COND.hold_s),
+                 % (c_double(COND.gate_rms), c_double(COND.harmonicity_on), c_double(COND.harmonicity_off), c_double(COND.hold_s),
                     c_double(COND.octave_tolerance_cents), c_double(COND.smoothing_s), c_double(COND.deadband_cents)))
-    parts.append("typedef struct { double period, clarity, rms; int valid; double frequency; } period_golden_step_t;")
+    parts.append("typedef struct { double period, harmonicity, rms; int valid; double frequency; } period_golden_step_t;")
     parts.append("typedef struct { const char *label; const period_golden_step_t *steps; unsigned count; } period_golden_trace_t;")
     rows = []
     for label, steps in TRACES:
         cond = period.Conditioner(COND)
         lines = []
-        for step_period, clarity, rms in steps:
-            valid, freq = cond.update(step_period, clarity, rms, FS, TRACE_DT)
-            lines.append("\t{ %s, %s, %s, %d, %s }," % (c_double(step_period), c_double(clarity), c_double(rms), 1 if valid else 0, c_double(freq)))
-            print(f"  trace {label:<24} in ({step_period:6.1f}, {clarity:.2f}, {rms:.3f}) -> valid {int(valid)} freq {freq:9.4f}", file=sys.stderr)
+        for step_period, harmonicity, rms in steps:
+            valid, freq = cond.update(step_period, harmonicity, rms, FS, TRACE_DT)
+            lines.append("\t{ %s, %s, %s, %d, %s }," % (c_double(step_period), c_double(harmonicity), c_double(rms), 1 if valid else 0, c_double(freq)))
+            print(f"  trace {label:<24} in ({step_period:6.1f}, {harmonicity:.2f}, {rms:.3f}) -> valid {int(valid)} freq {freq:9.4f}", file=sys.stderr)
         parts.append("static const period_golden_step_t period_golden_trace_%s[] = {\n%s\n};" % (label, "\n".join(lines)))
         rows.append("\t{ %s, period_golden_trace_%s, %d }," % (c_string(label), label, len(steps)))
     parts.append("static const period_golden_trace_t period_golden_traces[] = {\n" + "\n".join(rows) + "\n};")

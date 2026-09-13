@@ -5,9 +5,6 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define PEAK_TOLERANCE 0.02f    // how far below the highest autocorrelation peak an earlier one may be
-                                // and still be the period
-
 struct fundamental {
 	fundamental_config_t config;
 	int config_changed;              // applied at the next update
@@ -15,11 +12,16 @@ struct fundamental {
 
 	fft_analyzer_t *analyzer;
 	period_conditioner_t *conditioner;
-	uint32_t buffer_len;             // the transform length nacf is sized for
-	float *nacf;
+	uint32_t buffer_len;             // the transform length db and the scratch are sized for
+	float *db;                       // the latest spectrum's magnitudes
+	void *scratch;                   // the estimator's
+	harmonic_window_t model;         // of the transform's window
+	uint32_t model_len;              // the transform length the model is for; 0 before any
+	window_function_t model_function;
 
 	bool valid;
 	float frequency;
+	harmonic_series_t estimate;      // the last update's
 };
 
 // the longest power of two of samples within the window
@@ -82,7 +84,8 @@ void fundamental_free(fundamental_t **t) {
 	if (t && *t) {
 		fft_analyzer_free(&(*t)->analyzer);
 		free((*t)->conditioner);
-		free((*t)->nacf);
+		free((*t)->db);
+		free((*t)->scratch);
 		free(*t);
 		*t = NULL;
 	}
@@ -90,6 +93,9 @@ void fundamental_free(fundamental_t **t) {
 
 bool fundamental_valid(const fundamental_t *t) { return t->valid; }
 float fundamental_frequency(const fundamental_t *t) { return t->frequency; }
+float fundamental_harmonicity(const fundamental_t *t) { return t->estimate.harmonicity; }
+uint32_t fundamental_partials(const fundamental_t *t) { return t->estimate.count; }
+float fundamental_uncertainty_cents(const fundamental_t *t) { return t->estimate.uncertainty_cents; }
 
 int fundamental_streaming(const fundamental_t *t) { return fft_analyzer_streaming(t->analyzer); }
 uint32_t fundamental_fft_len(const fundamental_t *t) { return fft_analyzer_fft_len(t->analyzer); }
@@ -113,6 +119,7 @@ void fundamental_prepare_to_stream(fundamental_t *t, const s9_audio_stream_confi
 	period_conditioner_reset(t->conditioner);
 	t->valid = false;
 	t->frequency = 0.0f;
+	t->estimate = (harmonic_series_t){ 0.0f, 0.0f, 0, 0.0f };
 }
 
 void fundamental_stop_streaming(fundamental_t *t) {
@@ -132,26 +139,28 @@ void fundamental_update(fundamental_t *t) {
 	fft_analyzer_update(fa);
 	if (!fft_analyzer_streaming(fa)) return;   // a failed reconfiguration ends the stream
 
-	uint32_t n = fft_analyzer_fft_len(fa);
+	uint32_t n = fft_analyzer_fft_len(fa), bins = n / 2 + 1;
 	float fs = (float)fft_analyzer_sample_rate(fa);
 	if (t->buffer_len != n) {
-		free(t->nacf);
-		t->nacf = malloc(sizeof(float) * n);
-		t->buffer_len = t->nacf ? n : 0;
-		CHECK_ALLOC(t->nacf, return);
+		free(t->db); free(t->scratch);
+		t->db = malloc(sizeof(float) * bins);
+		t->scratch = malloc(harmonic_series_scratch_size(bins));
+		t->buffer_len = t->db && t->scratch ? n : 0;
+		CHECK_ALLOC(t->db, return);
+		CHECK_ALLOC(t->scratch, return);
+	}
+	// the estimator's model of the window follows the transform's
+	window_function_t function = fft_analyzer_config(fa)->window_function;
+	if (t->model_len != n || t->model_function != function) {
+		harmonic_window_compute(&t->model, fft_analyzer_window(fa), n);
+		t->model_len = n;
+		t->model_function = function;
 	}
 
-	// the period lies between the lags of f_max and f_min
-	uint32_t lag_min = (uint32_t)floorf(fs / t->config.f_max);
-	uint32_t lag_max = (uint32_t)ceilf(fs / t->config.f_min);
-	if (lag_min < 2) lag_min = 2;
-	if (lag_max > n - 2) lag_max = n - 2;
-	uint32_t lags = lag_max + 2;
-
-	period_estimate_t e = { 0.0f, 0.0f };
-	if (fft_analyzer_nacf(fa, 0, t->nacf, lags) == 0)
-		e = period_estimate(t->nacf, lags, lag_min, lag_max, PEAK_TOLERANCE);
+	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), bins, n, t->db);
+	t->estimate = harmonic_series_estimate(t->db, bins, fs / n, &t->model, &t->config.series, t->scratch);
+	float period = t->estimate.f0 > 0.0f ? fs / t->estimate.f0 : 0.0f;
 	float rms = fft_analyzer_rms(fa, 0);
 	float dt = fft_analyzer_hop_seconds(fa);
-	t->valid = period_conditioner_update(t->conditioner, e.period, e.clarity, rms, fs, dt, &t->frequency);
+	t->valid = period_conditioner_update(t->conditioner, period, t->estimate.harmonicity, rms, fs, dt, &t->frequency);
 }

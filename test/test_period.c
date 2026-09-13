@@ -66,7 +66,7 @@ TEST picks_match_golden(void) {
 TEST conditioner_traces_match_golden(void) {
 	const period_golden_conditioner_config_t *c = &period_golden_conditioner_config;
 	period_conditioner_config_t config = {
-		.gate_rms = (float)c->gate_rms, .clarity_on = (float)c->clarity_on, .clarity_off = (float)c->clarity_off,
+		.gate_rms = (float)c->gate_rms, .harmonicity_on = (float)c->harmonicity_on, .harmonicity_off = (float)c->harmonicity_off,
 		.hold_s = (float)c->hold_s, .octave_tolerance_cents = (float)c->octave_tolerance_cents,
 		.smoothing_s = (float)c->smoothing_s, .deadband_cents = (float)c->deadband_cents,
 	};
@@ -77,7 +77,7 @@ TEST conditioner_traces_match_golden(void) {
 		for (unsigned k = 0; k < trace->count; k++) {
 			const period_golden_step_t *step = &trace->steps[k];
 			float frequency;
-			int valid = period_conditioner_update(pc, (float)step->period, (float)step->clarity, (float)step->rms,
+			int valid = period_conditioner_update(pc, (float)step->period, (float)step->harmonicity, (float)step->rms,
 												 PERIOD_GOLDEN_FS, (float)PERIOD_GOLDEN_TRACE_DT, &frequency);
 			ASSERT_EQm(trace->label, step->valid, valid);
 			ASSERT_IN_RANGEm(trace->label, step->frequency, (double)frequency, step->frequency * 1e-5 + 1e-6);

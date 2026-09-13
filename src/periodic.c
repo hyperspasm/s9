@@ -178,7 +178,7 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 	note_t note;
 	bool have_note = periodic_note(p, &note);
 	bool valid = fundamental_valid(p->tracker);
-	float f_min = p->config.tracker.f_min, f_max = p->config.tracker.f_max, a4 = p->config.note.a4;
+	float f_min = p->config.tracker.series.f_min, f_max = p->config.tracker.series.f_max, a4 = p->config.note.a4;
 	float low = 0.0f, high = 0.0f;
 	if (f_min > 0.0f && f_max > f_min) {
 		note_t lowest = note_from_frequency(f_min, a4), highest = note_from_frequency(f_max, a4);

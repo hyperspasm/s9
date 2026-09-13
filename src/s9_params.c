@@ -64,11 +64,11 @@ static float get_fundamental_midi(void *ctx) { note_t note; return periodic_note
 
 PERIODIC_FLOAT(fundamental_window, tracker.window_s)
 PERIODIC_FLOAT(fundamental_averaging, tracker.averaging_s)
-PERIODIC_FLOAT(fundamental_f_min, tracker.f_min)
-PERIODIC_FLOAT(fundamental_f_max, tracker.f_max)
+PERIODIC_FLOAT(fundamental_f_min, tracker.series.f_min)
+PERIODIC_FLOAT(fundamental_f_max, tracker.series.f_max)
 PERIODIC_FLOAT(fundamental_gate_rms, tracker.conditioner.gate_rms)
-PERIODIC_FLOAT(fundamental_clarity_on, tracker.conditioner.clarity_on)
-PERIODIC_FLOAT(fundamental_clarity_off, tracker.conditioner.clarity_off)
+PERIODIC_FLOAT(fundamental_harmonicity_on, tracker.conditioner.harmonicity_on)
+PERIODIC_FLOAT(fundamental_harmonicity_off, tracker.conditioner.harmonicity_off)
 PERIODIC_FLOAT(fundamental_hold, tracker.conditioner.hold_s)
 PERIODIC_FLOAT(fundamental_octave_tolerance, tracker.conditioner.octave_tolerance_cents)
 PERIODIC_FLOAT(fundamental_smoothing, tracker.conditioner.smoothing_s)
@@ -113,8 +113,8 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	fundamental[6]  = pn_float("f_min",           periodic, PN_FN(set_fundamental_f_min),            PN_FN(get_fundamental_f_min),            10.0f, 1000.0f, 0);
 	fundamental[7]  = pn_float("f_max",           periodic, PN_FN(set_fundamental_f_max),            PN_FN(get_fundamental_f_max),            100.0f, 10000.0f, 0);
 	fundamental[8]  = pn_float("gate_rms",        periodic, PN_FN(set_fundamental_gate_rms),         PN_FN(get_fundamental_gate_rms),         0.0f, 1.0f, 0);
-	fundamental[9]  = pn_float("clarity_on",      periodic, PN_FN(set_fundamental_clarity_on),       PN_FN(get_fundamental_clarity_on),       0.0f, 1.0f, 0);
-	fundamental[10]  = pn_float("clarity_off",     periodic, PN_FN(set_fundamental_clarity_off),      PN_FN(get_fundamental_clarity_off),      0.0f, 1.0f, 0);
+	fundamental[9]  = pn_float("harmonicity_on", periodic, PN_FN(set_fundamental_harmonicity_on), PN_FN(get_fundamental_harmonicity_on),       0.0f, 1.0f, 0);
+	fundamental[10]  = pn_float("harmonicity_off", periodic, PN_FN(set_fundamental_harmonicity_off), PN_FN(get_fundamental_harmonicity_off),      0.0f, 1.0f, 0);
 	fundamental[11] = pn_float("hold",            periodic, PN_FN(set_fundamental_hold),             PN_FN(get_fundamental_hold),             0.0f, 2.0f, 0);
 	fundamental[12] = pn_float("octave_tolerance", periodic, PN_FN(set_fundamental_octave_tolerance), PN_FN(get_fundamental_octave_tolerance), 0.0f, 200.0f, 0);
 	fundamental[13] = pn_float("smoothing",       periodic, PN_FN(set_fundamental_smoothing),        PN_FN(get_fundamental_smoothing),        0.0f, 5.0f, 0);

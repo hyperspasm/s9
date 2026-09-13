@@ -137,6 +137,8 @@ add_test(NAME note COMMAND test_note)
 
 add_executable(test_fundamental test_fundamental.c
     ${CMAKE_SOURCE_DIR}/src/fundamental.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/period.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
@@ -175,6 +177,7 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/note_strip.c
     ${CMAKE_SOURCE_DIR}/src/tuner_strip.c
     ${CMAKE_SOURCE_DIR}/src/fundamental.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/period.c

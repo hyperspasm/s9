@@ -35,14 +35,18 @@ static double cents_from(double f, double reference) {
 	return 1200.0 * log2(f / reference);
 }
 
-// A steady sawtooth is tracked within the dead band.
+// A steady sawtooth is tracked within a twentieth of a cent, with all its
+// harmonics on the series.
 TEST tracks_a_sawtooth(void) {
 	fundamental_t *t = streaming(NULL);
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
 	unsigned offset = 0;
 	for (int i = 0; i < 120; i++) frame(t, &saw, &offset);
 	ASSERT(fundamental_valid(t));
-	ASSERT_IN_RANGE(0.0, cents_from(fundamental_frequency(t), 220.0), 5.0);
+	ASSERT_IN_RANGE(0.0, cents_from(fundamental_frequency(t), 220.0), 0.05);
+	ASSERT_EQ(10u, fundamental_partials(t));
+	ASSERT(fundamental_harmonicity(t) > 0.99f);
+	ASSERT(fundamental_uncertainty_cents(t) < 0.01f);
 	fundamental_free(&t);
 	PASS();
 }
@@ -86,7 +90,7 @@ TEST reconfigures_while_streaming(void) {
 	fundamental_set_config(t, &c);
 	for (int i = 0; i < 90; i++) frame(t, &saw, &offset);
 	ASSERT(fundamental_valid(t));
-	ASSERT_IN_RANGE(0.0, cents_from(fundamental_frequency(t), 110.0), 5.0);
+	ASSERT_IN_RANGE(0.0, cents_from(fundamental_frequency(t), 110.0), 1.0);
 	fundamental_free(&t);
 	PASS();
 }

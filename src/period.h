@@ -27,8 +27,8 @@ period_estimate_t period_estimate(const float *nacf, uint32_t n, uint32_t lag_mi
 
 typedef struct {
 	float gate_rms;                // frames quieter than this have no fundamental
-	float clarity_on;              // clarity needed to become valid
-	float clarity_off;             // clarity needed to stay valid
+	float harmonicity_on;          // harmonicity needed to become valid
+	float harmonicity_off;         // harmonicity needed to stay valid
 	float hold_s;                  // time without a fundamental tolerated before validity ends, and an octave
 	                               // disagreement tolerated before it is followed, seconds
 	float octave_tolerance_cents;  // an estimate this close to double or half the tracked value is
@@ -61,11 +61,11 @@ void period_conditioner_reset(period_conditioner_t *pc);
 // new thresholds from the next update on; the tracked fundamental stays
 void period_conditioner_set_config(period_conditioner_t *pc, const period_conditioner_config_t *config);
 
-// One frame: period in samples (0 when none), its clarity, the frame's
-// RMS, and the audio time since the last frame. Returns whether the
-// fundamental is valid; *frequency receives the reported fundamental in Hz,
-// 0 before the first valid frame.
-int period_conditioner_update(period_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
+// One frame: period in samples (0 when none), the harmonicity of the
+// estimate it came from, 0..1, the frame's RMS, and the audio time since
+// the last frame. Returns whether the fundamental is valid; *frequency
+// receives the reported fundamental in Hz, 0 before the first valid frame.
+int period_conditioner_update(period_conditioner_t *pc, float period, float harmonicity, float rms, float sample_rate,
 							 float dt_s, float *frequency);
 
 #endif /* period_h */

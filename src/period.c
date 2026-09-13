@@ -105,12 +105,12 @@ void period_conditioner_reset(period_conditioner_t *pc) {
 	pc->reported = 0.0;
 }
 
-int period_conditioner_update(period_conditioner_t *pc, float period, float clarity, float rms, float sample_rate,
+int period_conditioner_update(period_conditioner_t *pc, float period, float harmonicity, float rms, float sample_rate,
 							 float dt_s, float *frequency) {
 	const period_conditioner_config_t *cfg = &pc->config;
 	double freq = period > 0.0f ? (double)sample_rate / (double)period : 0.0;
 	int accepted = rms >= cfg->gate_rms && freq > 0.0 &&
-	               ((!pc->valid && clarity >= cfg->clarity_on) || (pc->valid && clarity >= cfg->clarity_off));
+	               ((!pc->valid && harmonicity >= cfg->harmonicity_on) || (pc->valid && harmonicity >= cfg->harmonicity_off));
 
 	if (!accepted) {
 		if (pc->valid) {

@@ -96,11 +96,11 @@ def cents(freq):
 
 
 class ConditionerConfig:
-    def __init__(self, gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents,
+    def __init__(self, gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents,
                  smoothing_s, deadband_cents):
         self.gate_rms = gate_rms                    # frames quieter than this have no fundamental
-        self.clarity_on = clarity_on                # clarity needed to become valid
-        self.clarity_off = clarity_off              # clarity needed to stay valid
+        self.harmonicity_on = harmonicity_on        # harmonicity needed to become valid
+        self.harmonicity_off = harmonicity_off      # harmonicity needed to stay valid
         self.hold_s = hold_s                        # time without a fundamental tolerated before validity ends, and an octave
                                                     # disagreement tolerated before it is followed, seconds
         self.octave_tolerance_cents = octave_tolerance_cents  # an estimate this close to double or half is folded
@@ -110,7 +110,7 @@ class ConditionerConfig:
 
 
 class Conditioner:
-    """Turns per-frame (period, clarity, rms) into (valid, frequency).
+    """Turns per-frame (period, harmonicity, rms) into (valid, frequency).
 
     While valid, the frequency follows the estimates through the smoother and
     the deadband; while invalid, it holds its last value, so a display can
@@ -130,12 +130,12 @@ class Conditioner:
         self.smoothed = None
         self.reported = None
 
-    def update(self, period, clarity, rms, sample_rate, dt):
+    def update(self, period, harmonicity, rms, sample_rate, dt):
         cfg = self.cfg
         freq = sample_rate / period if period > 0.0 else 0.0
         candidate = None
         if rms >= cfg.gate_rms and freq > 0.0:
-            if (not self.valid and clarity >= cfg.clarity_on) or (self.valid and clarity >= cfg.clarity_off):
+            if (not self.valid and harmonicity >= cfg.harmonicity_on) or (self.valid and harmonicity >= cfg.harmonicity_off):
                 candidate = freq
 
         if candidate is None:

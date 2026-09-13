@@ -769,9 +769,9 @@ static const period_golden_pick_t period_golden_picks[] = {
 
 /* Conditioner traces: the outputs frame by frame for a configuration, frames PERIOD_GOLDEN_TRACE_DT seconds apart */
 #define PERIOD_GOLDEN_TRACE_DT 0.016666666666666666
-typedef struct { double gate_rms, clarity_on, clarity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;
+typedef struct { double gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;
 static const period_golden_conditioner_config_t period_golden_conditioner_config = { 0.01, 0.90000000000000002, 0.80000000000000004, 0.0625, 30, 0.02404491734814939, 5 };
-typedef struct { double period, clarity, rms; int valid; double frequency; } period_golden_step_t;
+typedef struct { double period, harmonicity, rms; int valid; double frequency; } period_golden_step_t;
 typedef struct { const char *label; const period_golden_step_t *steps; unsigned count; } period_golden_trace_t;
 static const period_golden_step_t period_golden_trace_gate_and_hysteresis[] = {
 	{ 100, 0.94999999999999996, 0.001, 0, 0 },
