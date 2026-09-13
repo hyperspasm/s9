@@ -16,6 +16,7 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 - `window.py` — s9's window functions (`src/window_function.c`), including the skew warp and the float32 normalization, reproduced to the bit so that goldens computed on windowed signals apply to the C.
 - `signals.py` — deterministic float32 test signals: sines, band-limited sawtooth and square, twin tones, xorshift noise, silence. The C tests generate the same samples from the same parameters.
 - `period.py` — the normalized autocorrelation of a windowed frame from its spectrum, the period as the first peak within a tolerance of the highest with parabolic refinement, and the conditioner that turns per-frame estimates into a fundamental with a validity: gate, clarity hysteresis, hold, octave guard, smoothing, dead band.
+- `pll.py` — a phase-locked loop over the times of a periodic event: a clock with a period and a phase that follows measured times by one time constant, critically damped, re-seating on a slip.
 - `harmonics.py` — per-harmonic readouts from a spectrum: the peak nearest each harmonic when it stands a prominence above the floor beside it, its level refined by a parabola less the window's bias, its phase relative to the fundamental, and the distortion the harmonics add up to.
 
 ## Scripts
@@ -24,6 +25,7 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 # Regenerate the golden tables the C tests validate against
 python validation/scripts/emit_period_golden.py
 python validation/scripts/emit_harmonics_golden.py
+python validation/scripts/emit_pll_golden.py
 ```
 
 Each writes a header under `test/golden/`. Regenerate and commit when an algorithm or its cases change.
