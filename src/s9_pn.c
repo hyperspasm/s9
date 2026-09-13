@@ -20,6 +20,7 @@ struct s9_pn {
 	periodic_t *periodic;
 	bool fundamental_valid;
 	float fundamental_frequency;
+	float fundamental_midi;
 };
 
 // -- manifest text
@@ -146,6 +147,12 @@ static void notify_fundamental(s9_pn_t *pn) {
 	if (frequency != pn->fundamental_frequency) {
 		pn->fundamental_frequency = frequency;
 		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_FREQUENCY]);
+	}
+	note_t note;
+	float midi = periodic_note(pn->periodic, &note) ? note_midi(&note) : 0.0f;
+	if (midi != pn->fundamental_midi) {
+		pn->fundamental_midi = midi;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_MIDI]);
 	}
 }
 

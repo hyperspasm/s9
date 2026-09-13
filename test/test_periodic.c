@@ -50,6 +50,15 @@ static unsigned lit_pixels(void) {
 	return lit;
 }
 
+// lit pixels in the note's band across the top
+static unsigned band_lit_pixels(void) {
+	unsigned lit = 0;
+	const uint32_t *px = surface->pixels;
+	for (int i = 0; i < WIDTH * NOTE_STRIP_HEIGHT; i++)
+		if ((px[i] & 0xffffff00) != 0) lit++;
+	return lit;
+}
+
 // the difference between two angles in degrees, in (-180, 180]
 static double angle_diff(double a, double b) {
 	double d = fmod(a - b, 360.0);
@@ -170,6 +179,35 @@ TEST waveform_view_draws_cycles(void) {
 	PASS();
 }
 
+// The note across the top is read from the fundamental at the reference:
+// a 220 Hz sawtooth is A3, in tune at A4 = 440 Hz, and flat by the cents
+// between 440 and 442 Hz at a reference of 442. There is none before the
+// tracker has locked.
+TEST note_is_read_and_shown(void) {
+	periodic_t *p = streaming();
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
+	unsigned offset = 0;
+	note_t note;
+	frame(p, &saw, &offset);
+	ASSERT_FALSE(periodic_note(p, &note));
+	for (int i = 0; i < 120; i++) frame(p, &saw, &offset);
+	ASSERT(periodic_note(p, &note));
+	ASSERT_EQ(57, note.number);
+	ASSERT_IN_RANGE(0.0, (double)note.cents, 5.0);
+	ASSERT(band_lit_pixels() > 200);
+
+	periodic_config_t c = *periodic_config(p);
+	c.note.a4 = 442.0f;
+	periodic_set_config(p, &c);
+	frame(p, &saw, &offset);
+	note_t at442;
+	ASSERT(periodic_note(p, &at442));
+	ASSERT_EQ(57, at442.number);
+	ASSERT_IN_RANGE(-7.85, (double)(at442.cents - note.cents), 0.1);
+	periodic_free(&p);
+	PASS();
+}
+
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
@@ -192,5 +230,6 @@ int main(int argc, char **argv) {
 	RUN_TEST(reconfigures_while_streaming);
 	RUN_TEST(noise_is_drawn_without_readings);
 	RUN_TEST(waveform_view_draws_cycles);
+	RUN_TEST(note_is_read_and_shown);
 	GREATEST_MAIN_END();
 }

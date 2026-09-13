@@ -52,6 +52,7 @@ static int32_t get_channel(void *ctx) { return channel_to_param(oscilloscope_get
 
 static float get_fundamental_frequency(void *ctx) { return periodic_frequency(ctx); }
 static bool get_fundamental_valid(void *ctx) { return periodic_valid(ctx); }
+static float get_fundamental_midi(void *ctx) { note_t note; return periodic_note(ctx, &note) ? note_midi(&note) : 0.0f; }
 
 #define PERIODIC_FLOAT(param, field) \
 	static void set_##param(void *ctx, float val) { periodic_config_t c = *periodic_config(ctx); c.field = val; periodic_set_config(ctx, &c); } \
@@ -80,6 +81,7 @@ PERIODIC_INT(waveform_cycles, waveform.cycles)
 PERIODIC_FLOAT(waveform_amp_per_div, waveform.amp_per_div)
 PERIODIC_INT(waveform_lock_cycles, waveform.lock_cycles)
 PERIODIC_FLOAT(waveform_lock_time, waveform.lock_time)
+PERIODIC_FLOAT(note_a4, note.a4)
 
 static void set_periodic_channel(void *ctx, int32_t val) { periodic_config_t c = *periodic_config(ctx); c.channel = channel_from_param(val); periodic_set_config(ctx, &c); }
 static int32_t get_periodic_channel(void *ctx) { return channel_to_param(periodic_config(ctx)->channel); }
@@ -104,18 +106,19 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	pn_param_t *fundamental = p->periodic_fundamental_params;
 	fundamental[S9_FUNDAMENTAL_FREQUENCY] = pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0);
 	fundamental[S9_FUNDAMENTAL_VALID]     = pn_bool("valid",      periodic, NULL, PN_FN(get_fundamental_valid));
-	fundamental[2]  = pn_float("window",          periodic, PN_FN(set_fundamental_window),           PN_FN(get_fundamental_window),           0.05f, 2.0f, 0);
-	fundamental[3]  = pn_enum("window_function",  periodic, PN_FN(set_fundamental_window_function),  PN_FN(get_fundamental_window_function),  window_function_names, WINDOW_FUNCTION_COUNT);
-	fundamental[4]  = pn_float("averaging",       periodic, PN_FN(set_fundamental_averaging),        PN_FN(get_fundamental_averaging),        0.0f, 10.0f, 0);
-	fundamental[5]  = pn_float("f_min",           periodic, PN_FN(set_fundamental_f_min),            PN_FN(get_fundamental_f_min),            10.0f, 1000.0f, 0);
-	fundamental[6]  = pn_float("f_max",           periodic, PN_FN(set_fundamental_f_max),            PN_FN(get_fundamental_f_max),            100.0f, 10000.0f, 0);
-	fundamental[7]  = pn_float("gate_rms",        periodic, PN_FN(set_fundamental_gate_rms),         PN_FN(get_fundamental_gate_rms),         0.0f, 1.0f, 0);
-	fundamental[8]  = pn_float("clarity_on",      periodic, PN_FN(set_fundamental_clarity_on),       PN_FN(get_fundamental_clarity_on),       0.0f, 1.0f, 0);
-	fundamental[9]  = pn_float("clarity_off",     periodic, PN_FN(set_fundamental_clarity_off),      PN_FN(get_fundamental_clarity_off),      0.0f, 1.0f, 0);
-	fundamental[10] = pn_float("hold",            periodic, PN_FN(set_fundamental_hold),             PN_FN(get_fundamental_hold),             0.0f, 2.0f, 0);
-	fundamental[11] = pn_float("octave_tolerance", periodic, PN_FN(set_fundamental_octave_tolerance), PN_FN(get_fundamental_octave_tolerance), 0.0f, 200.0f, 0);
-	fundamental[12] = pn_float("smoothing",       periodic, PN_FN(set_fundamental_smoothing),        PN_FN(get_fundamental_smoothing),        0.0f, 5.0f, 0);
-	fundamental[13] = pn_float("deadband",        periodic, PN_FN(set_fundamental_deadband),         PN_FN(get_fundamental_deadband),         0.0f, 100.0f, 0);
+	fundamental[S9_FUNDAMENTAL_MIDI]      = pn_float("midi",      periodic, NULL, PN_FN(get_fundamental_midi), 0.0f, 160.0f, 0);
+	fundamental[3]  = pn_float("window",          periodic, PN_FN(set_fundamental_window),           PN_FN(get_fundamental_window),           0.05f, 2.0f, 0);
+	fundamental[4]  = pn_enum("window_function",  periodic, PN_FN(set_fundamental_window_function),  PN_FN(get_fundamental_window_function),  window_function_names, WINDOW_FUNCTION_COUNT);
+	fundamental[5]  = pn_float("averaging",       periodic, PN_FN(set_fundamental_averaging),        PN_FN(get_fundamental_averaging),        0.0f, 10.0f, 0);
+	fundamental[6]  = pn_float("f_min",           periodic, PN_FN(set_fundamental_f_min),            PN_FN(get_fundamental_f_min),            10.0f, 1000.0f, 0);
+	fundamental[7]  = pn_float("f_max",           periodic, PN_FN(set_fundamental_f_max),            PN_FN(get_fundamental_f_max),            100.0f, 10000.0f, 0);
+	fundamental[8]  = pn_float("gate_rms",        periodic, PN_FN(set_fundamental_gate_rms),         PN_FN(get_fundamental_gate_rms),         0.0f, 1.0f, 0);
+	fundamental[9]  = pn_float("clarity_on",      periodic, PN_FN(set_fundamental_clarity_on),       PN_FN(get_fundamental_clarity_on),       0.0f, 1.0f, 0);
+	fundamental[10]  = pn_float("clarity_off",     periodic, PN_FN(set_fundamental_clarity_off),      PN_FN(get_fundamental_clarity_off),      0.0f, 1.0f, 0);
+	fundamental[11] = pn_float("hold",            periodic, PN_FN(set_fundamental_hold),             PN_FN(get_fundamental_hold),             0.0f, 2.0f, 0);
+	fundamental[12] = pn_float("octave_tolerance", periodic, PN_FN(set_fundamental_octave_tolerance), PN_FN(get_fundamental_octave_tolerance), 0.0f, 200.0f, 0);
+	fundamental[13] = pn_float("smoothing",       periodic, PN_FN(set_fundamental_smoothing),        PN_FN(get_fundamental_smoothing),        0.0f, 5.0f, 0);
+	fundamental[14] = pn_float("deadband",        periodic, PN_FN(set_fundamental_deadband),         PN_FN(get_fundamental_deadband),         0.0f, 100.0f, 0);
 
 	pn_param_t *harm = p->periodic_harmonics_params;
 	harm[0] = pn_int("harmonics",        periodic, PN_FN(set_harm_harmonics),    PN_FN(get_harm_harmonics),    1, HARMONIC_MAX, 1);
@@ -129,11 +132,15 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	wave[2] = pn_int("lock_cycles",    periodic, PN_FN(set_waveform_lock_cycles), PN_FN(get_waveform_lock_cycles), 1, 16, 1);
 	wave[3] = pn_float("lock_time",    periodic, PN_FN(set_waveform_lock_time),   PN_FN(get_waveform_lock_time),   0.0f, 5.0f, 0);
 
+	pn_param_t *note = p->periodic_note_params;
+	note[0] = pn_float("a4", periodic, PN_FN(set_note_a4), PN_FN(get_note_a4), 400.0f, 480.0f, 0);
+
 	p->periodic_params[0] = pn_int("channel", periodic, PN_FN(set_periodic_channel), PN_FN(get_periodic_channel), -1, 31, 1);
 	p->periodic_params[1] = pn_enum("view",   periodic, PN_FN(set_periodic_view),    PN_FN(get_periodic_view),    periodic_view_names, PERIODIC_VIEW_COUNT);
 	p->periodic_params[2] = pn_group("fundamental", fundamental, S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS);
 	p->periodic_params[3] = pn_group("harmonics", harm, S9_PERIODIC_HARMONICS_NUM_PARAMS);
 	p->periodic_params[4] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
+	p->periodic_params[5] = pn_group("note", note, S9_PERIODIC_NOTE_NUM_PARAMS);
 
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 

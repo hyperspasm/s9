@@ -4,6 +4,7 @@
 #include "draw_sdl.h"
 #include "graph_axis.h"
 #include "harmonic_readout.h"
+#include "label.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -13,14 +14,6 @@
 #define GRAPH_MARGIN 10         // between the graph and the viewport
 #define FONT_SIZE 16
 #define AXIS_HEADROOM 0.5f      // the axis extends this many fundamentals past the last marker
-#define LABEL_TEXT 64
-
-// text drawn from a texture that is remade only when the text changes
-typedef struct {
-	SDL_Texture *texture;
-	int w, h;
-	char text[LABEL_TEXT];
-} label_t;
 
 struct harmonics {
 	harmonics_config_t config;
@@ -84,22 +77,16 @@ static void apply_config(harmonics_t *h) {
 
 // -- lifecycle
 
-static void free_label(label_t *l) {
-	if (l->texture) SDL_DestroyTexture(l->texture);
-	l->texture = NULL;
-	l->text[0] = '\0';
-}
-
 static void free_drawing(harmonics_t *h) {
 	if (h->graticule) { SDL_DestroyTexture(h->graticule); h->graticule = NULL; }
 	free(h->plot); h->plot = NULL;
 	free(h->points); h->points = NULL;
 	for (int i = 0; i < HARMONIC_MAX; i++) {
-		free_label(&h->readouts[i]);
-		free_label(&h->degrees[i]);
-		free_label(&h->numbers[i]);
+		label_free(&h->readouts[i]);
+		label_free(&h->degrees[i]);
+		label_free(&h->numbers[i]);
 	}
-	free_label(&h->header);
+	label_free(&h->header);
 	if (h->font) { TTF_CloseFont(h->font); h->font = NULL; }
 	h->renderer = NULL;
 }
@@ -204,32 +191,18 @@ static int analyze(harmonics_t *h) {
 
 // -- drawing
 
-static void label_set(label_t *l, SDL_Renderer *renderer, TTF_Font *font, SDL_Color color, const char *text) {
-	if (strcmp(l->text, text) == 0) return;
-	snprintf(l->text, sizeof(l->text), "%s", text);
-	if (!text[0]) {
-		free_label(l);
-		return;
-	}
-	draw_sdl_render_text(renderer, &l->texture, font, &color, text, &l->w, &l->h);
-}
-
-static void label_blit(const label_t *l, SDL_Renderer *renderer, float x, float y, anchor_position_t anchor) {
-	if (l->texture) draw_sdl_blit_texture(renderer, l->texture, x, y, anchor);
-}
-
 // the axes and the frame, into the current render target, sizing the plot
 static void draw_graticule(harmonics_t *h, SDL_Renderer *renderer) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	SDL_RenderClear(renderer);
 
 	graph_db_axis_t axis = db_axis(h);
-	int label_w, label_h;
-	graph_db_axis_measure(&axis, h->font, &label_w, &label_h);
+	int axis_label_w, axis_label_h;
+	graph_db_axis_measure(&axis, h->font, &axis_label_w, &axis_label_h);
 
-	int left = label_w + LABEL_MARGIN + GRAPH_MARGIN;
-	int top = label_h + LABEL_MARGIN + GRAPH_MARGIN;       // the header's line
-	int bottom = label_h + LABEL_MARGIN + GRAPH_MARGIN;    // the harmonic numbers' line
+	int left = axis_label_w + LABEL_MARGIN + GRAPH_MARGIN;
+	int top = axis_label_h + LABEL_MARGIN + GRAPH_MARGIN;       // the header's line
+	int bottom = axis_label_h + LABEL_MARGIN + GRAPH_MARGIN;    // the harmonic numbers' line
 	int right = GRAPH_MARGIN;
 	h->plot_rect = (SDL_Rect){ left, top, h->viewport.w - left - right, h->viewport.h - top - bottom };
 

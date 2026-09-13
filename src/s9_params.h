@@ -8,10 +8,11 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS                7
-#define S9_PERIODIC_NUM_PARAMS             5   // channel, view, and the fundamental, harmonics, and waveform groups
-#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 14
+#define S9_PERIODIC_NUM_PARAMS             6   // channel, view, and the fundamental, harmonics, waveform, and note groups
+#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 15
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
+#define S9_PERIODIC_NOTE_NUM_PARAMS        1
 #define S9_DEBUG_NUM_PARAMS              1
 
 // The root's children, in declared order
@@ -27,6 +28,7 @@ typedef enum {
 typedef enum {
 	S9_FUNDAMENTAL_FREQUENCY,
 	S9_FUNDAMENTAL_VALID,
+	S9_FUNDAMENTAL_MIDI,
 } s9_fundamental_param_t;
 
 typedef struct {
@@ -34,6 +36,7 @@ typedef struct {
 	pn_param_t periodic_fundamental_params[S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS];   // indexed by s9_fundamental_param_t
 	pn_param_t periodic_harmonics_params[S9_PERIODIC_HARMONICS_NUM_PARAMS];
 	pn_param_t periodic_waveform_params[S9_PERIODIC_WAVEFORM_NUM_PARAMS];
+	pn_param_t periodic_note_params[S9_PERIODIC_NOTE_NUM_PARAMS];
 	pn_param_t periodic_params[S9_PERIODIC_NUM_PARAMS];
 	pn_param_t debug_params[S9_DEBUG_NUM_PARAMS];
 	pn_param_t root_children[S9_ROOT_COUNT];  // indexed by s9_root_child_t

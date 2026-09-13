@@ -5,13 +5,16 @@
 #include "fundamental.h"
 #include "harmonics.h"
 #include "oscilloscope.h"
+#include "note.h"
+#include "note_strip.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
 // The analyzer of a periodic signal. It assumes the audio is a steady
-// periodic signal, tracks its fundamental, and shows one view of it at a
-// time: its harmonics, or its waveform with the sweep locked to whole
+// periodic signal, tracks its fundamental, names the note nearest it and
+// how far off it is, and shows one view of the signal at a time under
+// that: its harmonics, or its waveform with the sweep locked to whole
 // cycles of the fundamental. The tracker and the views are its own, and
 // all of them analyze the one channel it is set to.
 
@@ -49,11 +52,15 @@ typedef struct {
 		                              // fresh lock follows the first crossings closely. 0 follows each
 		                              // measurement as it is
 	} waveform;                       // the sweep's length, trigger, and channel are set from the fundamental
+	struct {
+		float a4;                     // Hz, the reference the notes are named from
+		note_strip_config_t strip;    // the note's display, across the top
+	} note;
 } periodic_config_t;
 
 // the defaults: every channel averaged, the harmonics view, a fundamental
-// of 1 kHz until one is tracked, one cycle across the waveform, and the
-// tracker's and the views' own defaults
+// of 1 kHz until one is tracked, one cycle across the waveform, notes named
+// from A4 = 440 Hz, and the tracker's and the views' own defaults
 periodic_config_t periodic_default_config(void);
 
 // create a periodic analyzer; NULL takes the default configuration
@@ -73,6 +80,11 @@ void periodic_set_config(periodic_t *p, const periodic_config_t *config);
 // reported, which holds while invalid and is 0 before the first valid frame.
 bool periodic_valid(const periodic_t *p);
 float periodic_frequency(const periodic_t *p);
+
+// The tracked fundamental as a note at the configured reference. Returns
+// false before the first valid frame; the note holds while the fundamental
+// does.
+bool periodic_note(const periodic_t *p, note_t *note);
 
 // the harmonics view's last readings and distortion, as harmonics.h has them
 const harmonic_reading_t *periodic_readings(const periodic_t *p, uint32_t *count);
