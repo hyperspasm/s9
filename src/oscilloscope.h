@@ -59,9 +59,10 @@ float oscilloscope_get_trig_lock(const oscilloscope_t *osc);
 void oscilloscope_set_trig_lock_cycles(oscilloscope_t *osc, uint32_t cycles);
 uint32_t oscilloscope_get_trig_lock_cycles(const oscilloscope_t *osc);
 // The locked sweeps follow a clock that each measured crossing moves only
-// a fraction of the way, over this time constant in seconds, so what one
-// measurement gets wrong is averaged rather than shown; 0 sweeps from each
-// measurement as it is.
+// a fraction of the way, over this time constant in seconds once the lock
+// has settled, so what one measurement gets wrong is averaged rather than
+// shown; a fresh lock follows its first crossings closely. 0 sweeps from
+// each measurement as it is.
 void oscilloscope_set_trig_lock_time(oscilloscope_t *osc, float seconds);
 float oscilloscope_get_trig_lock_time(const oscilloscope_t *osc);
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel);

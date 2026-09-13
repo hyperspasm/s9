@@ -1,6 +1,7 @@
 // The phase-locked loop, held to the validation oracle's goldens: event
-// trains that jitter, that start off the seeded period, that slip, that
-// skip events, and that are passed straight through.
+// trains that jitter, that start off the seeded period by a little and by
+// a lot, that slip, that change rate, that skip events, and that are
+// passed straight through.
 #include "greatest.h"
 #include "pll.h"
 #include "pll_golden.h"

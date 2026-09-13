@@ -43,9 +43,10 @@ typedef struct {
 		uint32_t lock_cycles;         // of the fundamental over which its phase is measured for each sweep;
 		                              // more narrows what the measurement hears around the fundamental,
 		                              // and delays the sweep by as much
-		float lock_time;              // seconds, the time constant of the clock the sweeps follow; the
-		                              // measured phase moves it only a fraction of the way, so a beating
-		                              // partial's wobble is averaged rather than shown. 0 follows each
+		float lock_time;              // seconds, the time constant of the clock the sweeps follow once it
+		                              // has settled; the measured phase moves it only a fraction of the way,
+		                              // so a beating partial's wobble is averaged rather than shown, while a
+		                              // fresh lock follows the first crossings closely. 0 follows each
 		                              // measurement as it is
 	} waveform;                       // the sweep's length, trigger, and channel are set from the fundamental
 } periodic_config_t;

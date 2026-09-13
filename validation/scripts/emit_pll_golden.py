@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Emit test/golden/pll_golden.h: the loop's outputs observation by
-observation for event trains that jitter, that start off the seeded period,
-that slip, and that are passed straight through.
+observation for event trains that jitter, that start off the seeded period
+by a little and by a lot, that slip, that change rate, that skip events,
+and that are passed straight through.
 
     python validation/scripts/emit_pll_golden.py
 """
@@ -37,6 +38,8 @@ TRACES = [
     # (label, config, seed period, event times)
     ("steady_jitter", pll.Config(300.0, 0.25), 100.0, train(1000.0, 100.0, 60, jitter(7, 60, 6.0))),
     ("period_off",    pll.Config(300.0, 0.25), 105.0, train(1000.0, 100.0, 60)),
+    ("period_far_off", pll.Config(300.0, 0.25), 130.0, train(1000.0, 100.0, 60)),
+    ("new_rate",      pll.Config(300.0, 0.25), 100.0, train(1000.0, 100.0, 30) + train(1000.0 + 29 * 100.0 + 110.0, 110.0, 30)),
     ("slip",          pll.Config(300.0, 0.25), 100.0, train(1000.0, 100.0, 30, jumps={15: 40.0})),
     ("missed_events", pll.Config(300.0, 0.25), 100.0, [1000.0 + k * 100.0 for k in (0, 1, 2, 5, 6, 9, 10, 11)]),
     ("straight_through", pll.Config(0.0, 0.25), 100.0, train(1000.0, 100.0, 12, jitter(3, 12, 6.0))),
