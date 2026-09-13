@@ -129,8 +129,12 @@ int period_conditioner_update(period_conditioner_t *pc, float period, float harm
 			} else {
 				pc->folded_s = 0.0f;
 			}
-			double alpha = cfg->smoothing_s > 0.0f ? 1.0 - exp(-(double)dt_s / cfg->smoothing_s) : 1.0;
-			pc->smoothed += alpha * (c - pc->smoothed);
+			if (fabs(c - pc->smoothed) > cfg->snap_cents) {
+				pc->smoothed = c;
+			} else {
+				double alpha = cfg->smoothing_s > 0.0f ? 1.0 - exp(-(double)dt_s / cfg->smoothing_s) : 1.0;
+				pc->smoothed += alpha * (c - pc->smoothed);
+			}
 		} else {
 			pc->smoothed = c;
 			pc->reported = c;

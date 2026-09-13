@@ -9,7 +9,7 @@
 
 #define S9_OSC_NUM_PARAMS                7
 #define S9_PERIODIC_NUM_PARAMS             6   // channel, view, and the fundamental, harmonics, waveform, and note groups
-#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 15
+#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 16
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
 #define S9_PERIODIC_NOTE_NUM_PARAMS        1

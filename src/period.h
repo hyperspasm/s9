@@ -37,16 +37,19 @@ typedef struct {
 	                               // seconds; the smoothing is done in cents
 	float deadband_cents;          // the reported value moves only when the tracked one differs by
 	                               // more
+	float snap_cents;              // an estimate further than this from the tracked value is a new
+	                               // note and replaces it outright
 } period_conditioner_config_t;
 
 // Turns per-frame estimates into (valid, frequency). While valid, the
 // frequency follows the estimates through the smoother and the deadband;
 // while invalid, it holds its last value, so a display keeps a stable
 // picture. The smoother is a one-pole low-pass with its time constant in
-// seconds, so it averages a vibrato out and glides to a new note however
-// fast the frames come. An estimate an octave from the tracked value is folded onto it,
-// an estimator's slip, for up to the hold time; one that keeps insisting is
-// a new note and is followed. Time is the audio time between updates, so
+// seconds, so it averages a wobble out however fast the frames come; an
+// estimate further than snap_cents from the tracked value is a new note and
+// replaces it outright rather than being glided to. An estimate an octave
+// from the tracked value is folded onto it, an estimator's slip, for up to
+// the hold time; one that keeps insisting is a new note and is followed. Time is the audio time between updates, so
 // the frame rate does not matter. Caller-owned: allocate
 // period_conditioner_alloc_size() bytes, aligned as malloc aligns, and init
 // them.

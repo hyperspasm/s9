@@ -63,6 +63,7 @@ static const fundamental_config_t default_fundamental_config = {
 		.octave_tolerance_cents = 30.0f,
 		.smoothing_s = 0.5f,
 		.deadband_cents = 0.05f,
+		.snap_cents = 50.0f,
 	},
 };
 

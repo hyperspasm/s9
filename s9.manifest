@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=cf7f2f92
+# pn manifest v1 s9 fnv1a32=dbc74f5c
 s9/mode enum full|scope|spectrum|periodic
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -24,6 +24,7 @@ s9/periodic/fundamental/hold float 0x00000000 0x40000000 0x00000000
 s9/periodic/fundamental/octave_tolerance float 0x00000000 0x43480000 0x00000000
 s9/periodic/fundamental/smoothing float 0x00000000 0x40a00000 0x00000000
 s9/periodic/fundamental/deadband float 0x00000000 0x42c80000 0x00000000
+s9/periodic/fundamental/snap float 0x00000000 0x44960000 0x00000000
 s9/periodic/harmonics/harmonics int 1 64 1
 s9/periodic/harmonics/prominence float 0x00000000 0x42700000 0x00000000
 s9/periodic/harmonics/hysteresis float 0x00000000 0x41f00000 0x00000000

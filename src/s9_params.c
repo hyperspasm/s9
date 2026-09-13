@@ -73,6 +73,7 @@ PERIODIC_FLOAT(fundamental_hold, tracker.conditioner.hold_s)
 PERIODIC_FLOAT(fundamental_octave_tolerance, tracker.conditioner.octave_tolerance_cents)
 PERIODIC_FLOAT(fundamental_smoothing, tracker.conditioner.smoothing_s)
 PERIODIC_FLOAT(fundamental_deadband, tracker.conditioner.deadband_cents)
+PERIODIC_FLOAT(fundamental_snap, tracker.conditioner.snap_cents)
 PERIODIC_INT(harm_harmonics, harmonics.reader.harmonics)
 PERIODIC_FLOAT(harm_prominence, harmonics.reader.prominence_db)
 PERIODIC_FLOAT(harm_hysteresis, harmonics.reader.hysteresis_db)
@@ -119,6 +120,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	fundamental[12] = pn_float("octave_tolerance", periodic, PN_FN(set_fundamental_octave_tolerance), PN_FN(get_fundamental_octave_tolerance), 0.0f, 200.0f, 0);
 	fundamental[13] = pn_float("smoothing",       periodic, PN_FN(set_fundamental_smoothing),        PN_FN(get_fundamental_smoothing),        0.0f, 5.0f, 0);
 	fundamental[14] = pn_float("deadband",        periodic, PN_FN(set_fundamental_deadband),         PN_FN(get_fundamental_deadband),         0.0f, 100.0f, 0);
+	fundamental[15] = pn_float("snap",            periodic, PN_FN(set_fundamental_snap),             PN_FN(get_fundamental_snap),             0.0f, 1200.0f, 0);
 
 	pn_param_t *harm = p->periodic_harmonics_params;
 	harm[0] = pn_int("harmonics",        periodic, PN_FN(set_harm_harmonics),    PN_FN(get_harm_harmonics),    1, HARMONIC_MAX, 1);

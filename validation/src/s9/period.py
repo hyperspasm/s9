@@ -97,7 +97,7 @@ def cents(freq):
 
 class ConditionerConfig:
     def __init__(self, gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents,
-                 smoothing_s, deadband_cents):
+                 smoothing_s, deadband_cents, snap_cents):
         self.gate_rms = gate_rms                    # frames quieter than this have no fundamental
         self.harmonicity_on = harmonicity_on        # harmonicity needed to become valid
         self.harmonicity_off = harmonicity_off      # harmonicity needed to stay valid
@@ -107,6 +107,7 @@ class ConditionerConfig:
         self.smoothing_s = smoothing_s              # time constant of the tracked value's move toward the estimates,
                                                     # seconds; the smoothing is done in cents
         self.deadband_cents = deadband_cents        # the reported value moves only when the tracked one differs by more
+        self.snap_cents = snap_cents                # an estimate further than this from the tracked value replaces it outright
 
 
 class Conditioner:
@@ -115,11 +116,13 @@ class Conditioner:
     While valid, the frequency follows the estimates through the smoother and
     the deadband; while invalid, it holds its last value, so a display can
     keep a stable picture. The smoother is a one-pole low-pass with its time
-    constant in seconds, so it averages a vibrato out and glides to a new
-    note however fast the frames come. An estimate an octave from the tracked value is
-    folded onto it, an estimator's slip, for up to the hold time; one that
-    keeps insisting is a new note and is followed. Time is the audio time
-    between updates, so the frame rate does not matter.
+    constant in seconds, so it averages a wobble out however fast the frames
+    come; an estimate further than snap_cents from the tracked value is a new
+    note and replaces it outright rather than being glided to. An estimate an
+    octave from the tracked value is folded onto it, an estimator's slip, for
+    up to the hold time; one that keeps insisting is a new note and is
+    followed. Time is the audio time between updates, so the frame rate does
+    not matter.
     """
 
     def __init__(self, config):
@@ -158,8 +161,11 @@ class Conditioner:
                         c += fold
                 else:
                     self.folded_s = 0.0
-                alpha = 1.0 - math.exp(-dt / cfg.smoothing_s) if cfg.smoothing_s > 0.0 else 1.0
-                self.smoothed += alpha * (c - self.smoothed)
+                if abs(c - self.smoothed) > cfg.snap_cents:
+                    self.smoothed = c
+                else:
+                    alpha = 1.0 - math.exp(-dt / cfg.smoothing_s) if cfg.smoothing_s > 0.0 else 1.0
+                    self.smoothed += alpha * (c - self.smoothed)
             else:
                 self.smoothed = c
                 self.reported = c

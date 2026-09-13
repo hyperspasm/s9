@@ -68,7 +68,7 @@ TEST conditioner_traces_match_golden(void) {
 	period_conditioner_config_t config = {
 		.gate_rms = (float)c->gate_rms, .harmonicity_on = (float)c->harmonicity_on, .harmonicity_off = (float)c->harmonicity_off,
 		.hold_s = (float)c->hold_s, .octave_tolerance_cents = (float)c->octave_tolerance_cents,
-		.smoothing_s = (float)c->smoothing_s, .deadband_cents = (float)c->deadband_cents,
+		.smoothing_s = (float)c->smoothing_s, .deadband_cents = (float)c->deadband_cents, .snap_cents = (float)c->snap_cents,
 	};
 	period_conditioner_t *pc = malloc(period_conditioner_alloc_size());
 	for (unsigned i = 0; i < PERIOD_GOLDEN_TRACE_COUNT; i++) {

@@ -74,7 +74,8 @@ PICK_CASES = [
 # fourth; the smoothing time constant is the one that moves halfway per frame
 TRACE_DT = 1.0 / 60.0
 COND = period.ConditionerConfig(gate_rms=0.01, harmonicity_on=0.9, harmonicity_off=0.8, hold_s=0.0625,
-                               octave_tolerance_cents=30.0, smoothing_s=TRACE_DT / math.log(2.0), deadband_cents=5.0)
+                               octave_tolerance_cents=30.0, smoothing_s=TRACE_DT / math.log(2.0), deadband_cents=5.0,
+                               snap_cents=50.0)
 TRACES = [
     ("gate_and_hysteresis", [
         (100.0, 0.95, 0.001),   # too quiet
@@ -99,33 +100,30 @@ TRACES = [
         (200.0, 0.95, 0.1),     # an octave down: folded 1
         (200.0, 0.95, 0.1),     # folded 2
         (200.0, 0.95, 0.1),     # folded 3
-        (200.0, 0.95, 0.1),     # past the hold: followed
-        (200.0, 0.95, 0.1),
-        (200.0, 0.95, 0.1),
+        (200.0, 0.95, 0.1),     # past the hold: a new note, snapped to
         (200.0, 0.95, 0.1),
         (200.0, 0.95, 0.1),
     ]),
-    ("two_octaves_follow", [
+    ("two_octaves_snap", [
         (100.0, 0.95, 0.1),
-        (400.0, 0.95, 0.1),     # two octaves down: halfway, to an octave from the note
-        (400.0, 0.95, 0.1),     # now an octave away: folded 1
-        (400.0, 0.95, 0.1),     # folded 2
-        (400.0, 0.95, 0.1),     # folded 3
-        (400.0, 0.95, 0.1),     # past the hold: followed
-        (400.0, 0.95, 0.1),
-        (400.0, 0.95, 0.1),
+        (400.0, 0.95, 0.1),     # two octaves down: no octave to fold, a new note, snapped to
         (400.0, 0.95, 0.1),
         (400.0, 0.95, 0.1),
     ]),
     ("smoothing_and_deadband", [
         (100.0, 0.95, 0.1),
-        (99.0, 0.95, 0.1),
+        (99.0, 0.95, 0.1),      # 17 cents away: smoothed toward, halfway each frame
         (99.0, 0.95, 0.1),
         (99.0, 0.95, 0.1),
         (99.0, 0.95, 0.1),
         (99.0, 0.95, 0.1),
         (0.0, 0.0, 0.1),        # no period: holding
         (99.0, 0.95, 0.1),
+    ]),
+    ("snap", [
+        (100.0, 0.95, 0.1),
+        (104.0, 0.95, 0.1),     # 68 cents away: snapped to
+        (104.0, 0.95, 0.1),
     ]),
 ]
 
@@ -207,10 +205,10 @@ def main():
     # conditioner
     parts.append("/* Conditioner traces: the outputs frame by frame for a configuration, frames PERIOD_GOLDEN_TRACE_DT seconds apart */")
     parts.append("#define PERIOD_GOLDEN_TRACE_DT %s" % c_double(TRACE_DT))
-    parts.append("typedef struct { double gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;")
-    parts.append("static const period_golden_conditioner_config_t period_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s };"
+    parts.append("typedef struct { double gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents, snap_cents; } period_golden_conditioner_config_t;")
+    parts.append("static const period_golden_conditioner_config_t period_golden_conditioner_config = { %s, %s, %s, %s, %s, %s, %s, %s };"
                  % (c_double(COND.gate_rms), c_double(COND.harmonicity_on), c_double(COND.harmonicity_off), c_double(COND.hold_s),
-                    c_double(COND.octave_tolerance_cents), c_double(COND.smoothing_s), c_double(COND.deadband_cents)))
+                    c_double(COND.octave_tolerance_cents), c_double(COND.smoothing_s), c_double(COND.deadband_cents), c_double(COND.snap_cents)))
     parts.append("typedef struct { double period, harmonicity, rms; int valid; double frequency; } period_golden_step_t;")
     parts.append("typedef struct { const char *label; const period_golden_step_t *steps; unsigned count; } period_golden_trace_t;")
     rows = []

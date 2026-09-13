@@ -769,8 +769,8 @@ static const period_golden_pick_t period_golden_picks[] = {
 
 /* Conditioner traces: the outputs frame by frame for a configuration, frames PERIOD_GOLDEN_TRACE_DT seconds apart */
 #define PERIOD_GOLDEN_TRACE_DT 0.016666666666666666
-typedef struct { double gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents; } period_golden_conditioner_config_t;
-static const period_golden_conditioner_config_t period_golden_conditioner_config = { 0.01, 0.90000000000000002, 0.80000000000000004, 0.0625, 30, 0.02404491734814939, 5 };
+typedef struct { double gate_rms, harmonicity_on, harmonicity_off, hold_s, octave_tolerance_cents, smoothing_s, deadband_cents, snap_cents; } period_golden_conditioner_config_t;
+static const period_golden_conditioner_config_t period_golden_conditioner_config = { 0.01, 0.90000000000000002, 0.80000000000000004, 0.0625, 30, 0.02404491734814939, 5, 50 };
 typedef struct { double period, harmonicity, rms; int valid; double frequency; } period_golden_step_t;
 typedef struct { const char *label; const period_golden_step_t *steps; unsigned count; } period_golden_trace_t;
 static const period_golden_step_t period_golden_trace_gate_and_hysteresis[] = {
@@ -788,31 +788,23 @@ static const period_golden_step_t period_golden_trace_octave_fold[] = {
 	{ 100, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
 	{ 50, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
 	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
-	{ 52, 0.94999999999999996, 0.10000000000000001, 1, 611.55696633831542 },
-	{ 52, 0.94999999999999996, 0.10000000000000001, 1, 720.17175055569646 },
+	{ 52, 0.94999999999999996, 0.10000000000000001, 1, 848.07692307692355 },
+	{ 52, 0.94999999999999996, 0.10000000000000001, 1, 848.07692307692355 },
 };
 static const period_golden_step_t period_golden_trace_octave_jump_follows[] = {
 	{ 100, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
 	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
 	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
 	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
-	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 311.83409050326765 },
-	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 262.22016885810012 },
-	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 240.4569550526893 },
-	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 230.26236902524474 },
-	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 225.32832127823272 },
+	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
+	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
+	{ 200, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
 };
-static const period_golden_step_t period_golden_trace_two_octaves_follow[] = {
+static const period_golden_step_t period_golden_trace_two_octaves_snap[] = {
 	{ 100, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 220.5 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 155.91704525163371 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 131.11008442904998 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 120.22847752634465 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 115.13118451262237 },
-	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 112.66416063911636 },
+	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 110.25 },
+	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 110.25 },
+	{ 400, 0.94999999999999996, 0.10000000000000001, 1, 110.25 },
 };
 static const period_golden_step_t period_golden_trace_smoothing_and_deadband[] = {
 	{ 100, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
@@ -824,13 +816,19 @@ static const period_golden_step_t period_golden_trace_smoothing_and_deadband[] =
 	{ 0, 0, 0.10000000000000001, 1, 444.89527585739643 },
 	{ 99, 0.94999999999999996, 0.10000000000000001, 1, 444.89527585739643 },
 };
+static const period_golden_step_t period_golden_trace_snap[] = {
+	{ 100, 0.94999999999999996, 0.10000000000000001, 1, 441.00000000000023 },
+	{ 104, 0.94999999999999996, 0.10000000000000001, 1, 424.03846153846177 },
+	{ 104, 0.94999999999999996, 0.10000000000000001, 1, 424.03846153846177 },
+};
 static const period_golden_trace_t period_golden_traces[] = {
 	{ "gate_and_hysteresis", period_golden_trace_gate_and_hysteresis, 9 },
 	{ "octave_fold", period_golden_trace_octave_fold, 5 },
-	{ "octave_jump_follows", period_golden_trace_octave_jump_follows, 9 },
-	{ "two_octaves_follow", period_golden_trace_two_octaves_follow, 10 },
+	{ "octave_jump_follows", period_golden_trace_octave_jump_follows, 7 },
+	{ "two_octaves_snap", period_golden_trace_two_octaves_snap, 4 },
 	{ "smoothing_and_deadband", period_golden_trace_smoothing_and_deadband, 8 },
+	{ "snap", period_golden_trace_snap, 3 },
 };
-#define PERIOD_GOLDEN_TRACE_COUNT 5
+#define PERIOD_GOLDEN_TRACE_COUNT 6
 
 #endif /* S9_TEST_PERIOD_GOLDEN_H */
