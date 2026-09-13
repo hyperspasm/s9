@@ -66,15 +66,15 @@ void tuner_strip_render(tuner_strip_t *t, SDL_Renderer *renderer, const note_t *
 		else snprintf(k->label, sizeof(k->label), "%+d", (int)(i * SPAN_CENTS));
 	}
 
-	// the note and its cents as text, and the marker at the cents
+	// the note and its cents as text, to a tenth, and the marker at the cents
 	char text[32] = "";
 	float marker = -1.0f;
 	if (note) {
 		char name[NOTE_NAME_MAX];
 		note_name(note->number, name, sizeof(name));
-		int cents = (int)lrintf(note->cents);
-		if (cents == 0) snprintf(text, sizeof(text), "%s 0", name);
-		else snprintf(text, sizeof(text), "%s %+d", name, cents);
+		float tenths = roundf(note->cents * 10.0f) / 10.0f;
+		if (tenths == 0.0f) snprintf(text, sizeof(text), "%s 0.0", name);
+		else snprintf(text, sizeof(text), "%s %+.1f", name, tenths);
 		marker = position(note->cents);
 	}
 	strip_render(t->strip, renderer, text, ticks, count, marker, valid);

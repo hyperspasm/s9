@@ -7,9 +7,9 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-// A tuner's strip: a note's name and how many cents off it is, as text,
-// and the cents on a scale of half a semitone either way, ticked and
-// numbered at the ends and at the note. A strip, drawn as strip.h says;
+// A tuner's strip: a note's name and how many cents off it is, to a tenth,
+// as text, and the cents on a scale of half a semitone either way, ticked
+// and numbered at the ends and at the note. A strip, drawn as strip.h says;
 // without a note it shows the scale alone.
 
 typedef struct tuner_strip tuner_strip_t;

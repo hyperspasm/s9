@@ -348,12 +348,12 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	}
 
 	// the fundamental: its level and the distortion while locked and read
-	if (!h->fundamental_valid) snprintf(text, sizeof(text), "%.1f Hz   H1 not found", f0);
-	else if (!h1) snprintf(text, sizeof(text), "%.1f Hz", f0);
+	if (!h->fundamental_valid) snprintf(text, sizeof(text), "%.2f Hz   H1 not found", f0);
+	else if (!h1) snprintf(text, sizeof(text), "%.2f Hz", f0);
 	else {
 		float thd = 0.0f;
 		harmonic_reader_thd(h->reader, &thd);
-		snprintf(text, sizeof(text), "%.1f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * thd);
+		snprintf(text, sizeof(text), "%.2f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * thd);
 	}
 	label_set(&h->header, renderer, h->font, h->fundamental_valid ? h->config.readout_color : h->config.held_color, text);
 	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);

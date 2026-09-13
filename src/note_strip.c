@@ -57,7 +57,7 @@ void note_strip_render(note_strip_t *n, SDL_Renderer *renderer, float low, float
 	char text[32] = "";
 	float marker = -1.0f;
 	if (note) {
-		snprintf(text, sizeof(text), "%.1f Hz", frequency_hz);
+		snprintf(text, sizeof(text), "%.2f Hz", frequency_hz);
 		marker = (note_midi(note) - low) / (high - low);
 		if (marker < 0.0f) marker = 0.0f;
 	}
