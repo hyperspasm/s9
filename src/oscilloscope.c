@@ -19,6 +19,7 @@ typedef struct {
 	float trig_holdoff;   // seconds
 	float trig_lock_hz;   // the component the trigger is locked to, or 0 for the signal's own crossings
 	uint32_t trig_lock_cycles;   // over which its phase is measured
+	float trig_lock_time; // seconds, the time constant of the clock the locked sweeps follow
 	uint32_t channel;     // channel index, or S9_CHANNEL_ALL to sum
 } oscilloscope_settings_t;
 
@@ -31,6 +32,7 @@ static const oscilloscope_settings_t default_settings = {
 	.trig_holdoff = 0.00001f,
 	.trig_lock_hz = 0.0f,
 	.trig_lock_cycles = 2,
+	.trig_lock_time = 0.3f,
 	.channel = S9_CHANNEL_ALL,
 };
 
@@ -444,6 +446,7 @@ static void push_trigger_settings(oscilloscope_t *osc) {
 		.trig_holdoff = osc->settings.trig_holdoff,
 		.trig_frequency = osc->settings.trig_lock_hz,
 		.trig_cycles = osc->settings.trig_lock_cycles,
+		.trig_lock_tc = osc->settings.trig_lock_time,
 		.channel = osc->settings.channel,
 	});
 }
@@ -500,6 +503,15 @@ void oscilloscope_set_trig_lock_cycles(oscilloscope_t *osc, uint32_t cycles) {
 
 uint32_t oscilloscope_get_trig_lock_cycles(const oscilloscope_t *osc) {
 	return osc->settings.trig_lock_cycles;
+}
+
+void oscilloscope_set_trig_lock_time(oscilloscope_t *osc, float seconds) {
+	osc->settings.trig_lock_time = seconds > 0.0f ? seconds : 0.0f;
+	push_trigger_settings(osc);
+}
+
+float oscilloscope_get_trig_lock_time(const oscilloscope_t *osc) {
+	return osc->settings.trig_lock_time;
 }
 
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel) {

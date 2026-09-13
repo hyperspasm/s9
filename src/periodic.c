@@ -21,7 +21,7 @@ periodic_config_t periodic_default_config(void) {
 		.initial_f0 = 1000.0f,
 		.tracker = default_fundamental_config,
 		.harmonics = default_harmonics_config,
-		.waveform = { .display = default_oscilloscope_config, .cycles = 1, .amp_per_div = 0.2f },
+		.waveform = { .display = default_oscilloscope_config, .cycles = 1, .amp_per_div = 0.2f, .lock_cycles = 2, .lock_time = 0.3f },
 	};
 	return c;
 }
@@ -36,6 +36,7 @@ void periodic_set_config(periodic_t *p, const periodic_config_t *config) {
 	if (!(p->config.initial_f0 > 0.0f)) p->config.initial_f0 = periodic_default_config().initial_f0;
 	if (p->config.waveform.cycles < 1) p->config.waveform.cycles = 1;
 	if (p->config.waveform.cycles > PERIODIC_CYCLES_MAX) p->config.waveform.cycles = PERIODIC_CYCLES_MAX;
+	if (p->config.waveform.lock_cycles < 1) p->config.waveform.lock_cycles = 1;
 	p->config_changed = 1;
 }
 
@@ -64,6 +65,8 @@ static void apply_waveform_settings(periodic_t *p) {
 	oscilloscope_set_trig_auto(p->waveform, false);
 	oscilloscope_set_trig_slope(p->waveform, 1);
 	oscilloscope_set_trig_holdoff(p->waveform, 0.0f);
+	oscilloscope_set_trig_lock_cycles(p->waveform, p->config.waveform.lock_cycles);
+	oscilloscope_set_trig_lock_time(p->waveform, p->config.waveform.lock_time);
 }
 
 // hand a changed configuration to the tracker and the views

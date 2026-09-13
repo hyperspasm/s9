@@ -40,6 +40,13 @@ typedef struct {
 		oscilloscope_config_t display;
 		uint32_t cycles;              // of the fundamental across the sweep, at most PERIODIC_CYCLES_MAX
 		float amp_per_div;
+		uint32_t lock_cycles;         // of the fundamental over which its phase is measured for each sweep;
+		                              // more narrows what the measurement hears around the fundamental,
+		                              // and delays the sweep by as much
+		float lock_time;              // seconds, the time constant of the clock the sweeps follow; the
+		                              // measured phase moves it only a fraction of the way, so a beating
+		                              // partial's wobble is averaged rather than shown. 0 follows each
+		                              // measurement as it is
 	} waveform;                       // the sweep's length, trigger, and channel are set from the fundamental
 } periodic_config_t;
 

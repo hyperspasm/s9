@@ -78,6 +78,8 @@ PERIODIC_FLOAT(harm_hysteresis, harmonics.reader.hysteresis_db)
 PERIODIC_FLOAT(harm_readout_hold, harmonics.reader.hold_s)
 PERIODIC_INT(waveform_cycles, waveform.cycles)
 PERIODIC_FLOAT(waveform_amp_per_div, waveform.amp_per_div)
+PERIODIC_INT(waveform_lock_cycles, waveform.lock_cycles)
+PERIODIC_FLOAT(waveform_lock_time, waveform.lock_time)
 
 static void set_periodic_channel(void *ctx, int32_t val) { periodic_config_t c = *periodic_config(ctx); c.channel = channel_from_param(val); periodic_set_config(ctx, &c); }
 static int32_t get_periodic_channel(void *ctx) { return channel_to_param(periodic_config(ctx)->channel); }
@@ -124,6 +126,8 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	pn_param_t *wave = p->periodic_waveform_params;
 	wave[0] = pn_int("cycles",         periodic, PN_FN(set_waveform_cycles),      PN_FN(get_waveform_cycles),      1, 8, 1);
 	wave[1] = pn_float("amp_per_div",  periodic, PN_FN(set_waveform_amp_per_div), PN_FN(get_waveform_amp_per_div), 0.001f, 10.0f, 0);
+	wave[2] = pn_int("lock_cycles",    periodic, PN_FN(set_waveform_lock_cycles), PN_FN(get_waveform_lock_cycles), 1, 16, 1);
+	wave[3] = pn_float("lock_time",    periodic, PN_FN(set_waveform_lock_time),   PN_FN(get_waveform_lock_time),   0.0f, 5.0f, 0);
 
 	p->periodic_params[0] = pn_int("channel", periodic, PN_FN(set_periodic_channel), PN_FN(get_periodic_channel), -1, 31, 1);
 	p->periodic_params[1] = pn_enum("view",   periodic, PN_FN(set_periodic_view),    PN_FN(get_periodic_view),    periodic_view_names, PERIODIC_VIEW_COUNT);

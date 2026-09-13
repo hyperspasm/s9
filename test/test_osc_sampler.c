@@ -812,6 +812,53 @@ static void test_phase_lock(void) {
 	osc_sampler_free(&s);
 }
 
+// A fundamental with a partner a few hertz away, whose beating swings the
+// measured phase, plus a harmonic. Sweeping from each measurement as it
+// is, the spacing between sweeps wanders; following the clock, it holds to
+// the period.
+static float beating(uint32_t n) {
+	double t = (double)n / SAMPLE_RATE;
+	return (float)(sin(2.0 * M_PI * 200.0 * t) + 0.7 * sin(2.0 * M_PI * 206.0 * t + 0.5) + 0.4 * sin(2.0 * M_PI * 600.0 * t + 1.0));
+}
+
+// the widest deviation of the spacing between sweep starts from the period, over 40 sweeps
+static double spacing_deviation(float lock_tc) {
+	osc_sampler_t *s = osc_sampler_new(SAMPLE_RATE, 65536);
+	assert(s != NULL);
+	osc_sampler_set_settings(s, &(osc_sampler_settings_t){
+		.trigger_mode = osc_trig_mode_phase, .trig_slope = 1, .trig_thresh = 0.0f, .trig_holdoff = 0.0f,
+		.trig_frequency = 200.0f, .trig_cycles = 2, .trig_lock_tc = lock_tc, .channel = 0,
+	});
+	float *x = malloc(sizeof(float) * 48000);
+	for (uint32_t n = 0; n < 48000; n++) x[n] = beating(n);
+	assert(osc_sampler_enqueue(s, x, 48000, 1) == 48000);
+
+	float out[100];
+	double worst = 0.0, previous = 0.0;
+	for (int k = 0; k < 40; k++) {
+		int triggered = 0;
+		uint32_t got = osc_sampler_read_pixels(s, out, 100, (float)SAMPLE_RATE, 1.0f, &triggered);
+		assert(triggered && got == 100);
+		double start = osc_sampler_last_trigger(s);
+		if (k > 0) {
+			double deviation = fabs(start - previous - 240.0);
+			if (deviation > worst) worst = deviation;
+		}
+		previous = start;
+		osc_sampler_sweep_complete(s);
+	}
+	free(x);
+	osc_sampler_free(&s);
+	return worst;
+}
+
+static void test_phase_lock_clock(void) {
+	double raw = spacing_deviation(0.0f);
+	double locked = spacing_deviation(0.25f);
+	assert(raw > 1.0);
+	assert(locked < raw / 4.0);
+}
+
 int main(void) {
 	if (SDL_Init(SDL_INIT_TIMER) != 0) {
 		fprintf(stderr, "Unable to initialize SDL: %s\n", SDL_GetError());
@@ -828,6 +875,7 @@ int main(void) {
 
 	// phase-locked trigger
 	RUN_TEST(test_phase_lock);
+	RUN_TEST(test_phase_lock_clock);
 
 	// enqueue
 	RUN_TEST(test_enqueue_mono);

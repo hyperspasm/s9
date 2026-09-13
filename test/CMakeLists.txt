@@ -24,6 +24,7 @@ add_test(NAME ring_buffer COMMAND test_ring_buffer)
 add_executable(test_osc_sampler
     test_osc_sampler.c
     ${CMAKE_SOURCE_DIR}/src/osc_sampler.c
+    ${CMAKE_SOURCE_DIR}/src/pll.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 
@@ -147,6 +148,7 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/periodic.c
     ${CMAKE_SOURCE_DIR}/src/oscilloscope.c
     ${CMAKE_SOURCE_DIR}/src/osc_sampler.c
+    ${CMAKE_SOURCE_DIR}/src/pll.c
     ${CMAKE_SOURCE_DIR}/src/scope_display.c
     ${CMAKE_SOURCE_DIR}/src/graticule.c
     ${CMAKE_SOURCE_DIR}/src/harmonics.c

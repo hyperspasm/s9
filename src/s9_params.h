@@ -11,7 +11,7 @@
 #define S9_PERIODIC_NUM_PARAMS             5   // channel, view, and the fundamental, harmonics, and waveform groups
 #define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 14
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
-#define S9_PERIODIC_WAVEFORM_NUM_PARAMS    2
+#define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
 #define S9_DEBUG_NUM_PARAMS              1
 
 // The root's children, in declared order

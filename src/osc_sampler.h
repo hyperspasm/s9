@@ -16,6 +16,9 @@ typedef struct {
 	float trig_holdoff;       // seconds
 	float trig_frequency;     // Hz, the phase mode's component; a value of 0 or less makes the mode normal
 	uint32_t trig_cycles;     // of that component, over which its phase is measured; at least 1
+	float trig_lock_tc;       // seconds, the time constant of the clock the phase mode's sweeps follow: each
+	                          // measured crossing moves it only a fraction of the way, so single measurements'
+	                          // errors are averaged rather than shown; 0 sweeps from each measurement as it is
 	uint32_t channel;         // channel index to extract, or >= n_channels to sum all
 } osc_sampler_settings_t;
 
@@ -41,5 +44,9 @@ uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t ma
 // Render thread: notify that a sweep has completed
 // Allows sampler to transition trigger state appropriately
 void osc_sampler_sweep_complete(osc_sampler_t *sampler);
+
+// Render thread: where the last sweep started, as a fractional count of
+// samples since the sampler was created
+double osc_sampler_last_trigger(const osc_sampler_t *sampler);
 
 #endif /* osc_sampler_h */
