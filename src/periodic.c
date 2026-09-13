@@ -10,7 +10,8 @@ struct periodic {
 	fundamental_t *tracker;
 	harmonics_t *harmonics;
 	oscilloscope_t *waveform;
-	note_strip_t *strip;
+	note_strip_t *range;
+	tuner_strip_t *tuner;
 	int waveform_fed;                // audio goes to the waveform's sampler only while it is the view:
 	                                 // nothing drains it otherwise, and it would overflow
 };
@@ -23,7 +24,7 @@ periodic_config_t periodic_default_config(void) {
 		.tracker = default_fundamental_config,
 		.harmonics = default_harmonics_config,
 		.waveform = { .display = default_oscilloscope_config, .cycles = 1, .amp_per_div = 0.2f, .lock_cycles = 2, .lock_time = 0.3f },
-		.note = { .a4 = 440.0f, .strip = default_note_strip_config },
+		.note = { .a4 = 440.0f, .range = default_note_strip_config, .tuner = default_tuner_strip_config },
 	};
 	return c;
 }
@@ -81,7 +82,8 @@ static void apply_config(periodic_t *p) {
 	harmonics_config_t hc = harmonics_config_of(p);
 	harmonics_set_config(p->harmonics, &hc);
 	apply_waveform_settings(p);
-	note_strip_set_config(p->strip, &p->config.note.strip);
+	note_strip_set_config(p->range, &p->config.note.range);
+	tuner_strip_set_config(p->tuner, &p->config.note.tuner);
 	p->waveform_fed = p->config.view == PERIODIC_VIEW_WAVEFORM;
 }
 
@@ -101,8 +103,10 @@ periodic_t *periodic_new(const periodic_config_t *config) {
 	CHECK_ALLOC(p->harmonics, periodic_free(&p); return NULL);
 	p->waveform = oscilloscope_new(&p->config.waveform.display);
 	CHECK_ALLOC(p->waveform, periodic_free(&p); return NULL);
-	p->strip = note_strip_new(&p->config.note.strip);
-	CHECK_ALLOC(p->strip, periodic_free(&p); return NULL);
+	p->range = note_strip_new(&p->config.note.range);
+	CHECK_ALLOC(p->range, periodic_free(&p); return NULL);
+	p->tuner = tuner_strip_new(&p->config.note.tuner);
+	CHECK_ALLOC(p->tuner, periodic_free(&p); return NULL);
 	apply_waveform_settings(p);
 	p->waveform_fed = p->config.view == PERIODIC_VIEW_WAVEFORM;
 	return p;
@@ -110,7 +114,8 @@ periodic_t *periodic_new(const periodic_config_t *config) {
 
 void periodic_free(periodic_t **p) {
 	if (p && *p) {
-		note_strip_free(&(*p)->strip);
+		tuner_strip_free(&(*p)->tuner);
+		note_strip_free(&(*p)->range);
 		oscilloscope_free(&(*p)->waveform);
 		harmonics_free(&(*p)->harmonics);
 		fundamental_free(&(*p)->tracker);
@@ -163,16 +168,27 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 	apply_config(p);
 	fundamental_update(p->tracker);
 
-	// the note across the top, the view under it
+	// the note across the top, on the range tracked and then on the tuner's scale; the view under them
 	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);
-	SDL_Rect band = { viewport.x, viewport.y, viewport.w, NOTE_STRIP_HEIGHT };
-	SDL_Rect below = { viewport.x, viewport.y + NOTE_STRIP_HEIGHT, viewport.w, viewport.h - NOTE_STRIP_HEIGHT };
-	if (band.h > viewport.h) band.h = viewport.h;
+	int top = 2 * STRIP_HEIGHT;
+	SDL_Rect range_band = { viewport.x, viewport.y, viewport.w, STRIP_HEIGHT };
+	SDL_Rect tuner_band = { viewport.x, viewport.y + STRIP_HEIGHT, viewport.w, STRIP_HEIGHT };
+	SDL_Rect below = { viewport.x, viewport.y + top, viewport.w, viewport.h - top };
 	note_t note;
 	bool have_note = periodic_note(p, &note);
-	SDL_RenderSetViewport(renderer, &band);
-	note_strip_render(p->strip, renderer, have_note ? &note : NULL, fundamental_valid(p->tracker));
+	bool valid = fundamental_valid(p->tracker);
+	float f_min = p->config.tracker.f_min, f_max = p->config.tracker.f_max, a4 = p->config.note.a4;
+	float low = 0.0f, high = 0.0f;
+	if (f_min > 0.0f && f_max > f_min) {
+		note_t lowest = note_from_frequency(f_min, a4), highest = note_from_frequency(f_max, a4);
+		low = note_midi(&lowest);
+		high = note_midi(&highest);
+	}
+	SDL_RenderSetViewport(renderer, &range_band);
+	note_strip_render(p->range, renderer, low, high, have_note ? &note : NULL, fundamental_frequency(p->tracker), valid);
+	SDL_RenderSetViewport(renderer, &tuner_band);
+	tuner_strip_render(p->tuner, renderer, have_note ? &note : NULL, valid);
 	if (below.h < 2) {
 		SDL_RenderSetViewport(renderer, &viewport);
 		return;

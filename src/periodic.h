@@ -7,16 +7,18 @@
 #include "oscilloscope.h"
 #include "note.h"
 #include "note_strip.h"
+#include "tuner_strip.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
 // The analyzer of a periodic signal. It assumes the audio is a steady
-// periodic signal, tracks its fundamental, names the note nearest it and
-// how far off it is, and shows one view of the signal at a time under
-// that: its harmonics, or its waveform with the sweep locked to whole
-// cycles of the fundamental. The tracker and the views are its own, and
-// all of them analyze the one channel it is set to.
+// periodic signal, tracks its fundamental, and names the note nearest it
+// and how far off it is. Across the top it shows the note on the range it
+// tracks, and its cents on a tuner's scale; under them, one view of the
+// signal at a time: its harmonics, or its waveform with the sweep locked
+// to whole cycles of the fundamental. The tracker, the strips, and the
+// views are its own, and all of them analyze the one channel it is set to.
 
 typedef enum {
 	PERIODIC_VIEW_HARMONICS,
@@ -54,7 +56,8 @@ typedef struct {
 	} waveform;                       // the sweep's length, trigger, and channel are set from the fundamental
 	struct {
 		float a4;                     // Hz, the reference the notes are named from
-		note_strip_config_t strip;    // the note's display, across the top
+		note_strip_config_t range;    // the note on the range tracked, across the top
+		tuner_strip_config_t tuner;   // and its cents on a tuner's scale, under that
 	} note;
 } periodic_config_t;
 

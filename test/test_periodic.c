@@ -50,11 +50,11 @@ static unsigned lit_pixels(void) {
 	return lit;
 }
 
-// lit pixels in the note's band across the top
-static unsigned band_lit_pixels(void) {
+// lit pixels in one of the strips' bands across the top, the first being 0
+static unsigned band_lit_pixels(int band) {
 	unsigned lit = 0;
-	const uint32_t *px = surface->pixels;
-	for (int i = 0; i < WIDTH * NOTE_STRIP_HEIGHT; i++)
+	const uint32_t *px = surface->pixels + band * WIDTH * STRIP_HEIGHT;
+	for (int i = 0; i < WIDTH * STRIP_HEIGHT; i++)
 		if ((px[i] & 0xffffff00) != 0) lit++;
 	return lit;
 }
@@ -179,10 +179,10 @@ TEST waveform_view_draws_cycles(void) {
 	PASS();
 }
 
-// The note across the top is read from the fundamental at the reference:
-// a 220 Hz sawtooth is A3, in tune at A4 = 440 Hz, and flat by the cents
-// between 440 and 442 Hz at a reference of 442. There is none before the
-// tracker has locked.
+// The note is read from the fundamental at the reference and shown across
+// the top, on the range and on the tuner's scale: a 220 Hz sawtooth is A3,
+// in tune at A4 = 440 Hz, and flat by the cents between 440 and 442 Hz at
+// a reference of 442. There is none before the tracker has locked.
 TEST note_is_read_and_shown(void) {
 	periodic_t *p = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
@@ -194,7 +194,8 @@ TEST note_is_read_and_shown(void) {
 	ASSERT(periodic_note(p, &note));
 	ASSERT_EQ(57, note.number);
 	ASSERT_IN_RANGE(0.0, (double)note.cents, 5.0);
-	ASSERT(band_lit_pixels() > 200);
+	ASSERT(band_lit_pixels(0) > 200);
+	ASSERT(band_lit_pixels(1) > 200);
 
 	periodic_config_t c = *periodic_config(p);
 	c.note.a4 = 442.0f;

@@ -158,7 +158,9 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/harmonics.c
     ${CMAKE_SOURCE_DIR}/src/label.c
     ${CMAKE_SOURCE_DIR}/src/note.c
+    ${CMAKE_SOURCE_DIR}/src/strip.c
     ${CMAKE_SOURCE_DIR}/src/note_strip.c
+    ${CMAKE_SOURCE_DIR}/src/tuner_strip.c
     ${CMAKE_SOURCE_DIR}/src/fundamental.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
