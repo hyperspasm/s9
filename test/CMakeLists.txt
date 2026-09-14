@@ -89,17 +89,10 @@ target_include_directories(test_fft_analyzer PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_fft_analyzer PkgConfig::SDL2 PkgConfig::FFTW3F m)
 add_test(NAME fft_analyzer COMMAND test_fft_analyzer)
 
-add_executable(test_period test_period.c
-    ${CMAKE_SOURCE_DIR}/src/period.c
-    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
-    ${CMAKE_SOURCE_DIR}/src/window_function.c
-    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
-    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
-    ${CMAKE_SOURCE_DIR}/src/s9_log.c
-)
-target_include_directories(test_period PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_period PkgConfig::SDL2 PkgConfig::FFTW3F m)
-add_test(NAME period COMMAND test_period)
+add_executable(test_conditioner test_conditioner.c ${CMAKE_SOURCE_DIR}/src/conditioner.c)
+target_include_directories(test_conditioner PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_conditioner m)
+add_test(NAME conditioner COMMAND test_conditioner)
 
 add_executable(test_harmonic_readout test_harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
@@ -139,7 +132,7 @@ add_executable(test_fundamental test_fundamental.c
     ${CMAKE_SOURCE_DIR}/src/fundamental.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
-    ${CMAKE_SOURCE_DIR}/src/period.c
+    ${CMAKE_SOURCE_DIR}/src/conditioner.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
@@ -180,7 +173,7 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
-    ${CMAKE_SOURCE_DIR}/src/period.c
+    ${CMAKE_SOURCE_DIR}/src/conditioner.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/graph_axis.c
     ${CMAKE_SOURCE_DIR}/src/draw_sdl.c

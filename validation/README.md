@@ -17,15 +17,15 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 - `signals.py` — deterministic float32 test signals: sines, band-limited sawtooth and square, twin tones, xorshift noise, silence, and the sum of a table of partials. The C tests generate the same samples from the same parameters.
 - `recipes.py` — partial tables that trouble a fundamental estimator: a vowel with a weak fundamental and formants, the same with harmonics missing or only the odd ones, a sub-oscillator's real subharmonic series, aliases folded about another rate, mains hum, a stretched string, a detuned unison.
 - `harmonic_series.py` — the fundamental of the harmonic series in a spectrum: prominent partials refined less the window's bias, the largest frequency of which every strong partial is a multiple, a sub-multiple only when the weaker partials fill its extra slots and carry power, a weighted least squares of f_k = k f0, with harmonicity, the partial count, and an uncertainty.
-- `period.py` — the normalized autocorrelation of a windowed frame from its spectrum, the period as the first peak within a tolerance of the highest with parabolic refinement, and the conditioner that turns per-frame estimates into a fundamental with a validity: gate, clarity hysteresis, hold, octave guard, smoothing, dead band.
-- `pll.py` — a phase-locked loop over the times of a periodic event: a clock with a period and a phase that follows measured times by one time constant, critically damped, re-seating on a slip.
+- `conditioner.py` — the conditioner that turns per-frame estimates into a fundamental with a validity: gate, harmonicity hysteresis, hold, octave guard, smoothing, dead band, snap to a new note.
+- `pll.py` — a phase-locked loop over the times of a periodic event: a clock with a period and a phase that follows measured times by one time constant, damped to a ratio of 0.7, acquiring quickly while a lock is fresh, re-seating and acquiring again on a slip.
 - `harmonics.py` — per-harmonic readouts from a spectrum: the peak nearest each harmonic when it stands a prominence above the floor beside it, its level refined by a parabola less the window's bias, its phase relative to the fundamental, and the distortion the harmonics add up to.
 
 ## Scripts
 
 ```sh
 # Regenerate the golden tables the C tests validate against
-python validation/scripts/emit_period_golden.py
+python validation/scripts/emit_conditioner_golden.py
 python validation/scripts/emit_harmonics_golden.py
 python validation/scripts/emit_pll_golden.py
 python validation/scripts/emit_harmonic_series_golden.py

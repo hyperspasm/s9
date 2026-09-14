@@ -4,7 +4,7 @@
 #include "s9_dsp.h"
 #include "window_function.h"
 #include "harmonic_series.h"
-#include "period.h"
+#include "conditioner.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,7 +30,7 @@ typedef struct {
 	                                  // latest transform's. The tracking does not use it; readers of the
 	                                  // power do
 	harmonic_series_config_t series;  // the estimator: its f_min and f_max are the fundamentals looked for
-	period_conditioner_config_t conditioner;
+	conditioner_config_t conditioner;
 } fundamental_config_t;
 
 static const fundamental_config_t default_fundamental_config = {

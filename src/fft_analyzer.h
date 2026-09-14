@@ -91,10 +91,4 @@ const float *fft_analyzer_window(const fft_analyzer_t *fa);
 // RMS of the frame behind a transform, before windowing
 float fft_analyzer_rms(const fft_analyzer_t *fa, uint32_t index);
 
-// The normalized autocorrelation of the frame behind a transform at lags
-// 0..lags-1: its autocorrelation over the window's own, scaled to 1 at lag 0,
-// so a periodic frame scores 1 at its period. Computed from the latest
-// spectrum. Returns 0, or -1 when not streaming or lags exceeds fft_len.
-int fft_analyzer_nacf(fft_analyzer_t *fa, uint32_t index, float *nacf, uint32_t lags);
-
 #endif /* fft_analyzer_h */

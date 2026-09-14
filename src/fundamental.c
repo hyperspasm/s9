@@ -11,7 +11,7 @@ struct fundamental {
 	uint32_t sample_rate;            // of the stream; 0 before streaming
 
 	fft_analyzer_t *analyzer;
-	period_conditioner_t *conditioner;
+	conditioner_t *conditioner;
 	uint32_t buffer_len;             // the transform length db and the scratch are sized for
 	float *db;                       // the latest spectrum's magnitudes
 	void *scratch;                   // the estimator's
@@ -59,7 +59,7 @@ static void apply_config(fundamental_t *t) {
 	t->config_changed = 0;
 	fft_analyzer_config_t ac = analyzer_config(t);
 	fft_analyzer_set_config(t->analyzer, &ac);
-	period_conditioner_set_config(t->conditioner, &t->config.conditioner);
+	conditioner_set_config(t->conditioner, &t->config.conditioner);
 }
 
 fundamental_t *fundamental_new(const fundamental_config_t *config) {
@@ -74,9 +74,9 @@ fundamental_t *fundamental_new(const fundamental_config_t *config) {
 	t->analyzer = fft_analyzer_new(&ac);
 	CHECK_ALLOC(t->analyzer, free(t); return NULL);
 
-	t->conditioner = malloc(period_conditioner_alloc_size());
+	t->conditioner = malloc(conditioner_alloc_size());
 	CHECK_ALLOC(t->conditioner, fundamental_free(&t); return NULL);
-	period_conditioner_init(t->conditioner, &t->config.conditioner);
+	conditioner_init(t->conditioner, &t->config.conditioner);
 	return t;
 }
 
@@ -117,7 +117,7 @@ void fundamental_prepare_to_stream(fundamental_t *t, const s9_audio_stream_confi
 	fft_analyzer_config_t ac = analyzer_config(t);
 	fft_analyzer_set_config(t->analyzer, &ac);
 	fft_analyzer_prepare_to_stream(t->analyzer, stream_config);
-	period_conditioner_reset(t->conditioner);
+	conditioner_reset(t->conditioner);
 	t->valid = false;
 	t->frequency = 0.0f;
 	t->estimate = (harmonic_series_t){ 0.0f, 0.0f, 0, 0.0f };
@@ -160,8 +160,7 @@ void fundamental_update(fundamental_t *t) {
 
 	harmonic_magnitude_db(fft_analyzer_spectrum(fa, 0), bins, n, t->db);
 	t->estimate = harmonic_series_estimate(t->db, bins, fs / n, &t->model, &t->config.series, t->scratch);
-	float period = t->estimate.f0 > 0.0f ? fs / t->estimate.f0 : 0.0f;
 	float rms = fft_analyzer_rms(fa, 0);
 	float dt = fft_analyzer_hop_seconds(fa);
-	t->valid = period_conditioner_update(t->conditioner, period, t->estimate.harmonicity, rms, fs, dt, &t->frequency);
+	t->valid = conditioner_update(t->conditioner, t->estimate.f0, t->estimate.harmonicity, rms, dt, &t->frequency);
 }

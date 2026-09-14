@@ -1,9 +1,7 @@
-// The analyzer's transforms and normalized autocorrelation, against the
-// validation oracle's golden and against known signals.
+// The analyzer's transforms, against known signals.
 #include "greatest.h"
 #include "fft_analyzer.h"
 #include "test_signals.h"
-#include "period_golden.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -41,29 +39,6 @@ static void select_channel(fft_analyzer_t *fa, uint32_t channel) {
 	fft_analyzer_config_t config = *fft_analyzer_config(fa);
 	config.channel = channel;
 	fft_analyzer_set_config(fa, &config);
-}
-
-// The normalized autocorrelation of the golden's frame matches the oracle at every lag.
-TEST nacf_matches_golden(void) {
-	const period_golden_signal_t *g = &period_golden_nacf_signal;
-	test_signal_t s = { g->kind, g->freq, g->freq2, g->amp, g->phase, g->harmonics, g->seed, 0 };
-	float *x = malloc(sizeof(float) * PERIOD_GOLDEN_NACF_N);
-	test_signal_generate(&s, x, PERIOD_GOLDEN_NACF_N, FS);
-
-	fft_analyzer_t *fa = make(PERIOD_GOLDEN_NACF_N, FFT_ANALYZER_MIX, 0,
-							  (window_function_t)period_golden_nacf_window.function, (float)period_golden_nacf_window.skew, 1);
-	feed(fa, x, PERIOD_GOLDEN_NACF_N, 1);
-
-	float *nacf = malloc(sizeof(float) * PERIOD_GOLDEN_NACF_LAGS);
-	ASSERT_EQ(0, fft_analyzer_nacf(fa, 0, nacf, PERIOD_GOLDEN_NACF_LAGS));
-	ASSERT_IN_RANGE(1.0f, nacf[0], 1e-6f);
-	for (uint32_t t = 0; t < PERIOD_GOLDEN_NACF_LAGS; t++)
-		ASSERT_IN_RANGEm("lag", period_golden_nacf[t], (double)nacf[t], 5e-4);
-
-	free(nacf);
-	free(x);
-	fft_analyzer_free(&fa);
-	PASS();
 }
 
 // A sine of amplitude a on a bin centre reads a at that bin.
@@ -264,7 +239,6 @@ GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
 	GREATEST_MAIN_BEGIN();
-	RUN_TEST(nacf_matches_golden);
 	RUN_TEST(spectrum_is_calibrated);
 	RUN_TEST(mix_selects_a_channel_or_averages);
 	RUN_TEST(history_slides_by_whole_display_frames);
