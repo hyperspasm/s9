@@ -2,7 +2,7 @@
 #include "s9.h"
 #include "fps.h"
 #include "vu.h"
-#include "spectrogram.h"
+#include "spectrum.h"
 #include "oscilloscope.h"
 #include "lissajous.h"
 #include "periodic.h"
@@ -39,16 +39,16 @@ s9_components_t *s9_components_new(void) {
 		.stop_streaming = (void (*)(void *))vu_stop_streaming,
 	};
 
-	// spectrogram
-	spectrogram_t *sg = spectrogram_new(NULL);
-	CHECK_ERROR(sg != NULL, s9_components_free(&comps); return NULL, "Failed to create spectrogram instance");
-	comps->components[COMP_SPECTROGRAM] = (s9_component_t){
-		.instance = sg,
-		.destroy = (void (*)(void **))spectrogram_free,
-		.render = (void (*)(void *, SDL_Renderer *))spectrogram_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrogram_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrogram_prepare_to_stream,
-		.stop_streaming = (void (*)(void *))spectrogram_stop_streaming,
+	// spectrum
+	spectrum_t *sp = spectrum_new(NULL);
+	CHECK_ERROR(sp != NULL, s9_components_free(&comps); return NULL, "Failed to create spectrum instance");
+	comps->components[COMP_SPECTRUM] = (s9_component_t){
+		.instance = sp,
+		.destroy = (void (*)(void **))spectrum_free,
+		.render = (void (*)(void *, SDL_Renderer *))spectrum_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrum_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrum_prepare_to_stream,
+		.stop_streaming = (void (*)(void *))spectrum_stop_streaming,
 	};
 
 	// oscilloscope
@@ -113,7 +113,7 @@ s9_component_t *s9_components_get(s9_components_t *comps, s9_component_id_t id) 
 static const s9_mode_slot_t mode_full[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
-	{ COMP_SPECTROGRAM,   { .margin_left = 60,  .fixed_width = 860 } },
+	{ COMP_SPECTRUM,      { .margin_left = 60,  .fixed_width = 860 } },
 	{ COMP_OSCILLOSCOPE,  { .margin_left = 920, .fixed_height = 360 } },
 	{ COMP_LISSAJOUS,     { .margin_left = 920, .margin_top = 360, .fixed_height = 360 } },
 	{ COMP_NONE, {0} },
@@ -129,7 +129,7 @@ static const s9_mode_slot_t mode_scope[] = {
 static const s9_mode_slot_t mode_spectrum[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
-	{ COMP_SPECTROGRAM,   { .margin_left = 60 } },
+	{ COMP_SPECTRUM,      { .margin_left = 60 } },
 	{ COMP_NONE, {0} },
 };
 

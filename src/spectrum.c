@@ -1,87 +1,87 @@
 #include "s9.h"
-#include "spectrogram.h"
+#include "spectrum.h"
 #include "fft_analyzer.h"
 #include "fresp_graph.h"
 
-typedef struct spectrogram {
+typedef struct spectrum {
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
-	spectrogram_config_t config;
+	spectrum_config_t config;
 
 	fft_analyzer_t *analyzer;
 
 	uint32_t n_graphs;
 	fresp_graph_t **graphs;
-} spectrogram_t;
+} spectrum_t;
 
-void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *config) {
+void spectrum_set_config(spectrum_t *sp, const spectrum_config_t *config) {
 	if (config == NULL) {
-		sg->config = default_spectrogram_config;
+		sp->config = default_spectrum_config;
 	} else {
-		sg->config = *config;
+		sp->config = *config;
 	}
 }
 
-spectrogram_t *spectrogram_new(const spectrogram_config_t *config) {
-	spectrogram_t *sg = (spectrogram_t *) malloc(sizeof(spectrogram_t));
-	CHECK_ALLOC(sg, return NULL);
-	memset(sg, 0, sizeof(*sg));
+spectrum_t *spectrum_new(const spectrum_config_t *config) {
+	spectrum_t *sp = (spectrum_t *) malloc(sizeof(spectrum_t));
+	CHECK_ALLOC(sp, return NULL);
+	memset(sp, 0, sizeof(*sp));
 
-	spectrogram_set_config(sg, config);
+	spectrum_set_config(sp, config);
 
-	sg->analyzer = fft_analyzer_new(&(fft_analyzer_config_t){
-		.resolution_hz = sg->config.resolution_hz,
-		.window_function = sg->config.window_function,
-		.window_skew = sg->config.window_skew,
+	sp->analyzer = fft_analyzer_new(&(fft_analyzer_config_t){
+		.resolution_hz = sp->config.resolution_hz,
+		.window_function = sp->config.window_function,
+		.window_skew = sp->config.window_skew,
 		.mode = FFT_ANALYZER_EACH_CHANNEL,
 	});
-	CHECK_ALLOC(sg->analyzer, free(sg); return NULL);
+	CHECK_ALLOC(sp->analyzer, free(sp); return NULL);
 
-	return sg;
+	return sp;
 }
 
-static void free_graphs(spectrogram_t *sg) {
-	if( sg->n_graphs ) {
-		for(uint32_t i=0; i < sg->n_graphs; i++) {
-			fresp_graph_free(&(sg->graphs[i]));
+static void free_graphs(spectrum_t *sp) {
+	if( sp->n_graphs ) {
+		for(uint32_t i=0; i < sp->n_graphs; i++) {
+			fresp_graph_free(&(sp->graphs[i]));
 		}
-		sg->n_graphs = 0;
+		sp->n_graphs = 0;
 
-		free(sg->graphs);
-		sg->graphs = NULL;
+		free(sp->graphs);
+		sp->graphs = NULL;
 	}
 }
 
-void spectrogram_free(spectrogram_t **sg) {
-	if(sg && *sg) {
-		fft_analyzer_free(&(*sg)->analyzer);
-		free_graphs(*sg);
-		free(*sg);
-		*sg = NULL;
+void spectrum_free(spectrum_t **sp) {
+	if(sp && *sp) {
+		fft_analyzer_free(&(*sp)->analyzer);
+		free_graphs(*sp);
+		free(*sp);
+		*sp = NULL;
 	}
 }
 
-static S9_FORCE_INLINE void prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
+static S9_FORCE_INLINE void prepare_to_draw(spectrum_t *sp, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
 	SDL_RenderGetViewport(renderer, &viewport);
 
-	if(sg->renderer != renderer || !SDL_RectEquals(&sg->viewport, &viewport)) {
-		sg->renderer = renderer;
-		sg->viewport = viewport;
+	if(sp->renderer != renderer || !SDL_RectEquals(&sp->viewport, &viewport)) {
+		sp->renderer = renderer;
+		sp->viewport = viewport;
 
-		free_graphs(sg);
+		free_graphs(sp);
 
-		uint32_t n = fft_analyzer_transforms(sg->analyzer);
+		uint32_t n = fft_analyzer_transforms(sp->analyzer);
 		if(n) {
-			sg->graphs = malloc(sizeof(fresp_graph_t*) * n);
-			CHECK_ALLOC(sg->graphs, return);
-			memset(sg->graphs, 0, sizeof(fresp_graph_t*) * n);
+			sp->graphs = malloc(sizeof(fresp_graph_t*) * n);
+			CHECK_ALLOC(sp->graphs, return);
+			memset(sp->graphs, 0, sizeof(fresp_graph_t*) * n);
 
 			for(uint32_t i=0; i < n; i++) {
-				sg->graphs[i] = fresp_graph_new(&sg->config.graph_config);
+				sp->graphs[i] = fresp_graph_new(&sp->config.graph_config);
 			}
 
-			sg->n_graphs = n;
+			sp->n_graphs = n;
 		}
 	}
 }
@@ -137,40 +137,40 @@ static void compute_plot_data(const float *fft, uint32_t fft_len, uint32_t sampl
 }
 
 typedef struct {
-	spectrogram_t *sg;
+	spectrum_t *sp;
 	uint32_t channel;
 } fresp_graph_data_callback_context_t;
 
 static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n_points) {
 	fresp_graph_data_callback_context_t *callback_context = (fresp_graph_data_callback_context_t*)context;
 
-	spectrogram_t *sg = callback_context->sg;
-	fft_analyzer_t *fa = sg->analyzer;
+	spectrum_t *sp = callback_context->sp;
+	fft_analyzer_t *fa = sp->analyzer;
 
 	compute_plot_data(fft_analyzer_spectrum(fa, callback_context->channel), fft_analyzer_fft_len(fa), fft_analyzer_sample_rate(fa),
-					  sg->config.graph_config.min_freq, sg->config.graph_config.max_freq, plot_data, n_points);
+					  sp->config.graph_config.min_freq, sp->config.graph_config.max_freq, plot_data, n_points);
 
 	return 0;
 }
 
-void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer) {
-	if(!fft_analyzer_streaming(sg->analyzer)) return;
-	prepare_to_draw(sg, renderer);
+void spectrum_render(spectrum_t *sp, SDL_Renderer *renderer) {
+	if(!fft_analyzer_streaming(sp->analyzer)) return;
+	prepare_to_draw(sp, renderer);
 
-	fft_analyzer_update(sg->analyzer);
+	fft_analyzer_update(sp->analyzer);
 
 	SDL_Rect save_viewport, graph_viewport;
 	SDL_RenderGetViewport(renderer, &save_viewport);
 
 	graph_viewport = save_viewport;
-	graph_viewport.h = save_viewport.h / sg->n_graphs;
+	graph_viewport.h = save_viewport.h / sp->n_graphs;
 
-	fresp_graph_data_callback_context_t callback_context = { .sg = sg };
+	fresp_graph_data_callback_context_t callback_context = { .sp = sp };
 
-	for(uint32_t i = 0; i < sg->n_graphs; i++) {
+	for(uint32_t i = 0; i < sp->n_graphs; i++) {
 		SDL_RenderSetViewport(renderer, &graph_viewport);
 		callback_context.channel = i;
-		fresp_graph_render(sg->graphs[i], renderer, fresp_graph_data_callback, &callback_context);
+		fresp_graph_render(sp->graphs[i], renderer, fresp_graph_data_callback, &callback_context);
 
 		graph_viewport.y += graph_viewport.h;
 	}
@@ -178,15 +178,15 @@ void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_RenderSetViewport(renderer, &save_viewport);
 }
 
-void spectrogram_stop_streaming(spectrogram_t *sg) {
-	fft_analyzer_stop_streaming(sg->analyzer);
-	sg->renderer = NULL;
+void spectrum_stop_streaming(spectrum_t *sp) {
+	fft_analyzer_stop_streaming(sp->analyzer);
+	sp->renderer = NULL;
 }
 
-void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config) {
-	fft_analyzer_prepare_to_stream(sg->analyzer, stream_config);
+void spectrum_prepare_to_stream(spectrum_t *sp, const s9_audio_stream_config_t *stream_config) {
+	fft_analyzer_prepare_to_stream(sp->analyzer, stream_config);
 }
 
-void spectrogram_enqueue_audio_data(spectrogram_t *sg, const void *data, uint32_t size) {
-	fft_analyzer_enqueue_audio_data(sg->analyzer, data, size);
+void spectrum_enqueue_audio_data(spectrum_t *sp, const void *data, uint32_t size) {
+	fft_analyzer_enqueue_audio_data(sp->analyzer, data, size);
 }

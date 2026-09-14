@@ -1,5 +1,5 @@
-#ifndef spectrogram_h
-#define spectrogram_h
+#ifndef spectrum_h
+#define spectrum_h
 
 #include "s9_dsp.h"
 #include "fresp_graph.h"
@@ -8,16 +8,16 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-typedef struct spectrogram spectrogram_t;
+typedef struct spectrum spectrum_t;
 
 typedef struct {
 	fresp_graph_config_t graph_config;
 	float resolution_hz;
 	window_function_t window_function;
 	float window_skew;
-} spectrogram_config_t;
+} spectrum_config_t;
 
-static const spectrogram_config_t default_spectrogram_config = {
+static const spectrum_config_t default_spectrum_config = {
 	.graph_config = {
 		.min_freq = 20,
 		.max_freq = 22000,
@@ -34,22 +34,22 @@ static const spectrogram_config_t default_spectrogram_config = {
 		.window_skew = 1.0f,
 };
 
-// create spectrogram
-spectrogram_t *spectrogram_new(const spectrogram_config_t *config);
+// create spectrum
+spectrum_t *spectrum_new(const spectrum_config_t *config);
 
-// destroy spectrogram
-void spectrogram_free(spectrogram_t **sg);
+// destroy spectrum
+void spectrum_free(spectrum_t **sp);
 
-// render spectrogram
-void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer);
+// render spectrum
+void spectrum_render(spectrum_t *sp, SDL_Renderer *renderer);
 
 // stop audio streaming
-void spectrogram_stop_streaming(spectrogram_t *sg);
+void spectrum_stop_streaming(spectrum_t *sp);
 
 // prepare for audio streaming
-void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config);
+void spectrum_prepare_to_stream(spectrum_t *sp, const s9_audio_stream_config_t *stream_config);
 
 // call on a background thread to enqueue audio data
-void spectrogram_enqueue_audio_data(spectrogram_t *sg, const void *data, uint32_t size);
+void spectrum_enqueue_audio_data(spectrum_t *sp, const void *data, uint32_t size);
 
-#endif /* spectrogram_h */
+#endif /* spectrum_h */
