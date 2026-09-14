@@ -46,6 +46,7 @@ import { parseManifest, schemaHash, canonicalize } from "./pn.js";
 
 const m = parseManifest(text);      // {root, entries, byPath, declaredHash, canonical, schemaHash}
 m.byPath.get("mixer/ch1/gain").min  // constraints per entry, as in MANIFEST.md
+m.entries[0].readonly               // true for a node the server reports but never sets
 schemaHash(text);                   // the hash of any manifest text
 ```
 

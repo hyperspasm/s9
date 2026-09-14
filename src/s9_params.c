@@ -105,9 +105,9 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	p->osc_params[6] = pn_int("channel",        osc, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
 
 	pn_param_t *fundamental = p->periodic_fundamental_params;
-	fundamental[S9_FUNDAMENTAL_FREQUENCY] = pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0);
-	fundamental[S9_FUNDAMENTAL_VALID]     = pn_bool("valid",      periodic, NULL, PN_FN(get_fundamental_valid));
-	fundamental[S9_FUNDAMENTAL_MIDI]      = pn_float("midi",      periodic, NULL, PN_FN(get_fundamental_midi), 0.0f, 160.0f, 0);
+	fundamental[S9_FUNDAMENTAL_FREQUENCY] = pn_readonly(pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0));
+	fundamental[S9_FUNDAMENTAL_VALID]     = pn_readonly(pn_bool("valid",      periodic, NULL, PN_FN(get_fundamental_valid)));
+	fundamental[S9_FUNDAMENTAL_MIDI]      = pn_readonly(pn_float("midi",      periodic, NULL, PN_FN(get_fundamental_midi), 0.0f, 160.0f, 0));
 	fundamental[3]  = pn_float("window",          periodic, PN_FN(set_fundamental_window),           PN_FN(get_fundamental_window),           0.05f, 2.0f, 0);
 	fundamental[4]  = pn_enum("window_function",  periodic, PN_FN(set_fundamental_window_function),  PN_FN(get_fundamental_window_function),  window_function_names, WINDOW_FUNCTION_COUNT);
 	fundamental[5]  = pn_float("averaging",       periodic, PN_FN(set_fundamental_averaging),        PN_FN(get_fundamental_averaging),        0.0f, 10.0f, 0);

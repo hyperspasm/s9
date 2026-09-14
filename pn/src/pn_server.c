@@ -116,6 +116,7 @@ static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo :
 static float   clamp_f(float v, float lo, float hi)      { return v < lo ? lo : v > hi ? hi : v; }
 
 int pn_param_set(const pn_param_t *param, const pn_value_t *val) {
+	if (param->node.readonly) return -1;
 	const pn_meta_t *m = &param->node.meta;
 	switch (param->node.type) {
 	case PN_ACTION: if (!param->set.action) return -1; param->set.action(param->ctx); return 0;

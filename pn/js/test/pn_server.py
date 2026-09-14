@@ -20,6 +20,7 @@ class Amp:
     eq = pn.Group(Eq)
     input = pn.Enum(labels=["mic", "line", "aux"])
     name = pn.String(max_len=32)
+    level = pn.Float(min=0.0, max=1.0, step=0.0, readonly=True)
 
     @pn.Action
     def reset(self):

@@ -10,7 +10,8 @@ pn_param_t *amp_tree_build(amp_tree_t *t) {
 	t->nodes[2] = pn_group("eq", t->eq, 2);
 	t->nodes[3] = pn_enum("input",   NULL, NULL, NULL, input_labels, 3);
 	t->nodes[4] = pn_string("name",  NULL, NULL, NULL, 32);
-	t->nodes[5] = pn_action("reset", NULL, NULL);
-	t->root     = pn_group("amp", t->nodes, 6);
+	t->nodes[5] = pn_readonly(pn_float("level", NULL, NULL, NULL, 0.0f, 1.0f, 0.0f));
+	t->nodes[6] = pn_action("reset", NULL, NULL);
+	t->root     = pn_group("amp", t->nodes, 7);
 	return &t->root;
 }

@@ -62,7 +62,7 @@ A consumer takes the declared hash from the header. It may verify the declared h
 One entry per leaf node, in tree order (see Ordering). Groups produce no entries; the tree structure is implied by the paths.
 
 ```
-entry  = path SP type [SP meta]
+entry  = path SP type [SP meta] [SP "ro"]
 
 path   = name *("/" name)          ; first name is the root, last is the leaf
 type   = "action" | "bool" | "int" | "float" | "enum" | "string"
@@ -76,6 +76,8 @@ meta for bool   = (none)
 ```
 
 Fields are separated by exactly one space (SP), with no leading or trailing whitespace.
+
+The `ro` marker declares a read-only node: the server reports its value and pushes changes, but refuses to set it. An action cannot be read-only. The marker is part of the entry, so it is part of the hash: a node becoming read-only is a change of schema.
 
 ### Value encodings
 
@@ -167,19 +169,21 @@ amp
     treble float   min -12.0, max 12.0, step 0.5
   input    enum    mic, line, aux
   name     string  max_len 32
+  level    float   min 0.0, max 1.0, step 0.0, read-only
   reset    action
 ```
 
 Its manifest as a generator emits it:
 
 ```
-# pn manifest v1 amp fnv1a32=09decefb
+# pn manifest v1 amp fnv1a32=fb9c41f2
 amp/power bool
 amp/volume int 0 100 1
 amp/eq/bass float 0xc1400000 0x41400000 0x3f000000
 amp/eq/treble float 0xc1400000 0x41400000 0x3f000000
 amp/input enum mic|line|aux
 amp/name string 32
+amp/level float 0x00000000 0x3f800000 0x00000000 ro
 amp/reset action
 ```
 
@@ -188,7 +192,7 @@ The `eq` group produces no entry of its own. Its leaves appear at its position i
 The same manifest annotated by hand, with aligned columns, has the same canonical form and therefore the same hash:
 
 ```
-# pn manifest v1 amp fnv1a32=09decefb
+# pn manifest v1 amp fnv1a32=fb9c41f2
 
 # Front panel
 amp/power     bool
@@ -199,5 +203,6 @@ amp/eq/bass   float  0xc1400000 0x41400000 0x3f000000    # -12 .. 12 dB
 amp/eq/treble float  0xc1400000 0x41400000 0x3f000000
 amp/input     enum   mic|line|aux
 amp/name      string 32
+amp/level     float  0x00000000 0x3f800000 0x00000000 ro # a meter
 amp/reset     action
 ```

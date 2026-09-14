@@ -25,13 +25,14 @@ class Amp:
     eq = pn.Group(AmpEq)
     input = pn.Enum(labels=["mic", "line", "aux"])
     name = pn.String(max_len=32)
+    level = pn.Float(min=0.0, max=1.0, step=0.0, readonly=True)
 
     @pn.Action
     def reset(self):
         pass
 
 
-AMP_HASH = 0x09DECEFB
+AMP_HASH = 0xFB9C41F2
 
 
 class MixerEq:
@@ -143,7 +144,7 @@ def test_parse_fixture():
     assert m.schema_hash == AMP_HASH
     assert [e.path for e in m.entries] == [
         "amp/power", "amp/volume", "amp/eq/bass", "amp/eq/treble",
-        "amp/input", "amp/name", "amp/reset",
+        "amp/input", "amp/name", "amp/level", "amp/reset",
     ]
     by = m.by_path
     assert by["amp/power"].type == ParamType.BOOL
@@ -153,6 +154,29 @@ def test_parse_fixture():
     assert by["amp/name"].max_len == 32
     assert by["amp/reset"].type == ParamType.ACTION
     assert by["amp/eq/bass"].name == "bass"
+    assert by["amp/level"].readonly and not by["amp/volume"].readonly
+
+
+def test_readonly_is_marked_and_read_back():
+    class R:
+        meter = pn.Float(min=0.0, max=1.0, step=0.0, readonly=True)
+        gain = pn.Float(min=0.0, max=1.0, step=0.0)
+        on = pn.Bool(readonly=True)
+
+    text = manifest.dump(R(), "r")
+    assert text.split("\n")[1:4] == [
+        "r/meter float 0x00000000 0x3f800000 0x00000000 ro",
+        "r/gain float 0x00000000 0x3f800000 0x00000000",
+        "r/on bool ro",
+    ]
+    m = manifest.parse(text)
+    assert [e.readonly for e in m.entries] == [True, False, True]
+    assert m.schema_hash == m.declared_hash
+
+
+def test_readonly_action_is_rejected():
+    with pytest.raises(manifest.ManifestError):
+        manifest.parse("r/go action ro\n")
 
 
 def test_parse_round_trips_through_dump():
@@ -163,7 +187,7 @@ def test_parse_round_trips_through_dump():
 
 def test_parse_annotated_text():
     text = (
-        "# pn manifest v1 amp fnv1a32=09decefb\r\n"
+        "# pn manifest v1 amp fnv1a32=fb9c41f2\r\n"
         "\r\n"
         "# Front panel\r\n"
         "amp/power\tbool\r\n"
@@ -172,12 +196,13 @@ def test_parse_annotated_text():
         "amp/eq/treble float 0xc1400000 0x41400000 0x3f000000\r\n"
         "amp/input enum mic|line|aux\r\n"
         "amp/name string 32\r\n"
+        "amp/level  float 0x00000000 0x3f800000 0x00000000  ro   # a meter\r\n"
         "amp/reset action\r\n"
     )
     m = manifest.parse(text)
     assert m.declared_hash == AMP_HASH
     assert m.schema_hash == AMP_HASH
-    assert len(m.entries) == 7
+    assert len(m.entries) == 8
 
 
 def test_parse_without_header():

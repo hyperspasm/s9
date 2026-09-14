@@ -75,6 +75,18 @@ function action(entry, client) {
   return { element: div, set() {} };
 }
 
+function display(entry) {
+  const value = document.createElement("span");
+  value.className = "value";
+  const show = v => {
+    if (entry.type === "float") value.textContent = Number(v).toPrecision(6);
+    else if (entry.type === "bool") value.textContent = v ? "yes" : "no";
+    else if (entry.type === "enum") value.textContent = entry.labels[v] ?? String(v);
+    else value.textContent = String(v);
+  };
+  return { element: row(entry, document.createElement("span"), value), set: show };
+}
+
 const MAKERS = {
   int: (e, c) => number(e, c, true),
   float: (e, c) => number(e, c, false),
@@ -83,6 +95,8 @@ const MAKERS = {
   string,
   action,
 };
+
+const make = (entry, client) => entry.readonly ? display(entry) : MAKERS[entry.type](entry, client);
 
 // --- page: one section per group, in manifest order
 
@@ -105,7 +119,7 @@ for (const entry of manifest.entries) {
     main.append(section);
     sectionName = group;
   }
-  const control = MAKERS[entry.type](entry, client);
+  const control = make(entry, client);
   controls.set(entry.path, control);
   section.append(control.element);
 }

@@ -130,6 +130,8 @@ text = manifest.dump(Mixer(), "mixer")          # header line and one entry per 
 m = manifest.parse(open("mixer.manifest", "rb").read())
 m.root, m.declared_hash, m.schema_hash          # root name, hash from the header, hash of the body
 m.by_path["mixer/ch1/gain"].min                 # constraints per entry
+m.entries[0].readonly                           # True for a node the server reports but never sets;
+                                                # declare one with readonly=True on the descriptor
 manifest.schema_hash(text)                      # hash of any manifest text
 ```
 

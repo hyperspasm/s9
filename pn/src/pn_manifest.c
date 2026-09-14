@@ -73,6 +73,8 @@ validate_visitor(const pn_param_t *param, const pn_param_t **path,
 		return v->result = PN_SCHEMA_BAD_NAME;
 	if (param->num_children > 0 && param->node.type != PN_NONE)
 		return v->result = PN_SCHEMA_NOT_GROUP;
+	if (param->node.readonly && param->node.type == PN_ACTION)
+		return v->result = PN_SCHEMA_READONLY_ACTION;
 
 	if (param->node.type == PN_ENUM) {
 		const pn_enum_meta_t *m = &param->node.meta.enum_meta;
@@ -204,6 +206,8 @@ entry_visitor(const pn_param_t *param, const pn_param_t **path,
 	default:
 		break;
 	}
+	if (param->node.readonly)
+		emit(e, " ro", 3);
 	emit(e, "\n", 1);
 	return e->rc;
 }
@@ -260,6 +264,7 @@ static const char *const result_names[] = {
 	[PN_SCHEMA_BAD_LABEL]      = "bad label",
 	[PN_SCHEMA_DUPLICATE_NAME] = "duplicate name",
 	[PN_SCHEMA_EMPTY_ENUM]     = "empty enum",
+	[PN_SCHEMA_READONLY_ACTION] = "read-only action",
 	[PN_SCHEMA_NOT_GROUP]      = "not a group",
 	[PN_SCHEMA_TOO_DEEP]       = "too deep",
 	[PN_SCHEMA_PATH_TOO_LONG]  = "path too long",

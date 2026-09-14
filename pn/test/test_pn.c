@@ -1171,16 +1171,17 @@ static const char *manifest_body(const manifest_sink_t *s) {
 
 // The manifest of the amp schema (amp_tree.h), as MANIFEST.md shows it.
 static const char amp_manifest[] =
-	"# pn manifest v1 amp fnv1a32=09decefb\n"
+	"# pn manifest v1 amp fnv1a32=fb9c41f2\n"
 	"amp/power bool\n"
 	"amp/volume int 0 100 1\n"
 	"amp/eq/bass float 0xc1400000 0x41400000 0x3f000000\n"
 	"amp/eq/treble float 0xc1400000 0x41400000 0x3f000000\n"
 	"amp/input enum mic|line|aux\n"
 	"amp/name string 32\n"
+	"amp/level float 0x00000000 0x3f800000 0x00000000 ro\n"
 	"amp/reset action\n";
 
-#define AMP_HASH 0x09decefbu
+#define AMP_HASH 0xfb9c41f2u
 
 // === Hash tests ===
 

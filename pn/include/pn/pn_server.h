@@ -130,6 +130,12 @@ static inline pn_param_t pn_group(const char *name,
 	};
 }
 
+static inline pn_param_t pn_readonly(pn_param_t param) {
+	param.node.readonly = true;
+	param.set = (pn_set_fn_t){ 0 };
+	return param;
+}
+
 // --- Server (opaque) ---
 
 typedef struct pn_server pn_server_t;

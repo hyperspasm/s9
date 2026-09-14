@@ -98,6 +98,7 @@ class Entry:
     step: Optional[object] = None   # int and float
     labels: Optional[list] = None   # enum
     max_len: Optional[int] = None   # string
+    readonly: bool = False          # any type but action
 
     @property
     def name(self) -> str:
@@ -114,6 +115,8 @@ class Entry:
             fields.append("|".join(self.labels))
         elif self.type == ParamType.STRING:
             fields.append(str(self.max_len))
+        if self.readonly:
+            fields.append("ro")
         return " ".join(fields)
 
 
@@ -164,29 +167,30 @@ def _check_name(name, what: str, where: str) -> None:
 
 def _entry(path: str, attr) -> Entry:
     t = attr.param_type
+    ro = bool(getattr(attr, "readonly", False))
     if t == ParamType.INT:
         for v, what in ((attr.min, "min"), (attr.max, "max"), (attr.step, "step")):
             if not isinstance(v, int) or not -2**31 <= v < 2**31:
                 raise SchemaError(f"{path}: {what} {v!r} is not an int32")
-        return Entry(path, t, min=attr.min, max=attr.max, step=attr.step)
+        return Entry(path, t, min=attr.min, max=attr.max, step=attr.step, readonly=ro)
     if t == ParamType.FLOAT:
         for v, what in ((attr.min, "min"), (attr.max, "max"), (attr.step, "step")):
             try:
                 struct.pack(">f", v)
             except (OverflowError, struct.error, TypeError):
                 raise SchemaError(f"{path}: {what} {v!r} is not a binary32 float") from None
-        return Entry(path, t, min=float(attr.min), max=float(attr.max), step=float(attr.step))
+        return Entry(path, t, min=float(attr.min), max=float(attr.max), step=float(attr.step), readonly=ro)
     if t == ParamType.ENUM:
         if not attr.labels:
             raise SchemaError(f"{path}: enum has no labels")
         for label in attr.labels:
             _check_name(label, "label", path)
-        return Entry(path, t, labels=list(attr.labels))
+        return Entry(path, t, labels=list(attr.labels), readonly=ro)
     if t == ParamType.STRING:
         if not isinstance(attr.max_len, int) or not 0 <= attr.max_len < 2**32:
             raise SchemaError(f"{path}: max_len {attr.max_len!r} is not a uint32")
-        return Entry(path, t, max_len=attr.max_len)
-    return Entry(path, t)
+        return Entry(path, t, max_len=attr.max_len, readonly=ro)
+    return Entry(path, t, readonly=ro)
 
 
 def _entries(obj, path: list):
@@ -260,6 +264,9 @@ def _parse_entry(line: bytes) -> Entry:
     if len(fields) < 2:
         raise ManifestError(f"{fields[0]!r}: expected a path and a type")
     path, token, meta = fields[0], fields[1], fields[2:]
+    readonly = bool(meta) and meta[-1] == "ro"
+    if readonly:
+        meta = meta[:-1]
 
     for segment in path.split("/"):
         problem = _name_problem(segment)
@@ -269,6 +276,8 @@ def _parse_entry(line: bytes) -> Entry:
     t = _TOKEN_TYPE.get(token)
     if t is None:
         raise ManifestError(f"{path}: unknown type {token!r}")
+    if readonly and t == ParamType.ACTION:
+        raise ManifestError(f"{path}: an action cannot be read-only")
 
     def expect(n: int) -> None:
         if len(meta) != n:
@@ -277,11 +286,11 @@ def _parse_entry(line: bytes) -> Entry:
     if t == ParamType.INT:
         expect(3)
         lo, hi, step = (_parse_int32(f, path) for f in meta)
-        return Entry(path, t, min=lo, max=hi, step=step)
+        return Entry(path, t, min=lo, max=hi, step=step, readonly=readonly)
     if t == ParamType.FLOAT:
         expect(3)
         lo, hi, step = (_parse_f32(f, path) for f in meta)
-        return Entry(path, t, min=lo, max=hi, step=step)
+        return Entry(path, t, min=lo, max=hi, step=step, readonly=readonly)
     if t == ParamType.ENUM:
         expect(1)
         labels = meta[0].split("|")
@@ -289,12 +298,12 @@ def _parse_entry(line: bytes) -> Entry:
             problem = _name_problem(label)
             if problem:
                 raise ManifestError(f"{path}: label {label!r} {problem}")
-        return Entry(path, t, labels=labels)
+        return Entry(path, t, labels=labels, readonly=readonly)
     if t == ParamType.STRING:
         expect(1)
-        return Entry(path, t, max_len=_parse_uint32(meta[0], path))
+        return Entry(path, t, max_len=_parse_uint32(meta[0], path), readonly=readonly)
     expect(0)
-    return Entry(path, t)
+    return Entry(path, t, readonly=readonly)
 
 
 def parse(text) -> Manifest:
