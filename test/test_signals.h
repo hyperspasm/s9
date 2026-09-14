@@ -12,7 +12,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-enum { SIGNAL_SINE, SIGNAL_SAWTOOTH, SIGNAL_SQUARE, SIGNAL_TWIN, SIGNAL_NOISE, SIGNAL_SILENCE };
+enum { SIGNAL_SINE, SIGNAL_SAWTOOTH, SIGNAL_SQUARE, SIGNAL_TWIN, SIGNAL_NOISE, SIGNAL_SILENCE, SIGNAL_IMPULSE };
 
 typedef struct {
 	int kind;
@@ -73,6 +73,14 @@ static inline void test_signal_partials(const double *table, unsigned count, dou
 		out[i] = (float)x;
 		if (noise_amp > 0.0) out[i] += test_signal_noise(&added, noise_amp);
 	}
+}
+
+// One sample of amp at index in silence: signals.impulse() in the oracle.
+// The kind SIGNAL_IMPULSE names it in a table; test_signal_generate() has no
+// index and leaves that kind silent.
+static inline void test_signal_impulse(float *out, uint32_t n, uint32_t index, double amp) {
+	for (uint32_t i = 0; i < n; i++) out[i] = 0.0f;
+	if (index < n) out[index] = (float)amp;
 }
 
 static inline double test_signal_rms(const float *x, uint32_t n) {

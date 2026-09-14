@@ -1,0 +1,45 @@
+#ifndef constant_q_h
+#define constant_q_h
+
+#include "window_function.h"
+
+#include <stdint.h>
+
+// A constant-Q readout from one long transform: the level at each of a set
+// of frequencies through a window sized for that frequency, every window
+// centred on the middle of the same frame. A column's window is as long as
+// it takes for a tone's ridge through it to be resolution semitones wide at
+// half amplitude, no shorter than min_window and no longer than the frame,
+// so the low columns trade time for frequency resolution and the high ones
+// the reverse. A column is the windowed transform at exactly its frequency,
+// scaled so that a full-scale sine reads 0 dB, computed as Brown and
+// Puckette (1992) do: the frame's transform dotted with the transform of
+// the column's window shifted to its frequency, kept where that stands
+// above threshold_db of its peak. The oracle is validation/src/s9/constant_q.py.
+
+typedef struct constant_q constant_q_t;
+
+typedef struct {
+	double sample_rate;
+	uint32_t n;                        // the frame and its transform's length, the longest window
+	uint32_t min_window;               // the shortest window, frames
+	float resolution_semitones;        // the width of a tone's ridge at half amplitude
+	window_function_t window_function;
+	float threshold_db;                // a kernel's taps below this of its peak are dropped
+} constant_q_config_t;
+
+// Columns at ascending frequencies in Hz. Builds one transform per column:
+// a fraction of a second for a thousand columns of a 32768-point frame.
+constant_q_t *constant_q_new(const constant_q_config_t *config, const double *frequencies, uint32_t columns);
+void constant_q_free(constant_q_t **cq);
+
+uint32_t constant_q_columns(const constant_q_t *cq);
+uint32_t constant_q_window(const constant_q_t *cq, uint32_t column);   // a column's window length, frames
+uint32_t constant_q_taps(const constant_q_t *cq);                      // taps in all: the cost of a readout
+
+// The columns' levels in dB relative to a full-scale sine, from the frame's
+// transform: n/2 + 1 bins as (re, im) pairs, unscaled and unwindowed, as
+// fft_analyzer_spectrum() gives them under the rectangular window.
+void constant_q_readout(const constant_q_t *cq, const float *spectrum, float *out_db);
+
+#endif /* constant_q_h */

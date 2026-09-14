@@ -119,6 +119,18 @@ target_include_directories(test_harmonic_series PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_harmonic_series PkgConfig::SDL2 PkgConfig::FFTW3F m)
 add_test(NAME harmonic_series COMMAND test_harmonic_series)
 
+add_executable(test_constant_q test_constant_q.c
+    ${CMAKE_SOURCE_DIR}/src/constant_q.c
+    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/window_function.c
+    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
+    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_constant_q PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_constant_q PkgConfig::SDL2 PkgConfig::FFTW3F m)
+add_test(NAME constant_q COMMAND test_constant_q)
+
 add_executable(test_pll test_pll.c ${CMAKE_SOURCE_DIR}/src/pll.c)
 target_include_directories(test_pll PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_pll m)

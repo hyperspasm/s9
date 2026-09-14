@@ -32,4 +32,8 @@ static const char *const window_function_names[WINDOW_FUNCTION_COUNT] = {
 void create_window_function(window_function_t function, uint32_t length,
 							int normalize, float skew, float *out_window);
 
+// The width of the window's transform at half its peak, in bins of the
+// window's own length: the width a tone's ridge has through it.
+double window_function_bandwidth(window_function_t function);
+
 #endif /* window_function_h */
