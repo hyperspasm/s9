@@ -12,6 +12,7 @@ static const char *const periodic_view_names[PERIODIC_VIEW_COUNT] = { [PERIODIC_
 #include "s9_app.h"
 #include "oscilloscope.h"
 #include "periodic.h"
+#include "spectrogram.h"
 
 // -- app callbacks
 
@@ -91,11 +92,32 @@ static uint32_t get_periodic_view(void *ctx) { return (uint32_t)periodic_config(
 static void set_fundamental_window_function(void *ctx, uint32_t val) { periodic_config_t c = *periodic_config(ctx); c.tracker.window_function = (window_function_t)val; periodic_set_config(ctx, &c); }
 static uint32_t get_fundamental_window_function(void *ctx) { return (uint32_t)periodic_config(ctx)->tracker.window_function; }
 
+// -- spectrogram callbacks: each field of its configuration
+
+#define SPECTROGRAM_FLOAT(param, field) \
+	static void set_##param(void *ctx, float val) { spectrogram_config_t c = *spectrogram_config(ctx); c.field = val; spectrogram_set_config(ctx, &c); } \
+	static float get_##param(void *ctx) { return spectrogram_config(ctx)->field; }
+
+#define SPECTROGRAM_INT(param, field) \
+	static void set_##param(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.field = (uint32_t)val; spectrogram_set_config(ctx, &c); } \
+	static int32_t get_##param(void *ctx) { return (int32_t)spectrogram_config(ctx)->field; }
+
+SPECTROGRAM_FLOAT(spectrogram_window, window_s)
+SPECTROGRAM_INT(spectrogram_min_window, min_window_hops)
+SPECTROGRAM_FLOAT(spectrogram_resolution, resolution_semitones)
+SPECTROGRAM_FLOAT(spectrogram_min_db, min_db)
+SPECTROGRAM_FLOAT(spectrogram_max_db, max_db)
+
+static void set_spectrogram_channel(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.channel = channel_from_param(val); spectrogram_set_config(ctx, &c); }
+static int32_t get_spectrogram_channel(void *ctx) { return channel_to_param(spectrogram_config(ctx)->channel); }
+static void set_spectrogram_window_function(void *ctx, uint32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.window_function = (window_function_t)val; spectrogram_set_config(ctx, &c); }
+static uint32_t get_spectrogram_window_function(void *ctx) { return (uint32_t)spectrogram_config(ctx)->window_function; }
+
 #endif /* PN_SCHEMA_ONLY */
 
 // -- tree
 
-pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
+pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spectrogram) {
 	p->osc_params[0] = pn_float("time_per_div", osc, PN_FN(set_time_per_div), PN_FN(get_time_per_div), 0.00001f, 1.0f, 0);
 	p->osc_params[1] = pn_float("amp_per_div",  osc, PN_FN(set_amp_per_div),  PN_FN(get_amp_per_div),  0.001f, 10.0f, 0);
 	p->osc_params[2] = pn_bool("trig_auto",     osc, PN_FN(set_trig_auto),    PN_FN(get_trig_auto));
@@ -144,12 +166,22 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic) {
 	p->periodic_params[4] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
 	p->periodic_params[5] = pn_group("note", note, S9_PERIODIC_NOTE_NUM_PARAMS);
 
+	pn_param_t *spec = p->spectrogram_params;
+	spec[0] = pn_int("channel",           spectrogram, PN_FN(set_spectrogram_channel),         PN_FN(get_spectrogram_channel),         -1, 31, 1);
+	spec[1] = pn_float("window",          spectrogram, PN_FN(set_spectrogram_window),          PN_FN(get_spectrogram_window),          0.05f, 1.5f, 0);
+	spec[2] = pn_int("min_window",        spectrogram, PN_FN(set_spectrogram_min_window),      PN_FN(get_spectrogram_min_window),      1, 8, 1);
+	spec[3] = pn_float("resolution",      spectrogram, PN_FN(set_spectrogram_resolution),      PN_FN(get_spectrogram_resolution),      0.1f, 4.0f, 0);
+	spec[4] = pn_enum("window_function",  spectrogram, PN_FN(set_spectrogram_window_function), PN_FN(get_spectrogram_window_function), window_function_names, WINDOW_FUNCTION_COUNT);
+	spec[5] = pn_float("min_db",          spectrogram, PN_FN(set_spectrogram_min_db),          PN_FN(get_spectrogram_min_db),          -140.0f, 0.0f, 0);
+	spec[6] = pn_float("max_db",          spectrogram, PN_FN(set_spectrogram_max_db),          PN_FN(get_spectrogram_max_db),          -100.0f, 40.0f, 0);
+
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 
-	p->root_children[S9_ROOT_MODE]     = pn_enum("mode", NULL, PN_FN(set_mode), PN_FN(get_mode), s9_mode_names, S9_MODE_COUNT);
-	p->root_children[S9_ROOT_OSC]      = pn_group("osc", p->osc_params, S9_OSC_NUM_PARAMS);
-	p->root_children[S9_ROOT_PERIODIC] = pn_group("periodic", p->periodic_params, S9_PERIODIC_NUM_PARAMS);
-	p->root_children[S9_ROOT_DEBUG]    = pn_group("debug", p->debug_params, S9_DEBUG_NUM_PARAMS);
+	p->root_children[S9_ROOT_MODE]        = pn_enum("mode", NULL, PN_FN(set_mode), PN_FN(get_mode), s9_mode_names, S9_MODE_COUNT);
+	p->root_children[S9_ROOT_OSC]         = pn_group("osc", p->osc_params, S9_OSC_NUM_PARAMS);
+	p->root_children[S9_ROOT_PERIODIC]    = pn_group("periodic", p->periodic_params, S9_PERIODIC_NUM_PARAMS);
+	p->root_children[S9_ROOT_SPECTROGRAM] = pn_group("spectrogram", p->spectrogram_params, S9_SPECTROGRAM_NUM_PARAMS);
+	p->root_children[S9_ROOT_DEBUG]       = pn_group("debug", p->debug_params, S9_DEBUG_NUM_PARAMS);
 	p->root = pn_group("s9", p->root_children, S9_ROOT_COUNT);
 	return &p->root;
 }

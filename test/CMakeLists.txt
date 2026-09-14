@@ -199,6 +199,22 @@ target_include_directories(test_periodic PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_periodic PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
 add_test(NAME periodic COMMAND test_periodic)
 
+add_executable(test_spectrogram test_spectrogram.c
+    ${CMAKE_SOURCE_DIR}/src/spectrogram.c
+    ${CMAKE_SOURCE_DIR}/src/constant_q.c
+    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/graph_axis.c
+    ${CMAKE_SOURCE_DIR}/src/draw_sdl.c
+    ${CMAKE_SOURCE_DIR}/src/s9_font.c
+    ${CMAKE_SOURCE_DIR}/src/window_function.c
+    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
+    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_spectrogram PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_spectrogram PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+add_test(NAME spectrogram COMMAND test_spectrogram)
+
 add_executable(test_www test_www.c)
 target_link_libraries(test_www s9_www)
 target_compile_definitions(test_www PRIVATE S9_WWW_SRC="${CMAKE_SOURCE_DIR}/www")

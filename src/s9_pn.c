@@ -77,7 +77,8 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	pn->config = *config;
 	void *osc = s9_components_get(pn->config.components, COMP_OSCILLOSCOPE)->instance;
 	pn->periodic = s9_components_get(pn->config.components, COMP_PERIODIC)->instance;
-	pn_param_t *root = s9_params_build(&pn->params, osc, pn->periodic);
+	void *spectrogram = s9_components_get(pn->config.components, COMP_SPECTROGRAM)->instance;
+	pn_param_t *root = s9_params_build(&pn->params, osc, pn->periodic, spectrogram);
 
 	// allocate server
 	pn_server_config_t server_config = {

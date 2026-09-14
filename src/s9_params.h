@@ -13,6 +13,7 @@
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
 #define S9_PERIODIC_NOTE_NUM_PARAMS        1
+#define S9_SPECTROGRAM_NUM_PARAMS        7
 #define S9_DEBUG_NUM_PARAMS              1
 
 // The root's children, in declared order
@@ -20,6 +21,7 @@ typedef enum {
 	S9_ROOT_MODE,
 	S9_ROOT_OSC,
 	S9_ROOT_PERIODIC,
+	S9_ROOT_SPECTROGRAM,
 	S9_ROOT_DEBUG,
 	S9_ROOT_COUNT,
 } s9_root_child_t;
@@ -38,15 +40,17 @@ typedef struct {
 	pn_param_t periodic_waveform_params[S9_PERIODIC_WAVEFORM_NUM_PARAMS];
 	pn_param_t periodic_note_params[S9_PERIODIC_NOTE_NUM_PARAMS];
 	pn_param_t periodic_params[S9_PERIODIC_NUM_PARAMS];
+	pn_param_t spectrogram_params[S9_SPECTROGRAM_NUM_PARAMS];
 	pn_param_t debug_params[S9_DEBUG_NUM_PARAMS];
 	pn_param_t root_children[S9_ROOT_COUNT];  // indexed by s9_root_child_t
 	pn_param_t root;
 } s9_params_t;
 
-// Build the tree into p and return its root. osc and periodic are the
-// oscilloscope and the periodic analyzer that the "osc" and "periodic"
-// parameters read and write; both NULL in a schema-only build. The mode
-// and debug parameters read and write the app.
-pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic);
+// Build the tree into p and return its root. osc, periodic and spectrogram
+// are the oscilloscope, the periodic analyzer and the spectrogram that the
+// "osc", "periodic" and "spectrogram" parameters read and write; all NULL
+// in a schema-only build. The mode and debug parameters read and write the
+// app.
+pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spectrogram);
 
 #endif /* s9_params_h */

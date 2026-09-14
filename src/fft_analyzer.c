@@ -292,6 +292,10 @@ uint32_t fft_analyzer_queued(fft_analyzer_t *fa) {
 	return ring_buffer_read_avail(fa->rb) / (fa->stream.audio_format.bytes_per_sample * fa->stream.channels);
 }
 
+int fft_analyzer_filled(const fft_analyzer_t *fa) {
+	return fa->fft_len && fa->consumed >= fa->fft_len;
+}
+
 uint32_t fft_analyzer_fft_len(const fft_analyzer_t *fa) { return fa->fft_len; }
 uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa) { return fa->stream.sample_rate; }
 uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa) { return fa->transforms; }

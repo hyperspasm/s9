@@ -221,7 +221,8 @@ TEST power_average_waits_for_a_full_frame(void) {
 }
 
 // With hop_frames set, an update consumes exactly one hop and says so, or
-// nothing while fewer frames are queued, and the history slides by the hop.
+// nothing while fewer frames are queued, and the history slides by the hop;
+// it is filled once a whole frame has been consumed.
 TEST hop_frames_step_the_history(void) {
 	enum { N = 1024, HOP = 100 };
 	float *ones = malloc(sizeof(float) * N), *silence = calloc(N, sizeof(float));
@@ -238,9 +239,11 @@ TEST hop_frames_step_the_history(void) {
 	ASSERT_EQ(N % HOP, fft_analyzer_queued(fa));
 	ASSERT_EQ(0u, fft_analyzer_update(fa));   // a partial hop waits
 	ASSERT_EQ_FMT(0.0f, fft_analyzer_hop_seconds(fa), "%g");
+	ASSERT(!fft_analyzer_filled(fa));
 
 	fft_analyzer_enqueue_audio_data(fa, ones, sizeof(float) * 2 * HOP);
 	ASSERT_EQ(HOP, fft_analyzer_update(fa));   // the partial hop of silence and the first of the ones
+	ASSERT(fft_analyzer_filled(fa));
 	ASSERT_IN_RANGE(sqrtf((float)(HOP - N % HOP) / N), fft_analyzer_rms(fa, 0), 1e-6f);
 	ASSERT_EQ(HOP, fft_analyzer_update(fa));
 	ASSERT_IN_RANGE(sqrtf((float)(2 * HOP - N % HOP) / N), fft_analyzer_rms(fa, 0), 1e-6f);

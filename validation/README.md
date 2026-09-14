@@ -55,7 +55,7 @@ The first reads harmonics of pure noise and reports how often noise passes for o
 python validation/scripts/measure_constant_q.py [--quiet]
 
 # Render spectrograms of synthetic signals to PNG files, for looking at
-python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90]
+python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90] [--min-hops 1]
 ```
 
 The first promises that a tone reads its level at its nearest column, that what the kernels' truncation leaves out stays below a floor, and that a click is read only by the columns whose windows hold it; it reports where the constant-Q regime begins and ends, the kernels' size, and how deep the dip between two tones a semitone apart is. The second writes images of a sweep, a drum pattern, a chromatic run, and a vowel, one row per display frame; the images stay out of the repository.

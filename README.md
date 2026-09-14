@@ -1,6 +1,6 @@
 # s9
 
-A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, and VU meters. Built with SDL2 for rendering and FFTW for spectral analysis.
+A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL2 for rendering and FFTW for spectral analysis.
 
 ## Usage
 
@@ -21,7 +21,7 @@ s9 [options]
 
 Settings can also be specified in `~/.s9rc` as key-value pairs (e.g. `sample_rate=48000`). Command-line arguments override the config file.
 
-Keys `1`, `2`, and `3` select the full, scope, and spectrum display modes. The mode is also the `s9/mode` parameter below.
+Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
 
 ## Parameters
 

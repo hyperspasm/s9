@@ -3,11 +3,12 @@
 display would show them, to PNG files for looking at. Nothing here belongs in the
 repository but the script.
 
-    python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90]
+    python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90] [--min-hops 1]
 
 Each image is one row per hop, a hop being one display frame at 60 Hz, time running
 down the image so that the newest row is at the bottom, log frequency across it from
-20 Hz to 20 kHz, and level as colour from --min-db up to full scale. Ticks below mark
+20 Hz to 20 kHz, and level as colour from --min-db up to full scale; the shortest
+window is --min-hops hops, so more than 1 overlaps the rows. Ticks below mark
 the decades, 100 Hz, 1 kHz and 10 kHz, with a tall line, and the steps between them
 with short ones; ticks on the left mark seconds. The signals: an exponential sweep;
 a drum pattern at 120 BPM with a hi-hat on every sixteenth, a kick on every beat and a
@@ -149,10 +150,12 @@ def main():
     fs = int(args[args.index("--fs") + 1]) if "--fs" in args else 48000
     columns = int(args[args.index("--columns") + 1]) if "--columns" in args else 1200
     min_db = float(args[args.index("--min-db") + 1]) if "--min-db" in args else MIN_DB_DEFAULT
+    min_hops = int(args[args.index("--min-hops") + 1]) if "--min-hops" in args else 1
     hop = fs // FPS
     os.makedirs(out_dir, exist_ok=True)
 
-    cfg = constant_q.Config(fs=fs, n=N, min_window=hop, resolution=1.0, function=window.BLACKMAN_HARRIS, threshold_db=-100.0)
+    cfg = constant_q.Config(fs=fs, n=N, min_window=hop * min_hops, resolution=1.0, function=window.BLACKMAN_HARRIS,
+                            threshold_db=-100.0)
     freqs = constant_q.frequencies(F_LO, F_HI, columns)
     print(f"building {columns} kernels...", flush=True)
     kernels = constant_q.kernels(cfg, freqs)

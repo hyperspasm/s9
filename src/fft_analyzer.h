@@ -63,6 +63,10 @@ uint32_t fft_analyzer_update(fft_analyzer_t *fa);
 // frames queued and not yet consumed
 uint32_t fft_analyzer_queued(fft_analyzer_t *fa);
 
+// whether the history has filled with audio since the transform was set
+// up; until it has, a transform is of a partial frame
+int fft_analyzer_filled(const fft_analyzer_t *fa);
+
 uint32_t fft_analyzer_fft_len(const fft_analyzer_t *fa);
 uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa);
 // spectra per update: the stream's channels, or 1 when mixing

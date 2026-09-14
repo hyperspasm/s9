@@ -9,14 +9,16 @@ typedef enum {
 	S9_MODE_SCOPE,
 	S9_MODE_SPECTRUM,
 	S9_MODE_PERIODIC,
+	S9_MODE_SPECTROGRAM,
 	S9_MODE_COUNT,
 } s9_mode_id_t;
 
 static const char *const s9_mode_names[S9_MODE_COUNT] = {
-	[S9_MODE_FULL]     = "full",
-	[S9_MODE_SCOPE]    = "scope",
-	[S9_MODE_SPECTRUM] = "spectrum",
-	[S9_MODE_PERIODIC] = "periodic",
+	[S9_MODE_FULL]        = "full",
+	[S9_MODE_SCOPE]       = "scope",
+	[S9_MODE_SPECTRUM]    = "spectrum",
+	[S9_MODE_PERIODIC]    = "periodic",
+	[S9_MODE_SPECTROGRAM] = "spectrogram",
 };
 
 #endif /* s9_modes_h */
