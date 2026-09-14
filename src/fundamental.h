@@ -20,10 +20,10 @@ typedef struct fundamental fundamental_t;
 
 typedef struct {
 	float window_s;                   // the audio analyzed at a time, seconds: the transform is the longest
-	                                  // power of two of samples within it. A window shorter than a tremolo's
-	                                  // cycle lets the envelope mislead the estimate to a sub-multiple of the
-	                                  // fundamental; several cycles in the window average it out. Shorter follows
-	                                  // a change sooner
+	                                  // power of two of samples within it. Longer resolves the partials more
+	                                  // finely and steadies the estimate; shorter follows a change sooner. A
+	                                  // frequency or an amplitude that moves within the window spreads each
+	                                  // partial into sidebands, so a steady tone is what the estimate is for
 	window_function_t window_function;
 	uint32_t channel;                 // the channel analyzed, or S9_CHANNEL_ALL for their average
 	float averaging_s;                // time constant of the power average, seconds of audio; 0 keeps the
