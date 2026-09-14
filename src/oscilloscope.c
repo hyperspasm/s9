@@ -17,7 +17,10 @@ typedef struct {
 	int trig_slope;       // 1 = rising, -1 = falling
 	float trig_thresh;    // -1.0 to 1.0
 	float trig_holdoff;   // seconds
-	uint32_t channel;     // channel index, or OSC_CHANNEL_ALL to sum
+	float trig_lock_hz;   // the component the trigger is locked to, or 0 for the signal's own crossings
+	uint32_t trig_lock_cycles;   // over which its phase is measured
+	float trig_lock_time; // seconds, the time constant of the clock the locked sweeps follow
+	uint32_t channel;     // channel index, or S9_CHANNEL_ALL to sum
 } oscilloscope_settings_t;
 
 static const oscilloscope_settings_t default_settings = {
@@ -27,7 +30,10 @@ static const oscilloscope_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,
-	.channel = OSC_CHANNEL_ALL,
+	.trig_lock_hz = 0.0f,
+	.trig_lock_cycles = 2,
+	.trig_lock_time = 0.3f,
+	.channel = S9_CHANNEL_ALL,
 };
 
 typedef struct oscilloscope {
@@ -379,7 +385,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 
 	if(osc->pixel_buffer && osc->sampler) {
 		const SDL_Rect *frame = scope_display_frame_rect(osc->display);
-		float pixel_rate = (float)frame->w / (osc->settings.time_per_div * 10.0f);
+		float pixel_rate = (float)frame->w / (osc->settings.time_per_div * OSCILLOSCOPE_DIVISIONS);
 		float gain = 1.0f / (osc->settings.amp_per_div * 5.0f);
 		uint32_t sweep_width = (uint32_t)frame->w;
 		float vertical_factor = frame->h * 0.5f * -1.f;
@@ -391,7 +397,7 @@ void oscilloscope_render(oscilloscope_t *osc, SDL_Renderer *renderer) {
 		float fast_mode_threshold = ceilf(fast_mode_min_time / frame_period) * frame_period;
 		uint32_t path_hold_frames = (uint32_t)ceilf(FAST_MODE_HOLD_TIME / frame_period);
 
-		typeof(osc->render_mode) mode = (osc->settings.time_per_div * 10.0f < fast_mode_threshold)
+		typeof(osc->render_mode) mode = (osc->settings.time_per_div * OSCILLOSCOPE_DIVISIONS < fast_mode_threshold)
 			? osc_mode_fast : osc_mode_slow;
 
 		if(osc->render_mode != mode) {
@@ -433,10 +439,14 @@ float oscilloscope_get_amp_per_div(const oscilloscope_t *osc) {
 static void push_trigger_settings(oscilloscope_t *osc) {
 	if (!osc->sampler) return;
 	osc_sampler_set_settings(osc->sampler, &(osc_sampler_settings_t){
-		.trigger_mode = osc->settings.trig_auto ? osc_trig_mode_auto : osc_trig_mode_normal,
+		.trigger_mode = osc->settings.trig_lock_hz > 0.0f ? osc_trig_mode_phase
+		              : osc->settings.trig_auto ? osc_trig_mode_auto : osc_trig_mode_normal,
 		.trig_slope = osc->settings.trig_slope,
 		.trig_thresh = osc->settings.trig_thresh,
 		.trig_holdoff = osc->settings.trig_holdoff,
+		.trig_frequency = osc->settings.trig_lock_hz,
+		.trig_cycles = osc->settings.trig_lock_cycles,
+		.trig_lock_tc = osc->settings.trig_lock_time,
 		.channel = osc->settings.channel,
 	});
 }
@@ -475,6 +485,33 @@ void oscilloscope_set_trig_holdoff(oscilloscope_t *osc, float seconds) {
 
 float oscilloscope_get_trig_holdoff(const oscilloscope_t *osc) {
 	return osc->settings.trig_holdoff;
+}
+
+void oscilloscope_set_trig_lock(oscilloscope_t *osc, float frequency_hz) {
+	osc->settings.trig_lock_hz = frequency_hz;
+	push_trigger_settings(osc);
+}
+
+float oscilloscope_get_trig_lock(const oscilloscope_t *osc) {
+	return osc->settings.trig_lock_hz;
+}
+
+void oscilloscope_set_trig_lock_cycles(oscilloscope_t *osc, uint32_t cycles) {
+	osc->settings.trig_lock_cycles = cycles ? cycles : 1;
+	push_trigger_settings(osc);
+}
+
+uint32_t oscilloscope_get_trig_lock_cycles(const oscilloscope_t *osc) {
+	return osc->settings.trig_lock_cycles;
+}
+
+void oscilloscope_set_trig_lock_time(oscilloscope_t *osc, float seconds) {
+	osc->settings.trig_lock_time = seconds > 0.0f ? seconds : 0.0f;
+	push_trigger_settings(osc);
+}
+
+float oscilloscope_get_trig_lock_time(const oscilloscope_t *osc) {
+	return osc->settings.trig_lock_time;
 }
 
 void oscilloscope_set_channel(oscilloscope_t *osc, uint32_t channel) {

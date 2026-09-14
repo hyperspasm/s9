@@ -11,8 +11,19 @@ typedef enum {
 	WINDOW_FUNCTION_HAMMING,
 	WINDOW_FUNCTION_BLACKMAN_HARRIS,
 	WINDOW_FUNCTION_BLACKMAN,
-	WINDOW_FUNCTION_RECTANGULAR
+	WINDOW_FUNCTION_RECTANGULAR,
+	WINDOW_FUNCTION_COUNT
 } window_function_t;
+
+static const char *const window_function_names[WINDOW_FUNCTION_COUNT] = {
+	[WINDOW_FUNCTION_BARTLETT]        = "bartlett",
+	[WINDOW_FUNCTION_HANN]            = "hann",
+	[WINDOW_FUNCTION_WELCH]           = "welch",
+	[WINDOW_FUNCTION_HAMMING]         = "hamming",
+	[WINDOW_FUNCTION_BLACKMAN_HARRIS] = "blackman_harris",
+	[WINDOW_FUNCTION_BLACKMAN]        = "blackman",
+	[WINDOW_FUNCTION_RECTANGULAR]     = "rectangular",
+};
 
 // create a window function
 // skew: 0.0 = symmetric (no warping), positive values shift peak toward

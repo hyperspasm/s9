@@ -19,6 +19,9 @@ extern const s9_audio_format_t S9_FORMAT_FLOAT32;
 	((fmt1).sample_type == (fmt2).sample_type && \
 	 (fmt1).bytes_per_sample == (fmt2).bytes_per_sample)
 
+// Where one channel of the stream may be chosen: every channel instead
+#define S9_CHANNEL_ALL UINT32_MAX
+
 typedef struct {
 	s9_audio_format_t 	audio_format;				// sample format
 	uint32_t 		  	sample_rate;				// audio sampling rate in Hz

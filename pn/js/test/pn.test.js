@@ -83,16 +83,18 @@ test("canonicalization ignores comments, blank lines, and whitespace, but not Un
 });
 
 test("the fixture manifests parse and hash to their declared hashes", () => {
-  for (const [file, root, count] of [["amp.manifest", "amp", 7], ["mixer.manifest", "mixer", 58]]) {
+  for (const [file, root, count] of [["amp.manifest", "amp", 8], ["mixer.manifest", "mixer", 58]]) {
     const m = parseManifest(readFileSync(join(fixtures, file)));
     assert.equal(m.root, root);
     assert.equal(m.entries.length, count);
     assert.equal(m.schemaHash, m.declaredHash, file);
   }
   const amp = parseManifest(readFileSync(join(fixtures, "amp.manifest")));
-  assert.equal(amp.declaredHash, 0x09decefb);
+  assert.equal(amp.declaredHash, 0xfb9c41f2);
   const by = amp.byPath;
-  assert.deepEqual([...by.keys()], ["amp/power", "amp/volume", "amp/eq/bass", "amp/eq/treble", "amp/input", "amp/name", "amp/reset"]);
+  assert.deepEqual([...by.keys()], ["amp/power", "amp/volume", "amp/eq/bass", "amp/eq/treble", "amp/input", "amp/name", "amp/level", "amp/reset"]);
+  assert.equal(by.get("amp/level").readonly, true);
+  assert.equal(by.get("amp/volume").readonly, false);
   assert.equal(by.get("amp/power").type, "bool");
   assert.deepEqual([by.get("amp/volume").min, by.get("amp/volume").max, by.get("amp/volume").step], [0, 100, 1]);
   assert.deepEqual([by.get("amp/eq/bass").min, by.get("amp/eq/bass").max, by.get("amp/eq/bass").step], [-12, 12, 0.5]);
@@ -103,19 +105,24 @@ test("the fixture manifests parse and hash to their declared hashes", () => {
 });
 
 test("a hand-annotated manifest has the same hash", () => {
-  const annotated = "# pn manifest v1 amp fnv1a32=09decefb\r\n\r\n# Front\r\namp/power\tbool\r\namp/volume   int 0 100 1  # %\r\n"
+  const annotated = "# pn manifest v1 amp fnv1a32=fb9c41f2\r\n\r\n# Front\r\namp/power\tbool\r\namp/volume   int 0 100 1  # %\r\n"
     + "amp/eq/bass float 0xc1400000 0x41400000 0x3f000000\r\namp/eq/treble float 0xc1400000 0x41400000 0x3f000000\r\n"
-    + "amp/input enum mic|line|aux\r\namp/name string 32\r\namp/reset action\r\n";
+    + "amp/input enum mic|line|aux\r\namp/name string 32\r\namp/level float 0x00000000 0x3f800000 0x00000000  ro  # a meter\r\namp/reset action\r\n";
   const m = parseManifest(annotated);
-  assert.equal(m.schemaHash, 0x09decefb);
-  assert.equal(m.entries.length, 7);
-  assert.equal(schemaHash(annotated), 0x09decefb);
+  assert.equal(m.schemaHash, 0xfb9c41f2);
+  assert.equal(m.entries.length, 8);
+  assert.equal(schemaHash(annotated), 0xfb9c41f2);
   assert.equal(parseManifest("r/a bool\n").declaredHash, null);
+});
+
+test("a read-only marker is read", () => {
+  const m = parseManifest("r/meter float 0x00000000 0x3f800000 0x00000000 ro\nr/gain float 0x00000000 0x3f800000 0x00000000\nr/on bool ro\n");
+  assert.deepEqual(m.entries.map(e => e.readonly), [true, false, true]);
 });
 
 test("malformed manifests are rejected", () => {
   for (const bad of ["r/a nonsense\n", "r/a int 0 1\n", "r/a float 0x3F800000 0x3f800000 0x00000000\n", "r/a enum mic|li/ne\n",
-                     "r/a bool\ns/b bool\n", "# pn manifest v1 s fnv1a32=00000000\nr/a bool\n", "\n"]) {
+                     "r/a bool\ns/b bool\n", "# pn manifest v1 s fnv1a32=00000000\nr/a bool\n", "\n", "r/go action ro\n", "r/a bool ro ro\n"]) {
     assert.throws(() => parseManifest(bad), ManifestError, JSON.stringify(bad));
   }
   assert.throws(() => parseManifest(Uint8Array.from([0x72, 0x2f, 0xff, 0x20, 0x62, 0x6f, 0x6f, 0x6c, 0x0a])), ManifestError);
@@ -145,12 +152,12 @@ test("the client frames requests and delivers replies", async () => {
 
   const schema = client.requestSchema("amp");
   client.feed(unhex(byName.schema));
-  assert.deepEqual(await schema, { hash: 0x09decefb, root: "amp" });
+  assert.deepEqual(await schema, { hash: 0xfb9c41f2, root: "amp" });
 
   const manifest = client.requestManifest("amp");
   client.feed(unhex(byName.manifest_chunk));
   client.feed(unhex(byName.manifest_chunk_last));
-  assert.equal(new TextDecoder().decode(await manifest), "abc# pn manifest v1 amp fnv1a32=09decefb\n");
+  assert.equal(new TextDecoder().decode(await manifest), "abc# pn manifest v1 amp fnv1a32=fb9c41f2\n");
 
   await assert.rejects(client.requestSchema("amp", 20), /no schema reply/);
 });
@@ -159,7 +166,7 @@ test("checkSchema compares the declared hash with the server's", async () => {
   const client = new Client();
   const reply = hash => client.bind(() => client.feed(encodePacket({ schema: { hash, root: "amp" } })));
   const manifest = readFileSync(join(fixtures, "amp.manifest"), "utf8");
-  reply(0x09decefb);
+  reply(0xfb9c41f2);
   assert.equal(await client.checkSchema(manifest), true);
   reply(0x12345678);
   assert.equal(await client.checkSchema(manifest, { onMismatch: "ignore" }), false);

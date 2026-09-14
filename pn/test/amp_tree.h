@@ -8,7 +8,7 @@
 
 typedef struct {
 	pn_param_t eq[2];
-	pn_param_t nodes[6];
+	pn_param_t nodes[7];
 	pn_param_t root;
 } amp_tree_t;
 

@@ -1,5 +1,6 @@
 #include "osc_sampler.h"
 #include "s9.h"
+#include "pll.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -17,6 +18,12 @@
 // auto trigger timeout in seconds - forces a sweep if no trigger is found within this time
 #define AUTO_TRIGGER_TIMEOUT 0.02f
 
+// the phase mode's clock: a crossing this far, as a fraction of the period, from where the
+// clock expected it is a slip the clock re-seats on
+#define LOCK_CAPTURE 0.25
+// and a locked frequency changed by more than this fraction is a new note the clock starts over for
+#define LOCK_RESEED 0.05
+
 typedef enum {
 	trig_state_wait,        // holdoff countdown
 	trig_state_pre_trigger, // waiting for signal to arm (opposite side of threshold)
@@ -29,6 +36,9 @@ static const osc_sampler_settings_t default_settings = {
 	.trig_slope = 1,
 	.trig_thresh = 0.1f,
 	.trig_holdoff = 0.00001f,  // 10µs
+	.trig_frequency = 0.0f,
+	.trig_cycles = 2,
+	.trig_lock_tc = 0.0f,
 	.channel = UINT32_MAX, // sum all channels
 };
 
@@ -67,6 +77,11 @@ struct osc_sampler {
 	float prev_sample;               // last sample value seen at scan position
 	uint32_t holdoff_remaining;      // holdoff countdown in samples
 	uint32_t auto_trigger_remaining; // auto trigger countdown in samples
+
+	// the phase mode's clock, in samples since creation
+	uint64_t consumed;               // samples the render thread has read past: read_ix in absolute terms
+	pll_t *lock;
+	double last_trigger;             // where the last sweep started
 };
 
 // Blackman window - excellent sidelobe suppression (~58 dB)
@@ -194,6 +209,59 @@ static S9_FORCE_INLINE int auto_trigger_tick(osc_sampler_t *s) {
 	return 1;
 }
 
+// whether the phase mode is in force: it needs a frequency to lock to
+static S9_FORCE_INLINE int phase_mode(const osc_sampler_t *s) {
+	return s->settings.trigger_mode == osc_trig_mode_phase && s->settings.trig_frequency > 0.0f;
+}
+
+// The phase of the component at the trigger frequency at buffer index at,
+// measured over the length samples from there on: a rectangular window's
+// transform at that one frequency. Over whole cycles the window is
+// orthogonal to the component's harmonics, so they do not move the phase;
+// the caller makes length whole cycles. For x = A cos(w n + phi) the sum
+// of x e^(-i w n) is (A length / 2) e^(i phi), so its argument is phi.
+static double phase_at(const osc_sampler_t *s, uint32_t at, uint32_t length) {
+	double w = 2.0 * M_PI * (double)s->settings.trig_frequency / (double)s->sample_rate;
+	double c = cos(w), sn = sin(w);
+	double cr = 1.0, ci = 0.0, re = 0.0, im = 0.0;
+	for (uint32_t n = 0; n < length; n++) {
+		if ((n & 255) == 0) {
+			// restart the rotation from an exact value so its rounding does not accumulate
+			cr = cos(w * n);
+			ci = sin(w * n);
+		}
+		double x = s->input_buf[(at + n) & s->buf_mask];
+		re += x * cr;
+		im -= x * ci;
+		double next = cr * c - ci * sn;
+		ci = cr * sn + ci * c;
+		cr = next;
+	}
+	return atan2(im, re);
+}
+
+// The phase mode's measurement: from the scan position, the next zero
+// crossing of the locked component in the slope's direction, as a
+// fractional number of samples ahead. Returns -1 when too few samples are
+// there to measure the phase.
+static int phase_crossing(const osc_sampler_t *s, uint32_t read_ix_local, uint32_t avail, double *ahead) {
+	double samples_per_cycle = (double)s->sample_rate / (double)s->settings.trig_frequency;
+	uint32_t cycles = s->settings.trig_cycles ? s->settings.trig_cycles : 1;
+	uint32_t length = (uint32_t)lround(cycles * samples_per_cycle);
+	uint32_t room = s->buf_mask - s->N - 2;   // the most the buffer can hold besides the resampler's window
+	if (length > room) length = room;
+	if (length < 2) length = 2;
+	if (avail < length + s->N + 1) return -1;
+
+	uint32_t half_N = s->N / 2;
+	double phi = phase_at(s, read_ix_local + half_N, length);
+	double target = s->settings.trig_slope > 0 ? -M_PI / 2.0 : M_PI / 2.0;   // cos(theta) crosses zero rising at -pi/2
+	double turn = fmod(target - phi, 2.0 * M_PI);
+	if (turn < 0.0) turn += 2.0 * M_PI;
+	*ahead = turn / (2.0 * M_PI) * samples_per_cycle;
+	return 0;
+}
+
 // scan input samples through the trigger state machine
 // consumes samples until we transition to trig_state_sweep or run out of data
 // on transition to sweep: read_ix and position are set for the resampler
@@ -201,6 +269,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 	if (s->trig_state == trig_state_sweep) return;
 
 	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&s->read_ix);
+	uint32_t read_ix_start = read_ix_local;
 	float threshold = s->settings.trig_thresh;
 	int slope = s->settings.trig_slope;
 	uint32_t half_N = s->N / 2;
@@ -230,6 +299,11 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 			break;
 
 		case trig_state_pre_trigger:
+			if (phase_mode(s)) {
+				// nothing to arm: the locked component's phase says where the crossing is
+				s->trig_state = trig_state_trigger;
+				break;
+			}
 			// need N+1 samples: N for potential resampler window + 1 for scan
 			if (avail < s->N + 1) goto done;
 			{
@@ -249,6 +323,24 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 			break;
 
 		case trig_state_trigger:
+			if (phase_mode(s)) {
+				double ahead;
+				if (phase_crossing(s, read_ix_local, avail, &ahead) != 0) goto done;
+				// the crossing measured is one more observation for the clock; the
+				// sweep starts where the clock says the next one is
+				double scan = (double)(s->consumed + ((read_ix_local - read_ix_start) & s->buf_mask) + half_N);
+				pll_observe(s->lock, scan + ahead);
+				double start = pll_next(s->lock, scan);
+				ahead = start - scan;
+				// whole samples ahead move the resampler's window, the fraction is its offset
+				uint32_t whole = (uint32_t)ahead;
+				read_ix_local = (read_ix_local + whole) & s->buf_mask;
+				s->position = (float)(ahead - whole);
+				s->ratio = 0.0f;  // force resample_read to recalculate cutoff
+				s->last_trigger = start;
+				s->trig_state = trig_state_sweep;
+				goto done;
+			}
 			// need N+1 samples: N for resampler window + 1 for crossing check
 			if (avail < s->N + 1) goto done;
 			{
@@ -301,6 +393,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 
 					s->position = trigger_pos;
 					s->ratio = 0.0f;  // force resample_read to recalculate cutoff
+					s->last_trigger = (double)(s->consumed + ((read_ix_local - read_ix_start) & s->buf_mask) + half_N) + trigger_pos;
 					s->trig_state = trig_state_sweep;
 					goto done;
 				}
@@ -314,6 +407,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 	}
 
 done:
+	s->consumed += (read_ix_local - read_ix_start) & s->buf_mask;
 	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
 }
 
@@ -340,6 +434,7 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 
 	// work with local read_ix (only render thread writes this)
 	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&s->read_ix);
+	uint32_t read_ix_start = read_ix_local;
 
 	uint32_t written = 0;
 
@@ -365,6 +460,7 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 	}
 
 	// publish final read_ix with release semantics
+	s->consumed += (read_ix_local - read_ix_start) & s->buf_mask;
 	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
 
 	return written;
@@ -377,6 +473,10 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 
 	sampler->sample_rate = sample_rate;
 	sampler->settings = default_settings;
+
+	sampler->lock = malloc(pll_alloc_size());
+	CHECK_ALLOC(sampler->lock, osc_sampler_free(&sampler); return NULL);
+	pll_init(sampler->lock, &(pll_config_t){ .tc = 0.0, .capture = LOCK_CAPTURE });
 
 	// resampler configuration (hardcoded for now)
 	sampler->N = 17;
@@ -436,6 +536,7 @@ void osc_sampler_free(osc_sampler_t **sampler) {
 		if ((*sampler)->sinc_delta) free((*sampler)->sinc_delta);
 		if ((*sampler)->window) free((*sampler)->window);
 		if ((*sampler)->input_buf) free((*sampler)->input_buf);
+		free((*sampler)->lock);
 		free(*sampler);
 		*sampler = NULL;
 	}
@@ -444,6 +545,15 @@ void osc_sampler_free(osc_sampler_t **sampler) {
 void osc_sampler_set_settings(osc_sampler_t *sampler, const osc_sampler_settings_t *settings) {
 	if (!sampler || !settings) return;
 	sampler->settings = *settings;
+
+	// the phase mode's clock: its time constant in samples, and its period seeded from the
+	// frequency locked to when it has none or the frequency has moved to a new note
+	pll_set_config(sampler->lock, &(pll_config_t){ .tc = (double)settings->trig_lock_tc * sampler->sample_rate, .capture = LOCK_CAPTURE });
+	if (settings->trig_frequency > 0.0f) {
+		double nominal = (double)sampler->sample_rate / (double)settings->trig_frequency;
+		if (!pll_locked(sampler->lock) || fabs(nominal - pll_period(sampler->lock)) > LOCK_RESEED * pll_period(sampler->lock))
+			pll_seed(sampler->lock, nominal);
+	}
 }
 
 uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint32_t frames, uint32_t n_channels) {
@@ -509,6 +619,10 @@ uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t ma
 	// resample at pixel rate with gain
 	float ratio = pixel_rate / (float)sampler->sample_rate;
 	return resample_read(sampler, out, max_pixels, ratio, gain);
+}
+
+double osc_sampler_last_trigger(const osc_sampler_t *sampler) {
+	return sampler ? sampler->last_trigger : 0.0;
 }
 
 void osc_sampler_sweep_complete(osc_sampler_t *sampler) {

@@ -116,6 +116,10 @@ class Server:
         if desc is None:
             return []
 
+        # Read-only
+        if desc.readonly:
+            return []
+
         # Check if value is present
         value_field, _ = betterproto.which_one_of(set_msg.value, "kind")
         if not value_field:

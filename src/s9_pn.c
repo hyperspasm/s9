@@ -1,6 +1,7 @@
 #include "s9_pn.h"
 #include "s9_params.h"
 #include "s9_ws.h"
+#include "periodic.h"
 #include "s9.h"
 
 #include <pn/pn.h>
@@ -14,6 +15,12 @@ struct s9_pn {
 	s9_ws_t *ws;
 	char *manifest;
 	uint32_t manifest_len;
+
+	// the fundamental last pushed to clients
+	periodic_t *periodic;
+	bool fundamental_valid;
+	float fundamental_frequency;
+	float fundamental_midi;
 };
 
 // -- manifest text
@@ -69,7 +76,8 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 
 	pn->config = *config;
 	void *osc = s9_components_get(pn->config.components, COMP_OSCILLOSCOPE)->instance;
-	pn_param_t *root = s9_params_build(&pn->params, osc);
+	pn->periodic = s9_components_get(pn->config.components, COMP_PERIODIC)->instance;
+	pn_param_t *root = s9_params_build(&pn->params, osc, pn->periodic);
 
 	// allocate server
 	pn_server_config_t server_config = {
@@ -127,8 +135,31 @@ void s9_pn_free(s9_pn_t **pn) {
 	}
 }
 
+// The tracked fundamental changes on its own, so its parameters are pushed
+// whenever their values move.
+static void notify_fundamental(s9_pn_t *pn) {
+	bool valid = periodic_valid(pn->periodic);
+	float frequency = periodic_frequency(pn->periodic);
+	if (valid != pn->fundamental_valid) {
+		pn->fundamental_valid = valid;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_VALID]);
+	}
+	if (frequency != pn->fundamental_frequency) {
+		pn->fundamental_frequency = frequency;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_FREQUENCY]);
+	}
+	note_t note;
+	float midi = periodic_note(pn->periodic, &note) ? note_midi(&note) : 0.0f;
+	if (midi != pn->fundamental_midi) {
+		pn->fundamental_midi = midi;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_MIDI]);
+	}
+}
+
 void s9_pn_update(s9_pn_t *pn) {
-	if (pn && pn->ws) s9_ws_update(pn->ws);
+	if (!pn) return;
+	if (pn->ws) s9_ws_update(pn->ws);
+	notify_fundamental(pn);
 }
 
 void s9_pn_notify_mode(s9_pn_t *pn) {

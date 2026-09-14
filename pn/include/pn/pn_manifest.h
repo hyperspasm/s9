@@ -20,6 +20,7 @@ typedef enum {
 	PN_SCHEMA_BAD_LABEL,       // an enum label is NULL, empty, or contains a forbidden byte
 	PN_SCHEMA_DUPLICATE_NAME,  // two siblings share a name
 	PN_SCHEMA_EMPTY_ENUM,      // an enum has no labels
+	PN_SCHEMA_READONLY_ACTION, // an action is marked read-only
 	PN_SCHEMA_NOT_GROUP,       // a node has children but is not a group
 	PN_SCHEMA_TOO_DEEP,        // the tree has more than PN_MAX_DEPTH levels
 	PN_SCHEMA_PATH_TOO_LONG,   // a path does not fit in PN_MAX_PATH with its terminator

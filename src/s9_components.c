@@ -5,6 +5,7 @@
 #include "spectrogram.h"
 #include "oscilloscope.h"
 #include "lissajous.h"
+#include "periodic.h"
 
 #include <stdlib.h>
 
@@ -74,6 +75,18 @@ s9_components_t *s9_components_new(void) {
 		.stop_streaming = (void (*)(void *))lissajous_stop_streaming,
 	};
 
+	// periodic
+	periodic_t *periodic = periodic_new(NULL);
+	CHECK_ERROR(periodic != NULL, s9_components_free(&comps); return NULL, "Failed to create periodic instance");
+	comps->components[COMP_PERIODIC] = (s9_component_t){
+		.instance = periodic,
+		.destroy = (void (*)(void **))periodic_free,
+		.render = (void (*)(void *, SDL_Renderer *))periodic_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))periodic_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))periodic_prepare_to_stream,
+		.stop_streaming = (void (*)(void *))periodic_stop_streaming,
+	};
+
 	return comps;
 }
 
@@ -120,10 +133,18 @@ static const s9_mode_slot_t mode_spectrum[] = {
 	{ COMP_NONE, {0} },
 };
 
+static const s9_mode_slot_t mode_periodic[] = {
+	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
+	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
+	{ COMP_PERIODIC,      { .margin_left = 60 } },
+	{ COMP_NONE, {0} },
+};
+
 static const s9_mode_slot_t *const mode_slots[S9_MODE_COUNT] = {
-	[S9_MODE_FULL]     = mode_full,
-	[S9_MODE_SCOPE]    = mode_scope,
-	[S9_MODE_SPECTRUM] = mode_spectrum,
+	[S9_MODE_FULL]      = mode_full,
+	[S9_MODE_SCOPE]     = mode_scope,
+	[S9_MODE_SPECTRUM]  = mode_spectrum,
+	[S9_MODE_PERIODIC]  = mode_periodic,
 };
 
 const s9_mode_slot_t *s9_mode_slots(s9_mode_id_t mode) {

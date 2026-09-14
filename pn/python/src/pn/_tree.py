@@ -6,10 +6,11 @@ class _Param:
 
     param_type = ParamType.NONE
 
-    def __init__(self, *, default=None):
+    def __init__(self, *, default=None, readonly=False):
         self._default = default
         self._name = None
         self._on_set_cb = None
+        self.readonly = readonly
 
     def __set_name__(self, owner, name):
         self._name = name
@@ -45,8 +46,8 @@ class _Param:
 class Float(_Param):
     param_type = ParamType.FLOAT
 
-    def __init__(self, *, default=0.0, min=0.0, max=1.0, step=0.0):
-        super().__init__(default=default)
+    def __init__(self, *, default=0.0, min=0.0, max=1.0, step=0.0, readonly=False):
+        super().__init__(default=default, readonly=readonly)
         self.min = min
         self.max = max
         self.step = step
@@ -65,8 +66,8 @@ class Float(_Param):
 class Int(_Param):
     param_type = ParamType.INT
 
-    def __init__(self, *, default=0, min=0, max=100, step=1):
-        super().__init__(default=default)
+    def __init__(self, *, default=0, min=0, max=100, step=1, readonly=False):
+        super().__init__(default=default, readonly=readonly)
         self.min = min
         self.max = max
         self.step = step
@@ -85,8 +86,8 @@ class Int(_Param):
 class Bool(_Param):
     param_type = ParamType.BOOL
 
-    def __init__(self, *, default=False):
-        super().__init__(default=default)
+    def __init__(self, *, default=False, readonly=False):
+        super().__init__(default=default, readonly=readonly)
 
     def _coerce(self, value):
         return bool(value)
@@ -95,8 +96,8 @@ class Bool(_Param):
 class Enum(_Param):
     param_type = ParamType.ENUM
 
-    def __init__(self, *, labels, default=0):
-        super().__init__(default=default)
+    def __init__(self, *, labels, default=0, readonly=False):
+        super().__init__(default=default, readonly=readonly)
         self.labels = list(labels)
 
     def _coerce(self, value):
@@ -115,8 +116,8 @@ class Enum(_Param):
 class String(_Param):
     param_type = ParamType.STRING
 
-    def __init__(self, *, default="", max_len=256):
-        super().__init__(default=default)
+    def __init__(self, *, default="", max_len=256, readonly=False):
+        super().__init__(default=default, readonly=readonly)
         self.max_len = max_len
 
     def _coerce(self, value):

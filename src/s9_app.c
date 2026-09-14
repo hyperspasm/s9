@@ -366,6 +366,7 @@ int s9_app_run(void) {
 			case SDLK_1: key_set_mode(S9_MODE_FULL);     break;
 			case SDLK_2: key_set_mode(S9_MODE_SCOPE);    break;
 			case SDLK_3: key_set_mode(S9_MODE_SPECTRUM); break;
+			case SDLK_4: key_set_mode(S9_MODE_PERIODIC); break;
 			default: break;
 			}
 		}

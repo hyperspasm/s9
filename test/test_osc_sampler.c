@@ -772,6 +772,93 @@ static void test_read_continuity_across_calls(void) {
 	printf(" ok\n"); \
 } while(0)
 
+
+// ---- phase-locked trigger ----
+
+// A fundamental with a third harmonic of its own phase: the waveform does
+// not cross zero where the fundamental does. Locked to the fundamental,
+// the sweep starts at the fundamental's rising crossing, sample 240 for
+// 200 Hz at 48 kHz, and the next sweep starts a whole number of cycles on.
+static float composite(uint32_t n) {
+	double t = (double)n / SAMPLE_RATE;
+	return (float)(sin(2.0 * M_PI * 200.0 * t) + 0.5 * sin(2.0 * M_PI * 600.0 * t + 1.0));
+}
+
+static void test_phase_lock(void) {
+	osc_sampler_t *s = osc_sampler_new(SAMPLE_RATE, 16384);
+	assert(s != NULL);
+	osc_sampler_set_settings(s, &(osc_sampler_settings_t){
+		.trigger_mode = osc_trig_mode_phase, .trig_slope = 1, .trig_thresh = 0.0f, .trig_holdoff = 0.0f,
+		.trig_frequency = 200.0f, .trig_cycles = 2, .channel = 0,
+	});
+	float *x = malloc(sizeof(float) * 8000);
+	for (uint32_t n = 0; n < 8000; n++) x[n] = composite(n);
+	assert(osc_sampler_enqueue(s, x, 8000, 1) == 8000);
+
+	float out[100];
+	int triggered = 0;
+	uint32_t got = osc_sampler_read_pixels(s, out, 100, (float)SAMPLE_RATE, 1.0f, &triggered);
+	assert(triggered && got == 100);
+	assert(out[0] > 0.3f);   // the waveform is well off zero where the fundamental crosses
+	for (uint32_t i = 0; i < 100; i++) assert(fabsf(out[i] - composite(240 + i)) < 0.02f);
+
+	osc_sampler_sweep_complete(s);
+	float next[100];
+	got = osc_sampler_read_pixels(s, next, 100, (float)SAMPLE_RATE, 1.0f, &triggered);
+	assert(triggered && got == 100);
+	for (uint32_t i = 0; i < 100; i++) assert(fabsf(next[i] - out[i]) < 0.02f);
+
+	free(x);
+	osc_sampler_free(&s);
+}
+
+// A fundamental with a partner a few hertz away, whose beating swings the
+// measured phase, plus a harmonic. Sweeping from each measurement as it
+// is, the spacing between sweeps wanders; following the clock, once it has
+// settled, it holds to the period.
+static float beating(uint32_t n) {
+	double t = (double)n / SAMPLE_RATE;
+	return (float)(sin(2.0 * M_PI * 200.0 * t) + 0.7 * sin(2.0 * M_PI * 206.0 * t + 0.5) + 0.4 * sin(2.0 * M_PI * 600.0 * t + 1.0));
+}
+
+// the widest deviation of the spacing between sweep starts from the period, over the last 40 of 400 sweeps
+static double spacing_deviation(float lock_tc) {
+	osc_sampler_t *s = osc_sampler_new(SAMPLE_RATE, 131072);
+	assert(s != NULL);
+	osc_sampler_set_settings(s, &(osc_sampler_settings_t){
+		.trigger_mode = osc_trig_mode_phase, .trig_slope = 1, .trig_thresh = 0.0f, .trig_holdoff = 0.0f,
+		.trig_frequency = 200.0f, .trig_cycles = 2, .trig_lock_tc = lock_tc, .channel = 0,
+	});
+	float *x = malloc(sizeof(float) * 120000);
+	for (uint32_t n = 0; n < 120000; n++) x[n] = beating(n);
+	assert(osc_sampler_enqueue(s, x, 120000, 1) == 120000);
+
+	float out[100];
+	double worst = 0.0, previous = 0.0;
+	for (int k = 0; k < 400; k++) {
+		int triggered = 0;
+		uint32_t got = osc_sampler_read_pixels(s, out, 100, (float)SAMPLE_RATE, 1.0f, &triggered);
+		assert(triggered && got == 100);
+		double start = osc_sampler_last_trigger(s);
+		if (k > 360) {
+			double deviation = fabs(start - previous - 240.0);
+			if (deviation > worst) worst = deviation;
+		}
+		previous = start;
+		osc_sampler_sweep_complete(s);
+	}
+	free(x);
+	osc_sampler_free(&s);
+	return worst;
+}
+
+static void test_phase_lock_clock(void) {
+	double raw = spacing_deviation(0.0f);
+	double locked = spacing_deviation(0.25f);
+	assert(raw > 1.0);
+	assert(locked < raw / 4.0);
+}
+
 int main(void) {
 	if (SDL_Init(SDL_INIT_TIMER) != 0) {
 		fprintf(stderr, "Unable to initialize SDL: %s\n", SDL_GetError());
@@ -785,6 +872,10 @@ int main(void) {
 	RUN_TEST(test_new_minimum_buffer);
 	RUN_TEST(test_new_buffer_too_small);
 	RUN_TEST(test_free_null_safety);
+
+	// phase-locked trigger
+	RUN_TEST(test_phase_lock);
+	RUN_TEST(test_phase_lock_clock);
 
 	// enqueue
 	RUN_TEST(test_enqueue_mono);

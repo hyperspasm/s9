@@ -91,7 +91,7 @@ Other mismatches (e.g. `string` → `float`) are silently rejected. Values are c
 
 ## Module Pattern
 
-Server modules build their own parameter subtrees using `pn_param_t` arrays embedded in their structs. Inline constructors (`pn_float`, `pn_int`, `pn_bool`, `pn_enum`, `pn_string`, `pn_action`, `pn_group`) simplify tree construction.
+Server modules build their own parameter subtrees using `pn_param_t` arrays embedded in their structs. Inline constructors (`pn_float`, `pn_int`, `pn_bool`, `pn_enum`, `pn_string`, `pn_action`, `pn_group`) simplify tree construction. `pn_readonly()` wraps a constructed node that the server reports and pushes but never accepts a set for, a meter or a measurement; the manifest marks it `ro`.
 
 Every setter and getter receives a `void *ctx` pointer from the param, allowing the same function to operate on different instances.
 
@@ -240,7 +240,7 @@ static int to_stdout(const uint8_t *buf, uint32_t len, void *ctx) {
 pn_manifest_write(root, to_stdout, NULL);
 ```
 
-The writer reads only names, types, constraints, and children. It never calls a getter or setter and never dereferences a node's `ctx`, which is what makes schema-only builds possible.
+The writer reads only names, types, constraints, children, and whether a node is read-only. It never calls a getter or setter and never dereferences a node's `ctx`, which is what makes schema-only builds possible.
 
 ### Over the wire
 

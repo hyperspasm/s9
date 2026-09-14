@@ -169,10 +169,10 @@
  },
  {
   "name": "schema",
-  "frame": "0f2a0a0dfbcede091203616d7034b700",
+  "frame": "0f2a0a0df2419cfb1203616d7058f600",
   "message": {
    "schema": {
-    "hash": 165596923,
+    "hash": 4221321714,
     "root": "amp"
    }
   }
@@ -188,10 +188,10 @@
  },
  {
   "name": "manifest_chunk_last",
-  "frame": "2f3a2a0a262320706e206d616e696665737420763120616d7020666e76316133323d30396465636566620a10014bb000",
+  "frame": "2f3a2a0a262320706e206d616e696665737420763120616d7020666e76316133323d66623963343166320a10015d6f00",
   "message": {
    "manifest_chunk": {
-    "data": "# pn manifest v1 amp fnv1a32=09decefb\n",
+    "data": "# pn manifest v1 amp fnv1a32=fb9c41f2\n",
     "last": true
    }
   }

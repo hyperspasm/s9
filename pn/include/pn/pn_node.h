@@ -74,6 +74,7 @@ typedef struct pn_node {
 	const char *name;
 	pn_type_t type;
 	pn_meta_t meta;
+	bool readonly;    // a client's set is refused
 } pn_node_t;
 
 #ifdef __cplusplus

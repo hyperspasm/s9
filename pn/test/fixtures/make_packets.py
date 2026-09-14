@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, "../../python/src")
 from pn import _codec, _proto as pb
 
-MANIFEST = "# pn manifest v1 amp fnv1a32=09decefb\n"
+MANIFEST = "# pn manifest v1 amp fnv1a32=fb9c41f2\n"
 
 CASES = [
     ("set_float", pb.Message(set=pb.Set(path="amp/eq/bass", value=pb.Value(float_val=-3.5))),
@@ -43,8 +43,8 @@ CASES = [
      {"schema_get": {"root": ""}}),
     ("schema_get", pb.Message(schema_get=pb.SchemaGet(root="amp")),
      {"schema_get": {"root": "amp"}}),
-    ("schema", pb.Message(schema=pb.Schema(hash=0x09DECEFB, root="amp")),
-     {"schema": {"hash": 0x09DECEFB, "root": "amp"}}),
+    ("schema", pb.Message(schema=pb.Schema(hash=0xFB9C41F2, root="amp")),
+     {"schema": {"hash": 0xFB9C41F2, "root": "amp"}}),
     ("manifest_get", pb.Message(manifest_get=pb.ManifestGet(root="amp")),
      {"manifest_get": {"root": "amp"}}),
     ("manifest_chunk_last", pb.Message(manifest_chunk=pb.ManifestChunk(data=MANIFEST.encode(), last=True)),
