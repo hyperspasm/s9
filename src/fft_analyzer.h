@@ -11,7 +11,10 @@
 // render thread calls update once per display frame and reads the spectra.
 // Each update consumes the queued audio in whole display frames and slides
 // the analysis window over it, so consecutive spectra overlap by all but
-// one display frame's worth of samples.
+// one display frame's worth of samples. With hop_frames set, an update
+// consumes exactly that many frames instead, or none while fewer are
+// queued, so a caller can transform hop by hop and keep up when it falls
+// behind.
 
 typedef struct fft_analyzer fft_analyzer_t;
 
@@ -30,6 +33,8 @@ typedef struct {
 	uint32_t channel;                  // FFT_ANALYZER_MIX: the channel transformed, or S9_CHANNEL_ALL
 	float averaging_s;                 // time constant of the per-bin power average, seconds of audio;
 	                                   // 0 keeps the latest transform's
+	uint32_t hop_frames;               // frames an update consumes: exactly this many, or none while
+	                                   // fewer are queued; 0 consumes every whole display frame queued
 } fft_analyzer_config_t;
 
 fft_analyzer_t *fft_analyzer_new(const fft_analyzer_config_t *config);
@@ -52,8 +57,11 @@ int fft_analyzer_streaming(const fft_analyzer_t *fa);
 // audio thread: queue interleaved frames in the stream's format
 void fft_analyzer_enqueue_audio_data(fft_analyzer_t *fa, const void *data, uint32_t size);
 
-// render thread: consume the queued audio and transform
-void fft_analyzer_update(fft_analyzer_t *fa);
+// render thread: consume the queued audio and transform; the frames consumed
+uint32_t fft_analyzer_update(fft_analyzer_t *fa);
+
+// frames queued and not yet consumed
+uint32_t fft_analyzer_queued(fft_analyzer_t *fa);
 
 uint32_t fft_analyzer_fft_len(const fft_analyzer_t *fa);
 uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa);

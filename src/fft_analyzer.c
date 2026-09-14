@@ -214,15 +214,15 @@ static void mono_frame(const fft_analyzer_t *fa, uint32_t index, float *dst) {
 	}
 }
 
-void fft_analyzer_update(fft_analyzer_t *fa) {
-	if (!fa->streaming) return;
+uint32_t fft_analyzer_update(fft_analyzer_t *fa) {
+	if (!fa->streaming) return 0;
 
 	if (needs_rebuild(&fa->built, &fa->config)) {
 		free_transform(fa);
 		if (alloc_transform(fa) != 0) {
 			free_transform(fa);
 			fa->streaming = 0;
-			return;
+			return 0;
 		}
 	}
 
@@ -230,10 +230,18 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 	uint32_t bytes_per_frame = fa->stream.audio_format.bytes_per_sample * channels;
 	uint32_t frames_avail = ring_buffer_read_avail(fa->rb) / bytes_per_frame;
 
-	// consume whole display frames
+	// consume one hop, or whole display frames
 	uint32_t consume = frames_avail;
-	if (frames_avail > fa->stream.samples_per_display_frame)
+	if (fa->config.hop_frames) {
+		if (frames_avail < fa->config.hop_frames) {
+			fa->hop_s = 0.0f;
+			fa->fraction = 0.0f;
+			return 0;
+		}
+		consume = fa->config.hop_frames;
+	} else if (frames_avail > fa->stream.samples_per_display_frame) {
 		consume = (frames_avail / fa->stream.samples_per_display_frame) * fa->stream.samples_per_display_frame;
+	}
 	uint32_t dequeued = ring_buffer_read(fa->rb, (uint8_t *)fa->input, consume * bytes_per_frame);
 	S9_ASSERT(dequeued == consume * bytes_per_frame);
 	fa->hop_s = (float)consume / (float)fa->stream.sample_rate;
@@ -276,6 +284,12 @@ void fft_analyzer_update(fft_analyzer_t *fa) {
 		}
 	}
 	fa->power_primed = 1;
+	return consume + dropped;
+}
+
+uint32_t fft_analyzer_queued(fft_analyzer_t *fa) {
+	if (!fa->rb) return 0;
+	return ring_buffer_read_avail(fa->rb) / (fa->stream.audio_format.bytes_per_sample * fa->stream.channels);
 }
 
 uint32_t fft_analyzer_fft_len(const fft_analyzer_t *fa) { return fa->fft_len; }

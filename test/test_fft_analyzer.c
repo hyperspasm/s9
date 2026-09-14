@@ -220,6 +220,39 @@ TEST power_average_waits_for_a_full_frame(void) {
 	PASS();
 }
 
+// With hop_frames set, an update consumes exactly one hop and says so, or
+// nothing while fewer frames are queued, and the history slides by the hop.
+TEST hop_frames_step_the_history(void) {
+	enum { N = 1024, HOP = 100 };
+	float *ones = malloc(sizeof(float) * N), *silence = calloc(N, sizeof(float));
+	for (int i = 0; i < N; i++) ones[i] = 1.0f;
+
+	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){
+		.fft_len = N, .window_function = WINDOW_FUNCTION_HANN, .mode = FFT_ANALYZER_MIX, .hop_frames = HOP,
+	});
+	fft_analyzer_prepare_to_stream(fa, &(s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 1, .buffer_frames = 256, .samples_per_display_frame = N / 4,
+	});
+	fft_analyzer_enqueue_audio_data(fa, silence, sizeof(float) * N);
+	for (int i = 0; i < N / HOP; i++) ASSERT_EQ(HOP, fft_analyzer_update(fa));
+	ASSERT_EQ(N % HOP, fft_analyzer_queued(fa));
+	ASSERT_EQ(0u, fft_analyzer_update(fa));   // a partial hop waits
+	ASSERT_EQ_FMT(0.0f, fft_analyzer_hop_seconds(fa), "%g");
+
+	fft_analyzer_enqueue_audio_data(fa, ones, sizeof(float) * 2 * HOP);
+	ASSERT_EQ(HOP, fft_analyzer_update(fa));   // the partial hop of silence and the first of the ones
+	ASSERT_IN_RANGE(sqrtf((float)(HOP - N % HOP) / N), fft_analyzer_rms(fa, 0), 1e-6f);
+	ASSERT_EQ(HOP, fft_analyzer_update(fa));
+	ASSERT_IN_RANGE(sqrtf((float)(2 * HOP - N % HOP) / N), fft_analyzer_rms(fa, 0), 1e-6f);
+	ASSERT_IN_RANGE((float)HOP / FS, fft_analyzer_hop_seconds(fa), 1e-9f);
+	ASSERT_EQ(N % HOP, fft_analyzer_queued(fa));
+
+	free(ones);
+	free(silence);
+	fft_analyzer_free(&fa);
+	PASS();
+}
+
 // The transform length is the power of two at or above sample_rate / resolution.
 TEST fft_len_from_resolution(void) {
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .resolution_hz = 2.0f, .window_function = WINDOW_FUNCTION_HANN });
@@ -245,6 +278,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(reconfigure_at_next_update);
 	RUN_TEST(power_average_follows_audio_time);
 	RUN_TEST(power_average_waits_for_a_full_frame);
+	RUN_TEST(hop_frames_step_the_history);
 	RUN_TEST(fft_len_from_resolution);
 	GREATEST_MAIN_END();
 }
