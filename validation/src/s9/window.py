@@ -4,6 +4,7 @@ Every step mirrors the C: shapes evaluated in double and stored as float32,
 the skew warp interpolating float32 values in double, and the normalization
 accumulating the sum in float32 in index order. Identifiers follow the C enum.
 """
+import functools
 import math
 
 import numpy as np
@@ -84,3 +85,25 @@ def create(function, length, normalize=True, skew=0.0):
     if normalize:
         window = _normalize(window)
     return window
+
+
+BANDWIDTH_LENGTH = 4096      # the length the bandwidth is measured at
+BANDWIDTH_STEP = 1.0 / 64    # bins between points of the scan
+
+
+@functools.lru_cache(maxsize=None)
+def bandwidth(function):
+    """The width of the window's transform at half its peak, in bins of the
+    window's own length: the width a tone's ridge has through it. Found by
+    scanning the transform outward from the peak in steps of BANDWIDTH_STEP
+    at BANDWIDTH_LENGTH and interpolating the crossing, as the C does."""
+    w = create(function, BANDWIDTH_LENGTH, normalize=False).astype(np.float64)
+    i = np.arange(BANDWIDTH_LENGTH, dtype=np.float64)
+    peak = float(np.sum(w))
+    nu, prev = 0.0, peak
+    while True:
+        nu += BANDWIDTH_STEP
+        mag = abs(np.sum(w * np.exp(-2j * math.pi * nu * i / BANDWIDTH_LENGTH)))
+        if mag < 0.5 * peak:
+            return 2.0 * (nu - BANDWIDTH_STEP * (mag - 0.5 * peak) / (mag - prev))
+        prev = mag

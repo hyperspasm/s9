@@ -20,6 +20,7 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 - `conditioner.py` — the conditioner that turns per-frame estimates into a fundamental with a validity: gate, harmonicity hysteresis, hold, octave guard, smoothing, dead band, snap to a new note.
 - `pll.py` — a phase-locked loop over the times of a periodic event: a clock with a period and a phase that follows measured times by one time constant, damped to a ratio of 0.7, acquiring quickly while a lock is fresh, re-seating and acquiring again on a slip.
 - `harmonics.py` — per-harmonic readouts from a spectrum: the peak nearest each harmonic when it stands a prominence above the floor beside it, its level refined by a parabola less the window's bias, its phase relative to the fundamental, and the distortion the harmonics add up to.
+- `constant_q.py` — a constant-Q readout from one long transform: the level at each of a set of frequencies through a window sized for that frequency, every window centred on the middle of the same frame, defined as the windowed transform at exactly that frequency and computed as Brown and Puckette's sparse kernels over the frame's transform.
 
 ## Scripts
 
@@ -29,6 +30,7 @@ python validation/scripts/emit_conditioner_golden.py
 python validation/scripts/emit_harmonics_golden.py
 python validation/scripts/emit_pll_golden.py
 python validation/scripts/emit_harmonic_series_golden.py
+python validation/scripts/emit_constant_q_golden.py
 ```
 
 Each writes a header under `test/golden/`. Regenerate and commit when an algorithm or its cases change.
@@ -47,3 +49,13 @@ python validation/scripts/measure_averaging.py
 ```
 
 The first reads harmonics of pure noise and reports how often noise passes for one, by window, transform size, shoulder length, and threshold. The second slides the real window over a sine with one weak harmonic in noise and reports false readouts, hits, and flips against averaging time, thresholds, and the label gate.
+
+```sh
+# Measure the constant-Q readout as the spectrogram uses it
+python validation/scripts/measure_constant_q.py [--quiet]
+
+# Render spectrograms of synthetic signals to PNG files, for looking at
+python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90]
+```
+
+The first promises that a tone reads its level at its nearest column, that what the kernels' truncation leaves out stays below a floor, and that a click is read only by the columns whose windows hold it; it reports where the constant-Q regime begins and ends, the kernels' size, and how deep the dip between two tones a semitone apart is. The second writes images of a sweep, a drum pattern, a chromatic run, and a vowel, one row per display frame; the images stay out of the repository.

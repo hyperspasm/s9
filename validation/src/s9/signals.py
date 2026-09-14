@@ -9,8 +9,8 @@ import math
 
 import numpy as np
 
-SINE, SAWTOOTH, SQUARE, TWIN, NOISE, SILENCE, PARTIALS = range(7)
-KIND_NAMES = ["sine", "sawtooth", "square", "twin", "noise", "silence", "partials"]
+SINE, SAWTOOTH, SQUARE, TWIN, NOISE, SILENCE, PARTIALS, IMPULSE = range(8)
+KIND_NAMES = ["sine", "sawtooth", "square", "twin", "noise", "silence", "partials", "impulse"]
 
 
 def sine(n, fs, freq, amp=1.0, phase=0.0):
@@ -68,7 +68,16 @@ def partials(n, fs, table, amp=1.0):
     return x.astype(np.float32)
 
 
-def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10, seed=1, noise_amp=0.0, table=None):
+def impulse(n, index, amp=1.0):
+    """One sample of amp at index in silence."""
+    x = np.zeros(n, dtype=np.float32)
+    if 0 <= index < n:
+        x[index] = np.float32(amp)
+    return x
+
+
+def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10, seed=1, noise_amp=0.0, table=None,
+             index=0):
     """A signal of the kind, with noise of amplitude noise_amp from seed added
     when that is positive: each part rounded to float32, then their sum."""
     if kind == SINE:
@@ -85,6 +94,8 @@ def generate(kind, n, fs, freq=0.0, freq2=0.0, amp=1.0, phase=0.0, harmonics=10,
         x = silence(n)
     elif kind == PARTIALS:
         x = partials(n, fs, table, amp)
+    elif kind == IMPULSE:
+        x = impulse(n, index, amp)
     else:
         raise ValueError(kind)
     if noise_amp > 0.0:
