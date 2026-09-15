@@ -62,6 +62,18 @@ static unsigned lit_pixels(void) {
 	return lit;
 }
 
+// lit pixels whose color is not a grey
+static unsigned colored_pixels(void) {
+	unsigned colored = 0;
+	const uint32_t *px = surface->pixels;
+	for (int i = 0; i < WIDTH * HEIGHT; i++) {
+		Uint8 r, g, b;
+		SDL_GetRGB(px[i], surface->format, &r, &g, &b);
+		if ((r || g || b) && (r != g || g != b)) colored++;
+	}
+	return colored;
+}
+
 // the hops it takes to fill a transform of n samples
 static unsigned hops_to_fill(unsigned n) { return (n + HOP - 1) / HOP; }
 
@@ -133,6 +145,32 @@ TEST new_transform_starts_over(void) {
 	PASS();
 }
 
+// A new color scale colors the whole history again, not only the rows
+// that follow: a tone drawn in inferno is in color, and in grey nothing
+// on the screen is.
+TEST scale_change_recolors_the_history(void) {
+	enum { N = 32768, ROWS = 30 };
+	spectrogram_t *sg = streaming(0.75f);
+	unsigned offset = 0;
+	for (unsigned h = 0; h < hops_to_fill(N) + ROWS; h++) {
+		feed(sg, 1, &offset);
+		render(sg);
+	}
+	ASSERT_EQ_FMT((unsigned)ROWS + 1, spectrogram_rows(sg), "%u");
+	ASSERT(colored_pixels() > 0);
+
+	spectrogram_config_t c = *spectrogram_config(sg);
+	c.palette = PALETTE_GREY;
+	spectrogram_set_config(sg, &c);
+	render(sg);
+	ASSERT_EQ_FMT((unsigned)ROWS + 1, spectrogram_rows(sg), "%u");
+	ASSERT_EQ_FMT(0u, colored_pixels(), "%u");
+	ASSERT(lit_pixels() > 0);
+
+	spectrogram_free(&sg);
+	PASS();
+}
+
 // A configuration that makes no sense falls back to the default.
 TEST config_is_kept_sane(void) {
 	spectrogram_t *sg = spectrogram_new(NULL);
@@ -140,6 +178,7 @@ TEST config_is_kept_sane(void) {
 	c.hop_ms = 0;
 	c.min_db = 0.0f;
 	c.max_db = -10.0f;
+	c.palette = (palette_t)PALETTE_COUNT;
 	c.resolution_semitones = 0.0f;
 	c.f_min = 100.0f;
 	c.f_max = 50.0f;
@@ -148,6 +187,7 @@ TEST config_is_kept_sane(void) {
 	ASSERT_EQ_FMT(default_spectrogram_config.hop_ms, got->hop_ms, "%u");
 	ASSERT_EQ_FMT(default_spectrogram_config.min_db, got->min_db, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.max_db, got->max_db, "%g");
+	ASSERT_EQ(default_spectrogram_config.palette, got->palette);
 	ASSERT_EQ_FMT(default_spectrogram_config.resolution_semitones, got->resolution_semitones, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.f_min, got->f_min, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.f_max, got->f_max, "%g");
@@ -170,6 +210,7 @@ int main(int argc, char **argv) {
 	GREATEST_MAIN_BEGIN();
 	RUN_TEST(rows_follow_the_hops);
 	RUN_TEST(new_transform_starts_over);
+	RUN_TEST(scale_change_recolors_the_history);
 	RUN_TEST(config_is_kept_sane);
 	GREATEST_MAIN_END();
 }

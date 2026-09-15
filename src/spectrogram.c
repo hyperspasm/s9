@@ -22,16 +22,11 @@
 #define TICK 6                 // the ticks' length
 #define FONT_SIZE 16
 
-// the colour scale from the floor to full brightness, as stops
-typedef struct { float at; uint8_t r, g, b; } stop_t;
-static const stop_t STOPS[] = {
-	{ 0.0f, 0, 0, 0 }, { 0.2f, 20, 10, 60 }, { 0.4f, 120, 20, 120 }, { 0.6f, 220, 60, 40 }, { 0.8f, 250, 170, 30 }, { 1.0f, 255, 255, 220 },
-};
-#define STOP_COUNT (sizeof STOPS / sizeof *STOPS)
-
 struct spectrogram {
 	spectrogram_config_t config;
 	int config_changed;              // applied at the next frame
+	int recolor;                     // the scale or the range changed: the image is colored again
+	struct { palette_t palette; float min_db, max_db; } colored;   // what the image's colors were made with
 
 	fft_analyzer_t *analyzer;
 	s9_audio_stream_config_t stream;
@@ -62,9 +57,9 @@ struct spectrogram {
 	constant_q_config_t built;       // what the kernels were built for
 	float built_f_min, built_f_hi;
 	double *frequencies;             // plot.w
-	float *levels;                   // plot.w, dB
+	float *history;                  // plot.w x image_h, dB: the rows as the ring holds them
 	uint32_t *pixels;                // one row
-	uint32_t palette[256];
+	uint32_t palette[PALETTE_STEPS];
 };
 
 // -- configuration
@@ -82,6 +77,7 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	if (!(sg->config.resolution_semitones > 0.0f)) sg->config.resolution_semitones = d->resolution_semitones;
 	if ((unsigned)sg->config.window_function >= WINDOW_FUNCTION_COUNT) sg->config.window_function = d->window_function;
 	if (!(sg->config.max_db > sg->config.min_db)) { sg->config.min_db = d->min_db; sg->config.max_db = d->max_db; }
+	if ((unsigned)sg->config.palette >= PALETTE_COUNT) sg->config.palette = d->palette;
 	if (!(sg->config.f_min > 0.0f && sg->config.f_max > sg->config.f_min)) { sg->config.f_min = d->f_min; sg->config.f_max = d->f_max; }
 	sg->config_changed = 1;
 }
@@ -106,10 +102,12 @@ static fft_analyzer_config_t analyzer_config(const spectrogram_t *sg) {
 	};
 }
 
-// hand a changed configuration to the analyzer; the readout follows at the next row
+// hand a changed configuration to the analyzer and the coloring; the readout follows at the next row
 static void apply_config(spectrogram_t *sg) {
 	if (!sg->config_changed) return;
 	sg->config_changed = 0;
+	if (sg->config.palette != sg->colored.palette || sg->config.min_db != sg->colored.min_db || sg->config.max_db != sg->colored.max_db)
+		sg->recolor = 1;
 	if (!sg->stream.sample_rate) return;
 	long hop = lround((double)sg->config.hop_ms * sg->stream.sample_rate / 1000.0);
 	sg->hop = hop < 1 ? 1 : (uint32_t)hop;
@@ -119,18 +117,23 @@ static void apply_config(spectrogram_t *sg) {
 	sg->axes_drawn = 0;
 }
 
+// the chosen scale as pixels
 static void build_palette(spectrogram_t *sg) {
-	for (int i = 0; i < 256; i++) {
-		float u = (float)i / 255.0f;
-		const stop_t *a = &STOPS[0], *b = &STOPS[1];
-		for (unsigned s = 0; s + 1 < STOP_COUNT; s++) {
-			if (u >= STOPS[s].at) { a = &STOPS[s]; b = &STOPS[s + 1]; }
-		}
-		float t = (u - a->at) / (b->at - a->at);
-		uint32_t r = (uint32_t)(a->r + t * (b->r - a->r) + 0.5f);
-		uint32_t g = (uint32_t)(a->g + t * (b->g - a->g) + 0.5f);
-		uint32_t bl = (uint32_t)(a->b + t * (b->b - a->b) + 0.5f);
-		sg->palette[i] = 0xFF000000u | r << 16 | g << 8 | bl;
+	const uint8_t (*table)[3] = palette_tables[sg->config.palette];
+	for (int i = 0; i < PALETTE_STEPS; i++)
+		sg->palette[i] = 0xFF000000u | (uint32_t)table[i][0] << 16 | (uint32_t)table[i][1] << 8 | table[i][2];
+	sg->colored.palette = sg->config.palette;
+	sg->colored.min_db = sg->config.min_db;
+	sg->colored.max_db = sg->config.max_db;
+}
+
+// a row's levels as pixels: the range between the floor and full brightness, through the scale
+static void color_row(const spectrogram_t *sg, const float *levels, uint32_t *pixels) {
+	float lo = sg->config.min_db, scale = (float)(PALETTE_STEPS - 1) / (sg->config.max_db - lo);
+	for (int c = 0; c < sg->plot.w; c++) {
+		float u = (levels[c] - lo) * scale;
+		int i = u <= 0.0f ? 0 : u >= (float)(PALETTE_STEPS - 1) ? PALETTE_STEPS - 1 : (int)(u + 0.5f);
+		pixels[c] = sg->palette[i];
 	}
 }
 
@@ -181,19 +184,30 @@ static int ensure_kernels(spectrogram_t *sg) {
 	return 0;
 }
 
-// one hop's readout as a row of the ring
+// one hop's readout as a row of the ring, its levels kept for coloring again
 static void write_row(spectrogram_t *sg) {
-	constant_q_readout(sg->cq, fft_analyzer_spectrum(sg->analyzer, 0), sg->levels);
-	float lo = sg->config.min_db, scale = 255.0f / (sg->config.max_db - lo);
-	for (int c = 0; c < sg->plot.w; c++) {
-		float u = (sg->levels[c] - lo) * scale;
-		int i = u <= 0.0f ? 0 : u >= 255.0f ? 255 : (int)(u + 0.5f);
-		sg->pixels[c] = sg->palette[i];
-	}
+	float *levels = sg->history + (size_t)sg->head * (size_t)sg->plot.w;
+	constant_q_readout(sg->cq, fft_analyzer_spectrum(sg->analyzer, 0), levels);
+	color_row(sg, levels, sg->pixels);
 	SDL_UpdateTexture(sg->image, &(SDL_Rect){ 0, sg->head, sg->plot.w, 1 }, sg->pixels, sg->plot.w * (int)sizeof(uint32_t));
 	sg->head = (sg->head + 1) % sg->image_h;
 	if (sg->rows < sg->image_h) sg->rows++;
 	sg->written++;
+}
+
+// every row of the image colored again from its levels, with the scale and range as they are now
+static void recolor(spectrogram_t *sg) {
+	build_palette(sg);
+	if (!sg->image) return;
+	void *pixels;
+	int pitch;
+	if (SDL_LockTexture(sg->image, NULL, &pixels, &pitch) != 0) return;
+	for (int r = 0; r < sg->image_h; r++) {
+		uint32_t *row = (uint32_t *)((uint8_t *)pixels + (size_t)r * (size_t)pitch);
+		if (r < sg->rows) color_row(sg, sg->history + (size_t)r * (size_t)sg->plot.w, row);
+		else memset(row, 0, sizeof(uint32_t) * (size_t)sg->plot.w);
+	}
+	SDL_UnlockTexture(sg->image);
 }
 
 // Every hop queued becomes a row, as many as a frame finds. Nothing is
@@ -244,7 +258,7 @@ static void free_textures(spectrogram_t *sg) {
 	if (sg->unrolled) { SDL_DestroyTexture(sg->unrolled); sg->unrolled = NULL; }
 	if (sg->axes) { SDL_DestroyTexture(sg->axes); sg->axes = NULL; }
 	free(sg->frequencies); sg->frequencies = NULL;
-	free(sg->levels); sg->levels = NULL;
+	free(sg->history); sg->history = NULL;
 	free(sg->pixels); sg->pixels = NULL;
 }
 
@@ -362,8 +376,8 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_SetTextureScaleMode(sg->unrolled, SDL_ScaleModeLinear);   // a fractional offset blends neighbouring rows
 	sg->frequencies = malloc(sizeof(double) * sg->plot.w);
 	CHECK_ALLOC(sg->frequencies, free_textures(sg); return -1);
-	sg->levels = malloc(sizeof(float) * sg->plot.w);
-	CHECK_ALLOC(sg->levels, free_textures(sg); return -1);
+	sg->history = malloc(sizeof(float) * (size_t)sg->plot.w * (size_t)sg->image_h);
+	CHECK_ALLOC(sg->history, free_textures(sg); return -1);
 	sg->pixels = malloc(sizeof(uint32_t) * sg->plot.w);
 	CHECK_ALLOC(sg->pixels, free_textures(sg); return -1);
 	clear_image(sg);
@@ -424,6 +438,10 @@ void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer) {
 	if (!sg->streaming) return;
 	apply_config(sg);
 	if (prepare_to_draw(sg, renderer) != 0) return;
+	if (sg->recolor) {
+		recolor(sg);
+		sg->recolor = 0;
+	}
 	advance(sg);
 	draw(sg, renderer);
 }

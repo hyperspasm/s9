@@ -4,11 +4,12 @@
 #include "s9_dsp.h"
 #include "s9_colors.h"
 #include "window_function.h"
+#include "palette.h"
 
 #include <SDL2/SDL.h>
 
 // A scrolling spectrogram: log frequency across, time down with the newest
-// row at the bottom, and level as colour. Each row is one hop of audio,
+// row at the bottom, and level as color. Each row is one hop of audio,
 // hop_ms long whatever the display's frame rate, read by a constant-Q
 // readout over one long transform: every column has a window sized for
 // its frequency, from the whole transform at the bottom of the range to
@@ -29,7 +30,8 @@ typedef struct {
 	                                 // overlap the rows so that a click reads alike wherever it falls between them
 	float resolution_semitones;      // the width of a tone's ridge at half amplitude
 	window_function_t window_function;
-	float min_db, max_db;            // the colour scale's floor and full brightness, dB relative to a full-scale sine
+	float min_db, max_db;            // the color scale's floor and full brightness, dB relative to a full-scale sine
+	palette_t palette;               // the color scale between them
 	float f_min, f_max;              // Hz, the range across the plot; the top is held within the stream's Nyquist
 	SDL_Color major_color;           // labels and the decades' ticks
 	SDL_Color minor_color;           // the other ticks and the frame
@@ -44,6 +46,7 @@ static const spectrogram_config_t default_spectrogram_config = {
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
 	.min_db = -90.0f,
 	.max_db = 0.0f,
+	.palette = PALETTE_INFERNO,
 	.f_min = 20.0f,
 	.f_max = 20000.0f,
 	.major_color = S9_WHITE,
