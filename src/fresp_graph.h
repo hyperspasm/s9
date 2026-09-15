@@ -37,6 +37,9 @@ fresp_graph_t *fresp_graph_new(fresp_graph_config_t *config);
 // destroy fresp_graph
 void fresp_graph_free(fresp_graph_t **frg);
 
+// replace the configuration, NULL for the default; the graticule is drawn again at the next render
+void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config);
+
 // callback function invoked by fresp_graph_render()
 // fills the points array with db values to plot, distributed logarithmically (base 10) between the configured min_freq and max_freq 
 // returns 0 on success

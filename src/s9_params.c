@@ -12,6 +12,7 @@ static const char *const periodic_view_names[PERIODIC_VIEW_COUNT] = { [PERIODIC_
 #ifndef PN_SCHEMA_ONLY
 #include "s9_app.h"
 #include "oscilloscope.h"
+#include "spectrum.h"
 #include "periodic.h"
 #include "spectrogram.h"
 
@@ -51,6 +52,19 @@ static int32_t channel_to_param(uint32_t channel) { return channel == S9_CHANNEL
 
 static void set_channel(void *ctx, int32_t val) { oscilloscope_set_channel(ctx, channel_from_param(val)); }
 static int32_t get_channel(void *ctx) { return channel_to_param(oscilloscope_get_channel(ctx)); }
+
+// -- spectrum callbacks: the fields of its configuration a listener sets
+
+#define SPECTRUM_INT(param, field, type) \
+	static void set_##param(void *ctx, int32_t val) { spectrum_config_t c = *spectrum_config(ctx); c.field = (type)val; spectrum_set_config(ctx, &c); } \
+	static int32_t get_##param(void *ctx) { return (int32_t)spectrum_config(ctx)->field; }
+
+SPECTRUM_INT(spectrum_resolution, resolution_cents, uint32_t)
+SPECTRUM_INT(spectrum_padding, padding, uint32_t)
+SPECTRUM_INT(spectrum_f_min, graph_config.min_freq, uint32_t)
+SPECTRUM_INT(spectrum_f_max, graph_config.max_freq, uint32_t)
+SPECTRUM_INT(spectrum_min_db, graph_config.min_db, int32_t)
+SPECTRUM_INT(spectrum_max_db, graph_config.max_db, int32_t)
 
 // -- periodic analyzer callbacks: what it tracks, read only, and each field of its configuration
 
@@ -126,7 +140,7 @@ static uint32_t get_spectrogram_palette(void *ctx) { return (uint32_t)spectrogra
 
 // -- tree
 
-pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spectrogram) {
+pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *periodic, void *spectrogram) {
 	p->osc_params[0] = pn_float("time_per_div", osc, PN_FN(set_time_per_div), PN_FN(get_time_per_div), 0.00001f, 1.0f, 0);
 	p->osc_params[1] = pn_float("amp_per_div",  osc, PN_FN(set_amp_per_div),  PN_FN(get_amp_per_div),  0.001f, 10.0f, 0);
 	p->osc_params[2] = pn_bool("trig_auto",     osc, PN_FN(set_trig_auto),    PN_FN(get_trig_auto));
@@ -134,6 +148,14 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spe
 	p->osc_params[4] = pn_float("trig_thresh",  osc, PN_FN(set_trig_thresh),  PN_FN(get_trig_thresh), -1.0f, 1.0f, 0);
 	p->osc_params[5] = pn_float("trig_holdoff", osc, PN_FN(set_trig_holdoff), PN_FN(get_trig_holdoff), 0.0f, 1.0f, 0);
 	p->osc_params[6] = pn_int("channel",        osc, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
+
+	pn_param_t *spectrum_p = p->spectrum_params;
+	spectrum_p[0] = pn_int("resolution", spectrum, PN_FN(set_spectrum_resolution), PN_FN(get_spectrum_resolution), 25, 400, 1);
+	spectrum_p[1] = pn_int("padding",    spectrum, PN_FN(set_spectrum_padding),    PN_FN(get_spectrum_padding),    0, 3, 1);
+	spectrum_p[2] = pn_int("f_min",      spectrum, PN_FN(set_spectrum_f_min),      PN_FN(get_spectrum_f_min),      20, 1000, 1);
+	spectrum_p[3] = pn_int("f_max",      spectrum, PN_FN(set_spectrum_f_max),      PN_FN(get_spectrum_f_max),      1100, 24000, 1);
+	spectrum_p[4] = pn_int("min_db",     spectrum, PN_FN(set_spectrum_min_db),     PN_FN(get_spectrum_min_db),     -140, 0, 1);
+	spectrum_p[5] = pn_int("max_db",     spectrum, PN_FN(set_spectrum_max_db),     PN_FN(get_spectrum_max_db),     -100, 40, 1);
 
 	pn_param_t *fundamental = p->periodic_fundamental_params;
 	fundamental[S9_FUNDAMENTAL_FREQUENCY] = pn_readonly(pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0));
@@ -191,6 +213,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spe
 
 	p->root_children[S9_ROOT_MODE]        = pn_enum("mode", NULL, PN_FN(set_mode), PN_FN(get_mode), s9_mode_names, S9_MODE_COUNT);
 	p->root_children[S9_ROOT_OSC]         = pn_group("osc", p->osc_params, S9_OSC_NUM_PARAMS);
+	p->root_children[S9_ROOT_SPECTRUM]    = pn_group("spectrum", p->spectrum_params, S9_SPECTRUM_NUM_PARAMS);
 	p->root_children[S9_ROOT_PERIODIC]    = pn_group("periodic", p->periodic_params, S9_PERIODIC_NUM_PARAMS);
 	p->root_children[S9_ROOT_SPECTROGRAM] = pn_group("spectrogram", p->spectrogram_params, S9_SPECTROGRAM_NUM_PARAMS);
 	p->root_children[S9_ROOT_DEBUG]       = pn_group("debug", p->debug_params, S9_DEBUG_NUM_PARAMS);

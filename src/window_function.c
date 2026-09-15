@@ -210,13 +210,33 @@ void create_window_function(window_function_t function, uint32_t length,
 	}
 }
 
-#define BANDWIDTH_LENGTH 4096       // the length the bandwidth is measured at
+#define BANDWIDTH_LENGTH 4096       // the length a function's bandwidth is measured at
 #define BANDWIDTH_STEP (1.0 / 64)   // bins between points of the scan
 
 // The transform is scanned outward from its peak in steps of a fraction of
 // a bin until it falls below half, and the crossing interpolated; the
-// oracle's window.bandwidth() scans the same way. Measured once per
-// function and kept.
+// oracle's window.bandwidth() scans the same way.
+double window_bandwidth(const float *window, uint32_t length) {
+	double peak = 0.0;
+	for (uint32_t i = 0; i < length; i++) peak += window[i];
+	if (!(peak > 0.0)) return 0.0;
+
+	double nu = 0.0, prev = peak;
+	for (;;) {
+		nu += BANDWIDTH_STEP;
+		double re = 0.0, im = 0.0;
+		for (uint32_t i = 0; i < length; i++) {
+			double angle = -_2PI * nu * i / length;
+			re += window[i] * cos(angle);
+			im += window[i] * sin(angle);
+		}
+		double magnitude = sqrt(re * re + im * im);
+		if (magnitude < 0.5 * peak)
+			return 2.0 * (nu - BANDWIDTH_STEP * (magnitude - 0.5 * peak) / (magnitude - prev));
+		prev = magnitude;
+	}
+}
+
 double window_function_bandwidth(window_function_t function) {
 	static double kept[WINDOW_FUNCTION_COUNT];
 	static int measured[WINDOW_FUNCTION_COUNT];
@@ -225,25 +245,7 @@ double window_function_bandwidth(window_function_t function) {
 	float *w = malloc(sizeof(float) * BANDWIDTH_LENGTH);
 	if (!w) return 0.0;
 	create_window_function(function, BANDWIDTH_LENGTH, 0, 0.0f, w);
-	double peak = 0.0;
-	for (uint32_t i = 0; i < BANDWIDTH_LENGTH; i++) peak += w[i];
-
-	double nu = 0.0, prev = peak, width = 0.0;
-	for (;;) {
-		nu += BANDWIDTH_STEP;
-		double re = 0.0, im = 0.0;
-		for (uint32_t i = 0; i < BANDWIDTH_LENGTH; i++) {
-			double angle = -_2PI * nu * i / BANDWIDTH_LENGTH;
-			re += w[i] * cos(angle);
-			im += w[i] * sin(angle);
-		}
-		double magnitude = sqrt(re * re + im * im);
-		if (magnitude < 0.5 * peak) {
-			width = 2.0 * (nu - BANDWIDTH_STEP * (magnitude - 0.5 * peak) / (magnitude - prev));
-			break;
-		}
-		prev = magnitude;
-	}
+	double width = window_bandwidth(w, BANDWIDTH_LENGTH);
 	free(w);
 	kept[function] = width;
 	measured[function] = 1;

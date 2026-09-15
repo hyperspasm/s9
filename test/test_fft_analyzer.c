@@ -289,6 +289,52 @@ TEST frame_only_keeps_the_frame_and_skips_the_transform(void) {
 	PASS();
 }
 
+// Padding samples the same spectrum more finely: a tone halfway between
+// the frame's bins, which reads 1.42 dB low unpadded under a Hann window,
+// reads within a tenth of a decibel of its amplitude at four times, at
+// the padded bin nearest it; a tone on a bin reads the same either way.
+TEST padding_reads_a_tone_between_bins(void) {
+	enum { N = 4096, BIN = 100, PAD = 4 };
+	float *x = malloc(sizeof(float) * N);
+	test_signal_t between = { SIGNAL_SINE, (BIN + 0.5) * FS / N, 0, 0.5, 0.3, 0, 0, 0 };
+	test_signal_generate(&between, x, N, FS);
+
+	fft_analyzer_t *plain = make(N, FFT_ANALYZER_MIX, 0, WINDOW_FUNCTION_HANN, 0.0f, 1);
+	feed(plain, x, N, 1);
+	ASSERT_EQ(N, fft_analyzer_transform_len(plain));
+	float low = bin_amplitude(plain, 0, BIN);
+	ASSERT_IN_RANGE(0.5f * powf(10.0f, -1.42f / 20.0f), low, 0.005f);
+
+	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){
+		.fft_len = N, .window_function = WINDOW_FUNCTION_HANN, .mode = FFT_ANALYZER_MIX, .pad = PAD,
+	});
+	fft_analyzer_prepare_to_stream(fa, &(s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 1, .buffer_frames = 256, .samples_per_display_frame = N,
+	});
+	feed(fa, x, N, 1);
+	ASSERT_EQ(N * PAD, fft_analyzer_transform_len(fa));
+	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, (BIN * PAD) + PAD / 2), 0.5f * 0.012f);
+
+	test_signal_t on = { SIGNAL_SINE, (double)BIN * FS / N, 0, 0.5, 0.3, 0, 0, 0 };
+	test_signal_generate(&on, x, N, FS);
+	feed(fa, x, N, 1);
+	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, BIN * PAD), 1e-3f);
+
+	free(x);
+	fft_analyzer_free(&plain);
+	fft_analyzer_free(&fa);
+	PASS();
+}
+
+// The fast lengths are even with no prime factor above 5, the shortest at or above the request.
+TEST fast_lengths(void) {
+	ASSERT_EQ_FMT(1024u, fft_analyzer_fast_length(1024), "%u");
+	ASSERT_EQ_FMT(1080u, fft_analyzer_fast_length(1025), "%u");
+	ASSERT_EQ_FMT(108000u, fft_analyzer_fast_length(107563), "%u");
+	ASSERT_EQ_FMT(2u, fft_analyzer_fast_length(0), "%u");
+	PASS();
+}
+
 // The transform length is the power of two at or above sample_rate / resolution.
 TEST fft_len_from_resolution(void) {
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .resolution_hz = 2.0f, .window_function = WINDOW_FUNCTION_HANN });
@@ -316,6 +362,8 @@ int main(int argc, char **argv) {
 	RUN_TEST(power_average_waits_for_a_full_frame);
 	RUN_TEST(hop_frames_step_the_history);
 	RUN_TEST(frame_only_keeps_the_frame_and_skips_the_transform);
+	RUN_TEST(padding_reads_a_tone_between_bins);
+	RUN_TEST(fast_lengths);
 	RUN_TEST(fft_len_from_resolution);
 	GREATEST_MAIN_END();
 }

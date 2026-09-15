@@ -8,6 +8,7 @@
 // PN_SCHEMA_ONLY this module depends on nothing but pn.
 
 #define S9_OSC_NUM_PARAMS                7
+#define S9_SPECTRUM_NUM_PARAMS           6
 #define S9_PERIODIC_NUM_PARAMS             6   // channel, view, and the fundamental, harmonics, waveform, and note groups
 #define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 16
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
@@ -20,6 +21,7 @@
 typedef enum {
 	S9_ROOT_MODE,
 	S9_ROOT_OSC,
+	S9_ROOT_SPECTRUM,
 	S9_ROOT_PERIODIC,
 	S9_ROOT_SPECTROGRAM,
 	S9_ROOT_DEBUG,
@@ -41,6 +43,7 @@ typedef enum {
 
 typedef struct {
 	pn_param_t osc_params[S9_OSC_NUM_PARAMS];
+	pn_param_t spectrum_params[S9_SPECTRUM_NUM_PARAMS];
 	pn_param_t periodic_fundamental_params[S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS];   // indexed by s9_fundamental_param_t
 	pn_param_t periodic_harmonics_params[S9_PERIODIC_HARMONICS_NUM_PARAMS];
 	pn_param_t periodic_waveform_params[S9_PERIODIC_WAVEFORM_NUM_PARAMS];
@@ -52,11 +55,11 @@ typedef struct {
 	pn_param_t root;
 } s9_params_t;
 
-// Build the tree into p and return its root. osc, periodic and spectrogram
-// are the oscilloscope, the periodic analyzer and the spectrogram that the
-// "osc", "periodic" and "spectrogram" parameters read and write; all NULL
-// in a schema-only build. The mode and debug parameters read and write the
-// app.
-pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spectrogram);
+// Build the tree into p and return its root. osc, spectrum, periodic and
+// spectrogram are the oscilloscope, the spectrum, the periodic analyzer and
+// the spectrogram that the "osc", "spectrum", "periodic" and "spectrogram"
+// parameters read and write; all NULL in a schema-only build. The mode and
+// debug parameters read and write the app.
+pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *periodic, void *spectrogram);
 
 #endif /* s9_params_h */

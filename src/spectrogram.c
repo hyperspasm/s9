@@ -91,16 +91,8 @@ static uint32_t hop_frames(const spectrogram_t *sg) {
 	return hop < 1 ? 1 : (uint32_t)hop;
 }
 
-// whether a length has no prime factor above 5, the lengths FFTW transforms fastest
-static int smooth(uint32_t n) {
-	for (uint32_t p = 2; p <= 5; p++)
-		while (n % p == 0) n /= p;
-	return n == 1;
-}
-
-// The frame: the shortest even length with no prime factor above 5 that
-// holds the window of a ridge at f_min, the longest any column needs,
-// within FRAME_MIN and FRAME_MAX.
+// The frame: the shortest fast length that holds the window of a ridge at
+// f_min, the longest any column needs, within FRAME_MIN and FRAME_MAX.
 static uint32_t frame_length(const spectrogram_t *sg) {
 	double semitones = pow(2.0, (double)sg->config.resolution_semitones / 12.0) - 1.0;
 	double need = window_function_bandwidth(sg->config.window_function) * sg->stream.sample_rate / ((double)sg->config.f_min * semitones);
@@ -108,10 +100,7 @@ static uint32_t frame_length(const spectrogram_t *sg) {
 	if (need < shortest) need = shortest;
 	if (need < FRAME_MIN) need = FRAME_MIN;
 	if (need > FRAME_MAX) need = FRAME_MAX;
-	uint32_t n = (uint32_t)ceil(need);
-	if (n % 2) n++;
-	while (n < FRAME_MAX && !smooth(n)) n += 2;
-	return n;
+	return fft_analyzer_fast_length((uint32_t)ceil(need));
 }
 
 // the frequency from which the shortest window rules: where the resolution's window would be shorter
