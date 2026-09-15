@@ -27,8 +27,9 @@ typedef struct {
 	uint32_t channel;                // the channel analyzed, or S9_CHANNEL_ALL for their average
 	uint32_t hop_ms;                 // the audio in a row, and so the scroll: one row per this many milliseconds
 	float window_s;                  // the longest window: the transform is the longest power of two within this
-	uint32_t min_window_hops;        // the shortest window, in rows: 1 keeps a row's time resolution, more
-	                                 // overlap the rows so that a click reads alike wherever it falls between them
+	uint32_t min_window_hops;        // the shortest window, in rows: 1 keeps a row's time resolution but hears a
+	                                 // click faintly at a row's edge; 2 overlaps the rows by half, so a click
+	                                 // reads alike wherever it falls; more evens that out further
 	float resolution_semitones;      // the width of a tone's ridge at half amplitude
 	window_function_t window_function;
 	float min_db, max_db;            // the color scale's floor and full brightness, dB relative to a full-scale sine
@@ -42,7 +43,7 @@ static const spectrogram_config_t default_spectrogram_config = {
 	.channel = S9_CHANNEL_ALL,
 	.hop_ms = 10,
 	.window_s = 0.75f,
-	.min_window_hops = 1,
+	.min_window_hops = 2,
 	.resolution_semitones = 1.0f,
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
 	.min_db = -90.0f,
