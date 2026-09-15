@@ -320,6 +320,12 @@ float fft_analyzer_hop_seconds(const fft_analyzer_t *fa) { return fa->hop_s; }
 
 const float *fft_analyzer_window(const fft_analyzer_t *fa) { return fa->window; }
 
+const float *fft_analyzer_frame(fft_analyzer_t *fa, uint32_t index) {
+	if (!fa->streaming || index >= fa->transforms) return NULL;
+	mono_frame(fa, index, fa->frame);
+	return fa->frame;
+}
+
 float fft_analyzer_rms(const fft_analyzer_t *fa, uint32_t index) {
 	if (!fa->streaming || index >= fa->transforms) return 0.0f;
 	mono_frame(fa, index, fa->frame);

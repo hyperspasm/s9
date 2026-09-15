@@ -7,7 +7,6 @@
 // the readouts across a column make: a tone anywhere reads its level.
 #include "greatest.h"
 #include "constant_q.h"
-#include "fft_analyzer.h"
 #include "test_signals.h"
 #include "constant_q_golden.h"
 
@@ -29,20 +28,6 @@ static constant_q_config_t golden_config(void) {
 static void golden_edges(double *edges) {
 	for (unsigned c = 0; c <= CONSTANT_Q_GOLDEN_COLUMNS; c++)
 		edges[c] = CONSTANT_Q_GOLDEN_F_LO * pow(CONSTANT_Q_GOLDEN_F_HI / CONSTANT_Q_GOLDEN_F_LO, (double)c / CONSTANT_Q_GOLDEN_COLUMNS);
-}
-
-// the frame's transform as the analyzer gives it under the rectangular window
-static fft_analyzer_t *transformed(const float *x, uint32_t n) {
-	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){
-		.fft_len = n, .window_function = WINDOW_FUNCTION_RECTANGULAR, .window_skew = 0.0f, .mode = FFT_ANALYZER_MIX,
-	});
-	fft_analyzer_prepare_to_stream(fa, &(s9_audio_stream_config_t){
-		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = CONSTANT_Q_GOLDEN_FS, .channels = 1,
-		.buffer_frames = 256, .samples_per_display_frame = n,
-	});
-	fft_analyzer_enqueue_audio_data(fa, x, sizeof(float) * n);
-	fft_analyzer_update(fa);
-	return fa;
 }
 
 // Every window function's width at half amplitude agrees with the oracle's.
@@ -69,9 +54,8 @@ TEST windows_and_readouts_match_golden(void) {
 	PASS();
 }
 
-// Each golden frame through the analyzer's unwindowed transform reads, at
-// every column, the definition's level within the floor the truncation
-// leaves and a small fraction of the level itself.
+// Each golden frame reads, at every column, the definition's level within
+// the floor the truncation leaves and a small fraction of the level itself.
 TEST readouts_match_golden(void) {
 	enum { N = CONSTANT_Q_GOLDEN_N };
 	double edges[CONSTANT_Q_GOLDEN_COLUMNS + 1];
@@ -91,10 +75,7 @@ TEST readouts_match_golden(void) {
 			test_signal_t s = { g->kind, g->freq, g->freq2, g->amp, g->phase, 0, g->seed, g->noise_amp };
 			test_signal_generate(&s, x, N, CONSTANT_Q_GOLDEN_FS);
 		}
-		fft_analyzer_t *fa = transformed(x, N);
-		constant_q_readout(cq, fft_analyzer_spectrum(fa, 0), db);
-		fft_analyzer_free(&fa);
-
+		constant_q_readout(cq, x, db);
 		for (unsigned c = 0; c < CONSTANT_Q_GOLDEN_COLUMNS; c++) {
 			double expected = pow(10.0, g->db[c] / 20.0), got = pow(10.0, db[c] / 20.0);
 			ASSERT_IN_RANGEm(g->label, expected, got, floor_amplitude + REL * expected);
@@ -121,9 +102,7 @@ TEST a_tone_anywhere_reads_its_level(void) {
 		double f = 25.0 * pow(18000.0 / 25.0, (i + 0.37) / TONES);
 		test_signal_t s = { SIGNAL_SINE, f, 0, 1.0, 0.7, 0, 0, 0 };
 		test_signal_generate(&s, x, N, CONSTANT_Q_GOLDEN_FS);
-		fft_analyzer_t *fa = transformed(x, N);
-		constant_q_readout(cq, fft_analyzer_spectrum(fa, 0), db);
-		fft_analyzer_free(&fa);
+		constant_q_readout(cq, x, db);
 		unsigned c = 0;
 		while (c + 1 < CONSTANT_Q_GOLDEN_COLUMNS && edges[c + 1] <= f) c++;
 		ASSERT_IN_RANGE(0.0, (double)db[c], LEVEL_DB);

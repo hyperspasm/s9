@@ -100,6 +100,11 @@ float fft_analyzer_hop_seconds(const fft_analyzer_t *fa);
 // the window, fft_len values summing to fft_len
 const float *fft_analyzer_window(const fft_analyzer_t *fa);
 
+// The frame behind a transform, before windowing: the last fft_len frames
+// of the channel it transforms. Good until the next update or the next
+// call; NULL while not streaming.
+const float *fft_analyzer_frame(fft_analyzer_t *fa, uint32_t index);
+
 // RMS of the frame behind a transform, before windowing
 float fft_analyzer_rms(const fft_analyzer_t *fa, uint32_t index);
 

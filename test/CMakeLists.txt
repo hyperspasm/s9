@@ -121,10 +121,7 @@ add_test(NAME harmonic_series COMMAND test_harmonic_series)
 
 add_executable(test_constant_q test_constant_q.c
     ${CMAKE_SOURCE_DIR}/src/constant_q.c
-    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
-    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
-    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_constant_q PRIVATE ${DSP_TEST_INCLUDES})

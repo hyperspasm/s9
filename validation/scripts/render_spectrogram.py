@@ -105,7 +105,7 @@ def render(x, cfg, columns, kernels, min_db, hop, table):
     image = np.zeros((rows, columns), dtype=np.uint8)
     for r in range(rows):
         frame = padded[r * hop:r * hop + N].astype(np.float64)
-        levels = constant_q.db(constant_q.readout(np.fft.rfft(frame), kernels))
+        levels = constant_q.db(constant_q.readout(frame, kernels))
         u = np.clip((levels - min_db) / (0.0 - min_db), 0.0, 1.0)
         image[r] = (u * 255.0 + 0.5).astype(np.uint8)
     return table[image]

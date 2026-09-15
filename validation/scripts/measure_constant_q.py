@@ -57,7 +57,8 @@ def measure(quiet, hop_ms, failures):
                   f"the frame's whole {N} samples up to {edges[max(c for c in range(COLUMNS) if windows[c] == N) + 1]:.1f} Hz, "
                   f"constant Q to {edges[min(c for c in range(COLUMNS) if windows[c] == min_window)]:.1f} Hz")
     more = [c for c in range(COLUMNS) if counts[c] > 1]
-    report(quiet, f"  {constant_q.readouts(columns)} readouts, {constant_q.taps(columns)} taps in all, built in {built:.1f} s"
+    report(quiet, f"  {constant_q.readouts(columns)} readouts, {constant_q.taps(columns)} taps in all through transforms of "
+                  f"{', '.join(str(lv) for lv in columns.levels)}, built in {built:.1f} s"
                   + (f"; columns from {edges[more[0]]:.0f} Hz up read at 2 to {max(counts)} frequencies" if more else ""))
 
     # tones: the level at the column each falls in, and the residue everywhere
@@ -67,7 +68,7 @@ def measure(quiet, hop_ms, failures):
         f = 25.0 * (18000.0 / 25.0) ** ((i + 0.37) / TONES)
         x = signals.sine(N, FS, f, 1.0, float(rng.uniform(0.0, 2.0 * math.pi)))
         ref = constant_q.transform(x, cfg, edges)
-        got = constant_q.readout(np.fft.rfft(x.astype(np.float64)), columns)
+        got = constant_q.readout(x, columns)
         c = int(np.searchsorted(edges, f) - 1)
         worst_level = max(worst_level, abs(float(constant_q.db(got[c:c + 1])[0])))
         worst_residue = max(worst_residue, float(np.abs(got - ref).max()))
@@ -83,7 +84,7 @@ def measure(quiet, hop_ms, failures):
         offset = int(round(ms * FS / 1000.0))
         x = signals.impulse(N, N // 2 + offset, 1.0)
         ref = constant_q.transform(x, cfg, edges)
-        got = constant_q.readout(np.fft.rfft(x.astype(np.float64)), columns)
+        got = constant_q.readout(x, columns)
         seen = [c for c in range(COLUMNS) if ref[c] > 0.0]
         unseen = [c for c in range(COLUMNS) if ref[c] == 0.0]
         leak = 20.0 * math.log10(max(max(got[c] for c in unseen), constant_q.FLOOR)) if unseen else -math.inf
@@ -104,7 +105,7 @@ def measure(quiet, hop_ms, failures):
             dips = []
             for phase2 in (0.0, 0.5 * math.pi):
                 x = signals.sine(N, FS, f, 0.5) + signals.sine(N, FS, f2, 0.5, phase2)
-                levels = constant_q.db(constant_q.readout(np.fft.rfft(x.astype(np.float64)), columns))
+                levels = constant_q.db(constant_q.readout(x, columns))
                 lo = int(np.searchsorted(edges, f) - 1)
                 hi = int(np.searchsorted(edges, f2) - 1)
                 peak_lo, peak_hi = levels[max(lo - 3, 0):lo + 4].max(), levels[max(hi - 3, 0):hi + 4].max()

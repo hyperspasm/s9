@@ -23,11 +23,17 @@ by the frame.
 
 The computation (Brown and Puckette, 1992). With k[n] a readout's window
 shifted to its frequency, y = sum_n x[n] conj(k[n]) = (1/N) sum_k X[k] conj(K[k])
-exactly, where X and K are the N-point transforms of the frame and of k. K is
-concentrated about f, so only the taps between the first and the last that
-stand above threshold_db of its peak, over the real half of the spectrum, are
-kept, and a readout is a short dot product with the frame's transform. What the
-truncation leaves out is the residue measure_constant_q.py reports.
+exactly, where X and K are the N-point transforms of a frame and of k, for any
+N that holds the window. K is concentrated about f, so only the taps between
+the first and the last that stand above threshold_db of its peak, over the real
+half of the spectrum, are kept, and a readout is a short dot product with the
+frame's transform. What the truncation leaves out is the residue
+measure_constant_q.py reports. Since K's width in bins is N over the window's
+length, each readout is taken through the shortest transform that holds its
+window: the frame itself, or the middle of it at a power of two, all centred on
+the same instant. The kernels then stay a few dozen taps however long the
+frame is, and the transforms of every level together cost about twice the
+longest.
 """
 import functools
 import math
@@ -108,31 +114,50 @@ def db(y):
     return 20.0 * np.log10(np.maximum(np.abs(y), FLOOR))
 
 
+def level(cfg, length):
+    """The transform a window of the length is read through: the shortest
+    power of two that holds it, or the frame itself when none within it does."""
+    p = 2
+    while p < length:
+        p *= 2
+    return p if p <= cfg.n else cfg.n
+
+
 class Kernel:
-    def __init__(self, first, taps):
+    def __init__(self, level, first, taps):
+        self.level = level    # the transform's length
         self.first = first    # the bin of the first tap
-        self.taps = taps      # conj(K) / N over the kept run, complex
+        self.taps = taps      # conj(K) / level over the kept run, complex
 
 
 class Column:
     def __init__(self, length, kernels):
         self.length = length      # the window length
-        self.kernels = kernels    # one per readout
+        self.kernels = kernels    # one per readout, all on the same level
+
+
+class Kernels:
+    def __init__(self, cfg, columns):
+        self.cfg = cfg
+        self.columns = columns
+        self.levels = sorted({k.level for col in columns for k in col.kernels})
 
 
 def kernel(cfg, length, f):
-    """A readout's kernel: the transform of its window shifted to f, kept
-    between the first and last bins above the threshold, ready to dot with
-    the frame's real-input transform."""
-    w, start, scale = _placed(cfg, length)
+    """A readout's kernel: the transform, at its level, of its window shifted
+    to f and placed in the middle, kept between the first and last bins above
+    the threshold, ready to dot with the level's real-input transform."""
+    n = level(cfg, length)
+    w, _, scale = _placed(cfg, length)
+    start = n // 2 - length // 2
     i = np.arange(start, start + length, dtype=np.float64)
-    k = np.zeros(cfg.n, dtype=np.complex128)
+    k = np.zeros(n, dtype=np.complex128)
     k[start:start + length] = scale * w * np.exp(2j * math.pi * f * i / cfg.fs)
-    K = np.fft.fft(k)[:cfg.n // 2 + 1]
+    K = np.fft.fft(k)[:n // 2 + 1]
     mag = np.abs(K)
     above = np.nonzero(mag >= mag.max() * 10.0 ** (cfg.threshold_db / 20.0))[0]
     first, last = int(above[0]), int(above[-1])
-    return Kernel(first, np.conj(K[first:last + 1]) / cfg.n)
+    return Kernel(n, first, np.conj(K[first:last + 1]) / n)
 
 
 def kernels(cfg, edges):
@@ -141,19 +166,26 @@ def kernels(cfg, edges):
     for c in range(len(edges) - 1):
         length, freqs = band(cfg, edges[c], edges[c + 1])
         columns.append(Column(length, [kernel(cfg, length, f) for f in freqs]))
-    return columns
+    return Kernels(cfg, columns)
 
 
-def taps(columns):
+def taps(kernels):
     """Taps in all, the cost of a readout."""
-    return sum(len(k.taps) for col in columns for k in col.kernels)
+    return sum(len(k.taps) for col in kernels.columns for k in col.kernels)
 
 
-def readouts(columns):
+def readouts(kernels):
     """Readouts in all."""
-    return sum(len(col.kernels) for col in columns)
+    return sum(len(col.kernels) for col in kernels.columns)
 
 
-def readout(X, columns):
-    """Every column from X, the frame's transform as numpy.fft.rfft gives it: magnitudes."""
-    return np.array([max(abs(np.dot(X[k.first:k.first + len(k.taps)], k.taps)) for k in col.kernels) for col in columns])
+def readout(frame, kernels):
+    """Every column from the frame, n samples: magnitudes."""
+    n = kernels.cfg.n
+    frame = np.asarray(frame, dtype=np.float64)
+    spectra = {}
+    for lv in kernels.levels:
+        offset = n // 2 - lv // 2
+        spectra[lv] = np.fft.rfft(frame[offset:offset + lv])
+    return np.array([max(abs(np.dot(spectra[k.level][k.first:k.first + len(k.taps)], k.taps)) for k in col.kernels)
+                     for col in kernels.columns])

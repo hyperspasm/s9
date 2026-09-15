@@ -190,7 +190,7 @@ static int ensure_kernels(spectrogram_t *sg) {
 // one hop's readout as a row of the ring, its levels kept for coloring again
 static void write_row(spectrogram_t *sg) {
 	float *levels = sg->history + (size_t)sg->head * (size_t)sg->plot.w;
-	constant_q_readout(sg->cq, fft_analyzer_spectrum(sg->analyzer, 0), levels);
+	constant_q_readout(sg->cq, fft_analyzer_frame(sg->analyzer, 0), levels);
 	color_row(sg, levels, sg->pixels);
 	SDL_UpdateTexture(sg->image, &(SDL_Rect){ 0, sg->head, sg->plot.w, 1 }, sg->pixels, sg->plot.w * (int)sizeof(uint32_t));
 	sg->head = (sg->head + 1) % sg->image_h;

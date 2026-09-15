@@ -54,6 +54,7 @@ TEST spectrum_is_calibrated(void) {
 	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, BIN), 1e-3f);
 	ASSERT(bin_amplitude(fa, 0, BIN + 10) < 1e-3f);
 	ASSERT_IN_RANGE(0.5f / sqrtf(2.0f), fft_analyzer_rms(fa, 0), 1e-3f);
+	ASSERT_EQ(0, memcmp(x, fft_analyzer_frame(fa, 0), sizeof(float) * N));   // the frame as fed, unwindowed
 
 	free(x);
 	fft_analyzer_free(&fa);
