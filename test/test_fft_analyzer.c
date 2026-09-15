@@ -257,6 +257,38 @@ TEST hop_frames_step_the_history(void) {
 	PASS();
 }
 
+// With frame_only set, an update keeps the frame and its RMS but no
+// spectrum or power; cleared, the next update transforms the same frame.
+TEST frame_only_keeps_the_frame_and_skips_the_transform(void) {
+	enum { N = 4096, BIN = 100 };
+	float *x = malloc(sizeof(float) * N);
+	test_signal_t s = { SIGNAL_SINE, (double)BIN * FS / N, 0, 0.5, 0.3, 0, 0, 0 };
+	test_signal_generate(&s, x, N, FS);
+
+	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){
+		.fft_len = N, .window_function = WINDOW_FUNCTION_HANN, .mode = FFT_ANALYZER_MIX, .frame_only = 1,
+	});
+	fft_analyzer_prepare_to_stream(fa, &(s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 1, .buffer_frames = 256, .samples_per_display_frame = N,
+	});
+	feed(fa, x, N, 1);
+	ASSERT(fft_analyzer_spectrum(fa, 0) == NULL);
+	ASSERT(fft_analyzer_power(fa, 0) == NULL);
+	ASSERT_EQ(0, memcmp(x, fft_analyzer_frame(fa, 0), sizeof(float) * N));
+	ASSERT_IN_RANGE(0.5f / sqrtf(2.0f), fft_analyzer_rms(fa, 0), 1e-3f);
+
+	fft_analyzer_config_t config = *fft_analyzer_config(fa);
+	config.frame_only = 0;
+	fft_analyzer_set_config(fa, &config);
+	fft_analyzer_update(fa);
+	ASSERT(fft_analyzer_spectrum(fa, 0) != NULL);
+	ASSERT_IN_RANGE(0.5f, bin_amplitude(fa, 0, BIN), 1e-3f);
+
+	free(x);
+	fft_analyzer_free(&fa);
+	PASS();
+}
+
 // The transform length is the power of two at or above sample_rate / resolution.
 TEST fft_len_from_resolution(void) {
 	fft_analyzer_t *fa = fft_analyzer_new(&(fft_analyzer_config_t){ .resolution_hz = 2.0f, .window_function = WINDOW_FUNCTION_HANN });
@@ -283,6 +315,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(power_average_follows_audio_time);
 	RUN_TEST(power_average_waits_for_a_full_frame);
 	RUN_TEST(hop_frames_step_the_history);
+	RUN_TEST(frame_only_keeps_the_frame_and_skips_the_transform);
 	RUN_TEST(fft_len_from_resolution);
 	GREATEST_MAIN_END();
 }

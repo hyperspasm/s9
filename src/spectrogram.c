@@ -107,7 +107,7 @@ static uint32_t frame_length(const spectrogram_t *sg) {
 	return n;
 }
 
-// the analyzer transforms the frame as it is: the columns' windows are in the kernels
+// the analyzer keeps the frame and transforms nothing: the readout transforms it as it needs
 static fft_analyzer_config_t analyzer_config(const spectrogram_t *sg) {
 	return (fft_analyzer_config_t){
 		.fft_len = frame_length(sg),
@@ -117,6 +117,7 @@ static fft_analyzer_config_t analyzer_config(const spectrogram_t *sg) {
 		.channel = sg->config.channel,
 		.averaging_s = 0.0f,
 		.hop_frames = sg->hop,
+		.frame_only = 1,
 	};
 }
 

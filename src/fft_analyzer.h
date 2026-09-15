@@ -14,7 +14,8 @@
 // one display frame's worth of samples. With hop_frames set, an update
 // consumes exactly that many frames instead, or none while fewer are
 // queued, so a caller can transform hop by hop and keep up when it falls
-// behind.
+// behind. With frame_only set, an update keeps the history and transforms
+// nothing, for a caller that reads the frame and transforms it itself.
 
 typedef struct fft_analyzer fft_analyzer_t;
 
@@ -35,6 +36,8 @@ typedef struct {
 	                                   // 0 keeps the latest transform's
 	uint32_t hop_frames;               // frames an update consumes: exactly this many, or none while
 	                                   // fewer are queued; 0 consumes every whole display frame queued
+	int frame_only;                    // keep the history but skip the window and the transform: the
+	                                   // spectra and the power are then NULL, the frame and its RMS as ever
 } fft_analyzer_config_t;
 
 fft_analyzer_t *fft_analyzer_new(const fft_analyzer_config_t *config);
@@ -74,14 +77,14 @@ uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa);
 
 // The latest transform: fft_len/2 + 1 bins as (re, im) pairs, unscaled. A
 // sine of amplitude a under the normalized window has magnitude
-// a * fft_len / 2 at its bin.
+// a * fft_len / 2 at its bin. NULL with frame_only set.
 const float *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index);
 
 // The per-bin power, |X|^2, averaged over the configured time: each update
 // moves it toward the latest transform's by a fraction set by the audio
 // time the update consumed, so the average follows audio time whatever the
 // update rate. Until the history has filled with audio once, it is the
-// latest transform's. fft_len/2 + 1 bins.
+// latest transform's. fft_len/2 + 1 bins. NULL with frame_only set.
 const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index);
 
 // restart the average from the next transform

@@ -269,6 +269,7 @@ uint32_t fft_analyzer_update(fft_analyzer_t *fa) {
 	if (fa->power_primed && was_full && fa->config.averaging_s > 0.0f)
 		fa->fraction = 1.0f - expf(-fa->hop_s / fa->config.averaging_s);
 	float alpha = fa->fraction;
+	if (fa->config.frame_only) return consume + dropped;
 
 	uint32_t bins = fa->fft_len / 2 + 1;
 	for (uint32_t i = 0; i < fa->transforms; i++) {
@@ -301,11 +302,11 @@ uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa) { return fa->stream.
 uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa) { return fa->transforms; }
 
 const float *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index) {
-	return index < fa->transforms ? (const float *)fa->spectra[index] : NULL;
+	return index < fa->transforms && !fa->config.frame_only ? (const float *)fa->spectra[index] : NULL;
 }
 
 const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index) {
-	return index < fa->transforms ? fa->power[index] : NULL;
+	return index < fa->transforms && !fa->config.frame_only ? fa->power[index] : NULL;
 }
 
 void fft_analyzer_reset_power(fft_analyzer_t *fa) {
