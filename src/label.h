@@ -7,7 +7,7 @@
 #include <SDL2/SDL_ttf.h>
 
 // Text drawn from a texture that is remade only when the text or its
-// colour changes. Caller-owned and zeroed to begin with; free it before it
+// color changes. Caller-owned and zeroed to begin with; free it before it
 // goes away or the renderer does.
 
 #define LABEL_TEXT 64
@@ -19,7 +19,7 @@ typedef struct {
 	char text[LABEL_TEXT];
 } label_t;
 
-// the text to show, in a colour; empty text shows nothing
+// the text to show, in a color; empty text shows nothing
 void label_set(label_t *l, SDL_Renderer *renderer, TTF_Font *font, SDL_Color color, const char *text);
 
 // draw it anchored at a point

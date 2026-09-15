@@ -7,7 +7,7 @@ repository but the script.
 
 Each image is one row per hop, a hop being one display frame at 60 Hz, time running
 down the image so that the newest row is at the bottom, log frequency across it from
-20 Hz to 20 kHz, and level as colour from --min-db up to full scale; the shortest
+20 Hz to 20 kHz, and level as color from --min-db up to full scale; the shortest
 window is --min-hops hops, so more than 1 overlaps the rows. Ticks below mark
 the decades, 100 Hz, 1 kHz and 10 kHz, with a tall line, and the steps between them
 with short ones; ticks on the left mark seconds. The signals: an exponential sweep;
@@ -29,11 +29,11 @@ N, MIN_DB_DEFAULT, F_LO, F_HI, FPS = 32768, -90.0, 20.0, 20000.0, 60
 SECONDS = 8.0
 LEFT, BOTTOM = 16, 12   # the tick margins, pixels
 
-# level from 0 at the floor to 1 at full scale, to colour
+# level from 0 at the floor to 1 at full scale, to color
 STOPS = [(0.0, (0, 0, 0)), (0.2, (20, 10, 60)), (0.4, (120, 20, 120)), (0.6, (220, 60, 40)), (0.8, (250, 170, 30)), (1.0, (255, 255, 220))]
 
 
-def colour_table():
+def color_table():
     table = np.zeros((256, 3), dtype=np.uint8)
     for i in range(256):
         u = i / 255.0
@@ -159,7 +159,7 @@ def main():
     freqs = constant_q.frequencies(F_LO, F_HI, columns)
     print(f"building {columns} kernels...", flush=True)
     kernels = constant_q.kernels(cfg, freqs)
-    table = colour_table()
+    table = color_table()
     print(f"{columns} columns, {F_LO:g} to {F_HI:g} Hz, {FPS} rows per second, {min_db:g} dB to 0 dB")
     for name, make in (("sweep", sweep), ("drums", drums), ("chromatic", chromatic), ("vowel", vowel)):
         x = make(fs, SECONDS)
