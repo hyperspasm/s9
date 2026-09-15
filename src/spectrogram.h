@@ -11,11 +11,12 @@
 // A scrolling spectrogram: log frequency across, time down with the newest
 // row at the bottom, and level as color. Each row is one hop of audio,
 // hop_ms long whatever the display's frame rate, read by a constant-Q
-// readout over one long transform: every column has a window sized for
-// its frequency, from the whole transform at the bottom of the range to
-// one hop at the top, all centred on the same instant, so the low
-// frequencies are resolved to a set width at the cost of time smearing and
-// the high ones keep the time resolution of a row. Rows follow audio
+// readout over one long transform: every pixel column is a band with a
+// window sized for its frequency, from the whole transform at the bottom
+// of the range to a few rows at the top, all centred on the same instant,
+// so the low frequencies are resolved to a set width at the cost of time
+// smearing and the high ones keep the time resolution of a row or two,
+// and each shows the strongest level within its band. Rows follow audio
 // time, one per hop as it arrives, and the image is placed by a smoothed
 // audio clock, so it scrolls evenly at any hop, a fraction of a row per
 // frame. The newest row shows audio from half the longest window ago.

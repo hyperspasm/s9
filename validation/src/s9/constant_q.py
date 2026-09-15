@@ -1,26 +1,32 @@
-"""A constant-Q readout from one long transform: the level at each of a set of
-frequencies through a window sized for that frequency, every window centred
-on the middle of the same frame.
+"""A constant-Q readout from one long transform: the level in each of a set of
+frequency bands, the columns, through a window sized for the band's frequency,
+every window centred on the middle of the same frame.
 
-The definition. A column at frequency f has a window of length L, the length at
-which a tone's ridge through the window is `resolution` semitones wide at half
-amplitude: L = bandwidth(window) * fs / (f * (2^(resolution/12) - 1)), no
-shorter than min_window and no longer than the frame, rounded to an even
-number and placed at the middle of the frame. Its value is the windowed
-transform at exactly f, scaled so that a full-scale sine at f reads 1:
+The definition. A column spanning f_lo to f_hi has a window of length L, the
+length at which a tone's ridge through the window is `resolution` semitones
+wide at half amplitude at the band's centre, sqrt(f_lo f_hi):
+L = bandwidth(window) * fs / (f * (2^(resolution/12) - 1)), no shorter than
+min_window and no longer than the frame, rounded to an even number and placed
+at the middle of the frame. The column is read at frequencies spread evenly in
+log frequency across the band, as many as it takes for them to be no farther
+apart than the ridge's width over `readouts_per_ridge`, so a tone anywhere in
+the band reads within a fraction of a dB of its level; one readout at the
+centre when the band is narrow against the ridge. Each readout is the windowed
+transform at exactly its frequency, scaled so that a full-scale sine reads 1:
 
     y = (2 / sum w) * sum_i x[start + i] * w[i] * exp(-2 pi j f (start + i) / fs)
 
-and its level is 20 log10 |y|. Low columns therefore have long windows and
-trade time for frequency resolution; high ones have windows as short as one
-hop and trade the other way; the lowest are limited by the frame.
+and the column's level is 20 log10 of the largest |y|. Low columns therefore
+have long windows and trade time for frequency resolution; high ones have
+windows as short as min_window and trade the other way; the lowest are limited
+by the frame.
 
-The computation (Brown and Puckette, 1992). With k[n] the column's window
+The computation (Brown and Puckette, 1992). With k[n] a readout's window
 shifted to its frequency, y = sum_n x[n] conj(k[n]) = (1/N) sum_k X[k] conj(K[k])
 exactly, where X and K are the N-point transforms of the frame and of k. K is
 concentrated about f, so only the taps between the first and the last that
 stand above threshold_db of its peak, over the real half of the spectrum, are
-kept, and a column is a short dot product with the frame's transform. What the
+kept, and a readout is a short dot product with the frame's transform. What the
 truncation leaves out is the residue measure_constant_q.py reports.
 """
 import functools
@@ -34,25 +40,24 @@ FLOOR = 1e-20   # a level below this is silence, -400 dB
 
 
 class Config:
-    def __init__(self, fs=48000.0, n=32768, min_window=800, resolution=1.0, function=window.BLACKMAN_HARRIS,
-                 threshold_db=-100.0):
+    def __init__(self, fs=48000.0, n=32768, min_window=960, resolution=1.0, function=window.BLACKMAN_HARRIS,
+                 threshold_db=-100.0, readouts_per_ridge=3.0):
         self.fs = fs
-        self.n = n                        # the frame and its transform's length, the longest window
-        self.min_window = min_window      # the shortest window, samples
-        self.resolution = resolution      # the width of a tone's ridge at half amplitude, semitones
-        self.function = function          # the window function of every column
-        self.threshold_db = threshold_db  # a kernel's taps below this of its peak are dropped
+        self.n = n                                  # the frame and its transform's length, the longest window
+        self.min_window = min_window                # the shortest window, samples
+        self.resolution = resolution                # the width of a tone's ridge at half amplitude, semitones
+        self.function = function                    # the window function of every column
+        self.threshold_db = threshold_db            # a kernel's taps below this of its peak are dropped
+        self.readouts_per_ridge = readouts_per_ridge  # readouts across a band are at most the ridge's width over this apart
 
 
-def frequencies(f_lo, f_hi, count):
-    """count frequencies spaced evenly in log frequency from f_lo to f_hi inclusive."""
-    if count == 1:
-        return np.array([f_lo], dtype=np.float64)
-    return np.array([f_lo * (f_hi / f_lo) ** (i / (count - 1)) for i in range(count)], dtype=np.float64)
+def edges(f_lo, f_hi, count):
+    """The edges of count columns spaced evenly in log frequency from f_lo to f_hi: count + 1 values."""
+    return np.array([f_lo * (f_hi / f_lo) ** (i / count) for i in range(count + 1)], dtype=np.float64)
 
 
 def window_length(cfg, f):
-    """The window length of the column at f, even, within [min_window, n]."""
+    """The window length for a ridge at f, even, within [min_window, n]."""
     semitones = 2.0 ** (cfg.resolution / 12.0) - 1.0
     length = window.bandwidth(cfg.function) * cfg.fs / (f * semitones)
     length = min(max(length, float(cfg.min_window)), float(cfg.n))
@@ -60,29 +65,42 @@ def window_length(cfg, f):
     return min(max(length, 2), cfg.n)
 
 
+def band(cfg, lo, hi):
+    """A column's window length and the frequencies it is read at."""
+    length = window_length(cfg, math.sqrt(lo * hi))
+    ridge = window.bandwidth(cfg.function) * cfg.fs / length   # Hz, at half amplitude
+    count = max(1, int(math.ceil(cfg.readouts_per_ridge * (hi - lo) / ridge)))
+    return length, [lo * (hi / lo) ** ((i + 0.5) / count) for i in range(count)]
+
+
 @functools.lru_cache(maxsize=None)
 def _window(function, length):
     return window.create(function, length, normalize=False).astype(np.float64)
 
 
-def _placed(cfg, f):
-    """The column's window as float64 with its start in the frame and its scale."""
-    length = window_length(cfg, f)
+def _placed(cfg, length):
+    """A window of the length as float64 with its start in the frame and its scale."""
     w = _window(cfg.function, length)
     return w, cfg.n // 2 - length // 2, 2.0 / float(np.sum(w))
 
 
-def column(x, cfg, f):
-    """The definition: the column at f of the frame x, a complex value."""
-    w, start, scale = _placed(cfg, f)
-    i = np.arange(start, start + len(w), dtype=np.float64)
-    seg = x[start:start + len(w)].astype(np.float64)
+def readout_value(x, cfg, length, f):
+    """The definition of one readout: the frame x through a window of the length at f, a complex value."""
+    w, start, scale = _placed(cfg, length)
+    i = np.arange(start, start + length, dtype=np.float64)
+    seg = x[start:start + length].astype(np.float64)
     return scale * np.sum(seg * w * np.exp(-2j * math.pi * f * i / cfg.fs))
 
 
-def transform(x, cfg, freqs):
-    """The definition for every column."""
-    return np.array([column(x, cfg, f) for f in freqs])
+def column(x, cfg, lo, hi):
+    """The definition of a column: the largest magnitude among its readouts."""
+    length, freqs = band(cfg, lo, hi)
+    return max(abs(readout_value(x, cfg, length, f)) for f in freqs)
+
+
+def transform(x, cfg, edges):
+    """The definition for every column, magnitudes."""
+    return np.array([column(x, cfg, edges[c], edges[c + 1]) for c in range(len(edges) - 1)])
 
 
 def db(y):
@@ -96,14 +114,20 @@ class Kernel:
         self.taps = taps      # conj(K) / N over the kept run, complex
 
 
-def kernel(cfg, f):
-    """The column's kernel: the transform of its window shifted to f, kept
+class Column:
+    def __init__(self, length, kernels):
+        self.length = length      # the window length
+        self.kernels = kernels    # one per readout
+
+
+def kernel(cfg, length, f):
+    """A readout's kernel: the transform of its window shifted to f, kept
     between the first and last bins above the threshold, ready to dot with
     the frame's real-input transform."""
-    w, start, scale = _placed(cfg, f)
-    i = np.arange(start, start + len(w), dtype=np.float64)
+    w, start, scale = _placed(cfg, length)
+    i = np.arange(start, start + length, dtype=np.float64)
     k = np.zeros(cfg.n, dtype=np.complex128)
-    k[start:start + len(w)] = scale * w * np.exp(2j * math.pi * f * i / cfg.fs)
+    k[start:start + length] = scale * w * np.exp(2j * math.pi * f * i / cfg.fs)
     K = np.fft.fft(k)[:cfg.n // 2 + 1]
     mag = np.abs(K)
     above = np.nonzero(mag >= mag.max() * 10.0 ** (cfg.threshold_db / 20.0))[0]
@@ -111,15 +135,25 @@ def kernel(cfg, f):
     return Kernel(first, np.conj(K[first:last + 1]) / cfg.n)
 
 
-def kernels(cfg, freqs):
-    return [kernel(cfg, f) for f in freqs]
+def kernels(cfg, edges):
+    """The columns' kernels."""
+    columns = []
+    for c in range(len(edges) - 1):
+        length, freqs = band(cfg, edges[c], edges[c + 1])
+        columns.append(Column(length, [kernel(cfg, length, f) for f in freqs]))
+    return columns
 
 
-def taps(kernels):
+def taps(columns):
     """Taps in all, the cost of a readout."""
-    return sum(len(k.taps) for k in kernels)
+    return sum(len(k.taps) for col in columns for k in col.kernels)
 
 
-def readout(X, kernels):
-    """Every column from X, the frame's transform as numpy.fft.rfft gives it."""
-    return np.array([np.dot(X[k.first:k.first + len(k.taps)], k.taps) for k in kernels])
+def readouts(columns):
+    """Readouts in all."""
+    return sum(len(col.kernels) for col in columns)
+
+
+def readout(X, columns):
+    """Every column from X, the frame's transform as numpy.fft.rfft gives it: magnitudes."""
+    return np.array([max(abs(np.dot(X[k.first:k.first + len(k.taps)], k.taps)) for k in col.kernels) for col in columns])

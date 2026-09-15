@@ -3,9 +3,9 @@
 display would show them, to PNG files for looking at. Nothing here belongs in the
 repository but the script.
 
-    python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90] [--min-hops 1]
+    python validation/scripts/render_spectrogram.py OUT_DIR [--fs 48000] [--columns 1200] [--min-db -90] [--min-hops 2]
 
-Each image is one row per hop, a hop being one display frame at 60 Hz, time running
+Each image is one row per hop, HOP_MS of audio, time running
 down the image so that the newest row is at the bottom, log frequency across it from
 20 Hz to 20 kHz, and level as color from --min-db up to full scale; the shortest
 window is --min-hops hops, so more than 1 overlaps the rows. Ticks below mark
@@ -25,7 +25,7 @@ import numpy as np  # noqa: E402
 from s9 import constant_q, recipes, signals, window  # noqa: E402
 from _png import write_png  # noqa: E402
 
-N, MIN_DB_DEFAULT, F_LO, F_HI, FPS = 32768, -90.0, 20.0, 20000.0, 60
+N, MIN_DB_DEFAULT, F_LO, F_HI, HOP_MS = 32768, -90.0, 20.0, 20000.0, 10
 SECONDS = 8.0
 LEFT, BOTTOM = 16, 12   # the tick margins, pixels
 
@@ -99,10 +99,10 @@ def vowel(fs, seconds):
     return np.concatenate([a, b]).astype(np.float32)
 
 
-def render(x, cfg, freqs, kernels, min_db, hop, table):
+def render(x, cfg, columns, kernels, min_db, hop, table):
     padded = np.concatenate([np.zeros(N // 2, dtype=np.float32), x, np.zeros(N // 2, dtype=np.float32)])
     rows = (len(padded) - N) // hop + 1
-    image = np.zeros((rows, len(freqs)), dtype=np.uint8)
+    image = np.zeros((rows, columns), dtype=np.uint8)
     for r in range(rows):
         frame = padded[r * hop:r * hop + N].astype(np.float64)
         levels = constant_q.db(constant_q.readout(np.fft.rfft(frame), kernels))
@@ -111,18 +111,18 @@ def render(x, cfg, freqs, kernels, min_db, hop, table):
     return table[image]
 
 
-def framed(picture, freqs, fs, hop):
+def framed(picture, edges, fs, hop):
     """The picture with tick margins: decades below, seconds on the left."""
     rows, cols, _ = picture.shape
     out = np.zeros((rows + BOTTOM, cols + LEFT, 3), dtype=np.uint8)
     out[:rows, LEFT:] = picture
-    log_lo, log_hi = math.log(freqs[0]), math.log(freqs[-1])
+    log_lo, log_hi = math.log(edges[0]), math.log(edges[-1])
     decade = 10.0
     while decade <= freqs[-1]:
         for step in range(1, 10):
             f = step * decade
-            if freqs[0] <= f <= freqs[-1]:
-                c = LEFT + int(round((math.log(f) - log_lo) / (log_hi - log_lo) * (cols - 1)))
+            if edges[0] <= f <= edges[-1]:
+                c = LEFT + int(round((math.log(f) - log_lo) / (log_hi - log_lo) * cols - 0.5))
                 if step == 1:
                     out[rows:rows + BOTTOM, max(c - 1, 0):c + 1] = 255
                 else:
@@ -150,20 +150,20 @@ def main():
     fs = int(args[args.index("--fs") + 1]) if "--fs" in args else 48000
     columns = int(args[args.index("--columns") + 1]) if "--columns" in args else 1200
     min_db = float(args[args.index("--min-db") + 1]) if "--min-db" in args else MIN_DB_DEFAULT
-    min_hops = int(args[args.index("--min-hops") + 1]) if "--min-hops" in args else 1
-    hop = fs // FPS
+    min_hops = int(args[args.index("--min-hops") + 1]) if "--min-hops" in args else 2
+    hop = fs * HOP_MS // 1000
     os.makedirs(out_dir, exist_ok=True)
 
     cfg = constant_q.Config(fs=fs, n=N, min_window=hop * min_hops, resolution=1.0, function=window.BLACKMAN_HARRIS,
                             threshold_db=-100.0)
-    freqs = constant_q.frequencies(F_LO, F_HI, columns)
-    print(f"building {columns} kernels...", flush=True)
-    kernels = constant_q.kernels(cfg, freqs)
+    edges = constant_q.edges(F_LO, F_HI, columns)
+    print(f"building {columns} columns' kernels...", flush=True)
+    kernels = constant_q.kernels(cfg, edges)
     table = color_table()
-    print(f"{columns} columns, {F_LO:g} to {F_HI:g} Hz, {FPS} rows per second, {min_db:g} dB to 0 dB")
+    print(f"{columns} columns, {F_LO:g} to {F_HI:g} Hz, {1000 / HOP_MS:g} rows per second, {min_db:g} dB to 0 dB")
     for name, make in (("sweep", sweep), ("drums", drums), ("chromatic", chromatic), ("vowel", vowel)):
         x = make(fs, SECONDS)
-        picture = framed(render(x, cfg, freqs, kernels, min_db, hop, table), freqs, fs, hop)
+        picture = framed(render(x, cfg, columns, kernels, min_db, hop, table), edges, fs, hop)
         path = os.path.join(out_dir, name + ".png")
         write_png(path, picture)
         print(f"wrote {path}: {picture.shape[1]} x {picture.shape[0]}")

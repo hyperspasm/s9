@@ -11,6 +11,8 @@
 
 #define THRESHOLD_DB -100.0f   // a kernel's taps below this of its peak are dropped; what that leaves out stays
                                // below -95 dB of full scale, measured by validation/scripts/measure_constant_q.py
+#define READOUTS_PER_RIDGE 3.0f   // a column is read at frequencies at most this fraction of its ridge's width
+                                  // apart, so a tone anywhere in it reads within 0.8 dB, measured by the same
 #define FRAME_MIN 1024         // the transform's length, at least
 #define FRAME_MAX 65536        // and at most
 #define GUARD_ROWS 2           // rows kept below the plot's edge, so a late audio buffer never leaves it blank
@@ -56,7 +58,7 @@ struct spectrogram {
 	constant_q_t *cq;                // one column per pixel of the plot
 	constant_q_config_t built;       // what the kernels were built for
 	float built_f_min, built_f_hi;
-	double *frequencies;             // plot.w
+	double *edges;                   // plot.w + 1, the columns' bands
 	float *history;                  // plot.w x image_h, dB: the rows as the ring holds them
 	uint32_t *pixels;                // one row
 	uint32_t palette[PALETTE_STEPS];
@@ -162,6 +164,7 @@ static int ensure_kernels(spectrogram_t *sg) {
 		.resolution_semitones = sg->config.resolution_semitones,
 		.window_function = sg->config.window_function,
 		.threshold_db = THRESHOLD_DB,
+		.readouts_per_ridge = READOUTS_PER_RIDGE,
 	};
 	const constant_q_config_t *b = &sg->built;
 	if (sg->cq && want.sample_rate == b->sample_rate && want.n == b->n && want.min_window == b->min_window &&
@@ -172,9 +175,9 @@ static int ensure_kernels(spectrogram_t *sg) {
 	constant_q_free(&sg->cq);
 	uint32_t columns = (uint32_t)sg->plot.w;
 	double lo = log((double)sg->config.f_min), hi = log((double)sg->f_hi);
-	for (uint32_t c = 0; c < columns; c++)
-		sg->frequencies[c] = exp(lo + (hi - lo) * (double)c / (double)(columns - 1));
-	sg->cq = constant_q_new(&want, sg->frequencies, columns);
+	for (uint32_t c = 0; c <= columns; c++)
+		sg->edges[c] = exp(lo + (hi - lo) * (double)c / (double)columns);
+	sg->cq = constant_q_new(&want, sg->edges, columns);
 	CHECK_ALLOC(sg->cq, return -1);
 	sg->built = want;
 	sg->built_f_min = sg->config.f_min;
@@ -257,15 +260,15 @@ static void free_textures(spectrogram_t *sg) {
 	if (sg->image) { SDL_DestroyTexture(sg->image); sg->image = NULL; }
 	if (sg->unrolled) { SDL_DestroyTexture(sg->unrolled); sg->unrolled = NULL; }
 	if (sg->axes) { SDL_DestroyTexture(sg->axes); sg->axes = NULL; }
-	free(sg->frequencies); sg->frequencies = NULL;
+	free(sg->edges); sg->edges = NULL;
 	free(sg->history); sg->history = NULL;
 	free(sg->pixels); sg->pixels = NULL;
 }
 
-// the x of a frequency across the plot: each pixel column is a column of the readout
+// the x of a frequency across the plot: each pixel column is a band of the readout, its centre at the pixel's
 static int frequency_x(const spectrogram_t *sg, double hz) {
 	double lo = log((double)sg->config.f_min), hi = log((double)sg->f_hi);
-	return sg->plot.x + (int)lround((log(hz) - lo) / (hi - lo) * (sg->plot.w - 1));
+	return sg->plot.x + (int)lround((log(hz) - lo) / (hi - lo) * sg->plot.w - 0.5);
 }
 
 // room for the time labels on the left, the frequency labels below
@@ -374,8 +377,8 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	CHECK_ALLOC(sg->unrolled, free_textures(sg); return -1);
 	SDL_SetTextureBlendMode(sg->unrolled, SDL_BLENDMODE_NONE);
 	SDL_SetTextureScaleMode(sg->unrolled, SDL_ScaleModeLinear);   // a fractional offset blends neighbouring rows
-	sg->frequencies = malloc(sizeof(double) * sg->plot.w);
-	CHECK_ALLOC(sg->frequencies, free_textures(sg); return -1);
+	sg->edges = malloc(sizeof(double) * ((size_t)sg->plot.w + 1));
+	CHECK_ALLOC(sg->edges, free_textures(sg); return -1);
 	sg->history = malloc(sizeof(float) * (size_t)sg->plot.w * (size_t)sg->image_h);
 	CHECK_ALLOC(sg->history, free_textures(sg); return -1);
 	sg->pixels = malloc(sizeof(uint32_t) * sg->plot.w);
