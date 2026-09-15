@@ -11,22 +11,22 @@
 // A scrolling spectrogram: log frequency across, time down with the newest
 // row at the bottom, and level as color. Each row is one hop of audio,
 // hop_ms long whatever the display's frame rate, read by a constant-Q
-// readout over one long transform: every pixel column is a band with a
-// window sized for its frequency, from the whole transform at the bottom
-// of the range to a few rows at the top, all centred on the same instant,
-// so the low frequencies are resolved to a set width at the cost of time
-// smearing and the high ones keep the time resolution of a row or two,
-// and each shows the strongest level within its band. Rows follow audio
-// time, one per hop as it arrives, and the image is placed by a smoothed
-// audio clock, so it scrolls evenly at any hop, a fraction of a row per
-// frame. The newest row shows audio from half the longest window ago.
+// readout of a frame of audio: every pixel column is a band with a window
+// sized for its frequency, all centred on the same instant, so the low
+// frequencies are resolved to the set width at the cost of time smearing
+// and the high ones keep the time resolution of a row or two, and each
+// shows the strongest level within its band. The frame is as long as the
+// lowest column's window needs, so the resolution holds from f_min up to
+// where the shortest window takes over. Rows follow audio time, one per
+// hop as it arrives, and the image is placed by a smoothed audio clock, so
+// it scrolls evenly at any hop, a fraction of a row per frame. The newest
+// row shows audio from half the frame ago.
 
 typedef struct spectrogram spectrogram_t;
 
 typedef struct {
 	uint32_t channel;                // the channel analyzed, or S9_CHANNEL_ALL for their average
 	uint32_t hop_ms;                 // the audio in a row, and so the scroll: one row per this many milliseconds
-	float window_s;                  // the longest window: the transform is the longest power of two within this
 	uint32_t min_window_hops;        // the shortest window, in rows: 1 keeps a row's time resolution but hears a
 	                                 // click faintly at a row's edge; 2 overlaps the rows by half, so a click
 	                                 // reads alike wherever it falls; more evens that out further
@@ -42,7 +42,6 @@ typedef struct {
 static const spectrogram_config_t default_spectrogram_config = {
 	.channel = S9_CHANNEL_ALL,
 	.hop_ms = 10,
-	.window_s = 0.75f,
 	.min_window_hops = 2,
 	.resolution_semitones = 1.0f,
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
@@ -69,10 +68,13 @@ const spectrogram_config_t *spectrogram_config(const spectrogram_t *sg);
 void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *config);
 
 // Rows written since the image last started over, which it does when
-// streaming is prepared, when the transform or the readout changes, and
-// when the viewport does. Every hop of audio after the transform has
-// filled once is a row.
+// streaming is prepared, when the frame or the readout changes, and when
+// the viewport does. Every hop of audio after the frame has filled once is
+// a row.
 uint32_t spectrogram_rows(const spectrogram_t *sg);
+
+// the frame's length in samples, as the range and the resolution set it; 0 before streaming
+uint32_t spectrogram_frame(const spectrogram_t *sg);
 
 // stop audio streaming
 void spectrogram_stop_streaming(spectrogram_t *sg);

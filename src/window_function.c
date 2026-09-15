@@ -214,8 +214,13 @@ void create_window_function(window_function_t function, uint32_t length,
 
 // The transform is scanned outward from its peak in steps of a fraction of
 // a bin until it falls below half, and the crossing interpolated; the
-// oracle's window.bandwidth() scans the same way.
+// oracle's window.bandwidth() scans the same way. Measured once per
+// function and kept.
 double window_function_bandwidth(window_function_t function) {
+	static double kept[WINDOW_FUNCTION_COUNT];
+	static int measured[WINDOW_FUNCTION_COUNT];
+	if ((unsigned)function >= WINDOW_FUNCTION_COUNT) return 0.0;
+	if (measured[function]) return kept[function];
 	float *w = malloc(sizeof(float) * BANDWIDTH_LENGTH);
 	if (!w) return 0.0;
 	create_window_function(function, BANDWIDTH_LENGTH, 0, 0.0f, w);
@@ -239,5 +244,7 @@ double window_function_bandwidth(window_function_t function) {
 		prev = magnitude;
 	}
 	free(w);
+	kept[function] = width;
+	measured[function] = 1;
 	return width;
 }

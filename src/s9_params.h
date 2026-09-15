@@ -13,7 +13,7 @@
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
 #define S9_PERIODIC_NOTE_NUM_PARAMS        1
-#define S9_SPECTROGRAM_NUM_PARAMS        9
+#define S9_SPECTROGRAM_NUM_PARAMS        8
 #define S9_DEBUG_NUM_PARAMS              1
 
 // The root's children, in declared order

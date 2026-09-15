@@ -1,8 +1,8 @@
 // The spectrogram end to end: audio in, frames rendered on SDL's software
 // renderer, rows out. Runs without a display. Rows follow the audio, one
-// per hop once the transform has filled, however the hops arrive, and the
-// image starts over when the transform changes. What a row holds is tested
-// on the readout.
+// per hop once the frame has filled, however the hops arrive, and the
+// image starts over when the frame changes. What a row holds is tested on
+// the readout.
 #include "greatest.h"
 #include "spectrogram.h"
 #include "test_signals.h"
@@ -23,10 +23,11 @@
 static SDL_Surface *surface;
 static SDL_Renderer *renderer;
 
-static spectrogram_t *streaming(float window_s) {
+// streaming with the range starting at f_min, which sets the frame's length
+static spectrogram_t *streaming(float f_min) {
 	spectrogram_config_t c = default_spectrogram_config;
 	c.hop_ms = HOP_MS;
-	c.window_s = window_s;
+	c.f_min = f_min;
 	spectrogram_t *sg = spectrogram_new(&c);
 	spectrogram_prepare_to_stream(sg, &(s9_audio_stream_config_t){
 		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 2,
@@ -74,16 +75,18 @@ static unsigned colored_pixels(void) {
 	return colored;
 }
 
-// the hops it takes to fill a transform of n samples
+// the hops it takes to fill a frame of n samples
 static unsigned hops_to_fill(unsigned n) { return (n + HOP - 1) / HOP; }
 
-// No row until the transform has filled; then one per hop, whether the
-// hops come one per frame or three at once, and a frame without audio
-// writes none. Rows light the plot, even fed faster than real time, when
-// the audio clock re-seats rather than following.
+// No row until the frame has filled; then one per hop, whether the hops
+// come one per display frame or three at once, and a display frame
+// without audio writes none. Rows light the plot, even fed faster than
+// real time, when the audio clock re-seats rather than following.
 TEST rows_follow_the_hops(void) {
-	enum { N = 32768, MORE = 30 };   // the longest power of two within 0.75 s; rows past the first
-	spectrogram_t *sg = streaming(0.75f);
+	enum { MORE = 30 };   // rows past the first
+	spectrogram_t *sg = streaming(100.0f);
+	unsigned N = spectrogram_frame(sg);
+	ASSERT_EQ_FMT(21600u, N, "%u");   // the shortest length of factors 2, 3 and 5 holding a semitone's window at 100 Hz
 	unsigned offset = 0;
 	render(sg);
 	unsigned axes_only = lit_pixels();
@@ -117,11 +120,11 @@ TEST rows_follow_the_hops(void) {
 	PASS();
 }
 
-// A new window length starts the image over, and rows resume once the new
-// transform has filled.
-TEST new_transform_starts_over(void) {
-	enum { N = 32768, SHORTER = 8192 };
-	spectrogram_t *sg = streaming(0.75f);
+// A range starting higher needs a shorter frame; the new frame starts the
+// image over, and rows resume once it has filled.
+TEST new_frame_starts_over(void) {
+	spectrogram_t *sg = streaming(100.0f);
+	unsigned N = spectrogram_frame(sg);
 	unsigned offset = 0;
 	for (unsigned h = 0; h < hops_to_fill(N) + 3; h++) {
 		feed(sg, 1, &offset);
@@ -130,8 +133,10 @@ TEST new_transform_starts_over(void) {
 	ASSERT_EQ_FMT(4u, spectrogram_rows(sg), "%u");
 
 	spectrogram_config_t c = *spectrogram_config(sg);
-	c.window_s = (float)SHORTER / FS + 0.01f;
+	c.f_min = 200.0f;
 	spectrogram_set_config(sg, &c);
+	unsigned SHORTER = spectrogram_frame(sg);
+	ASSERT_EQ_FMT(10800u, SHORTER, "%u");
 	for (unsigned h = 1; h < hops_to_fill(SHORTER); h++) {
 		feed(sg, 1, &offset);
 		render(sg);
@@ -149,8 +154,9 @@ TEST new_transform_starts_over(void) {
 // that follow: a tone drawn in inferno is in color, and in grey nothing
 // on the screen is.
 TEST scale_change_recolors_the_history(void) {
-	enum { N = 32768, ROWS = 30 };
-	spectrogram_t *sg = streaming(0.75f);
+	enum { ROWS = 30 };
+	spectrogram_t *sg = streaming(100.0f);
+	unsigned N = spectrogram_frame(sg);
 	unsigned offset = 0;
 	for (unsigned h = 0; h < hops_to_fill(N) + ROWS; h++) {
 		feed(sg, 1, &offset);
@@ -209,7 +215,7 @@ int main(int argc, char **argv) {
 
 	GREATEST_MAIN_BEGIN();
 	RUN_TEST(rows_follow_the_hops);
-	RUN_TEST(new_transform_starts_over);
+	RUN_TEST(new_frame_starts_over);
 	RUN_TEST(scale_change_recolors_the_history);
 	RUN_TEST(config_is_kept_sane);
 	GREATEST_MAIN_END();

@@ -13,8 +13,9 @@
                                // below -95 dB of full scale, measured by validation/scripts/measure_constant_q.py
 #define READOUTS_PER_RIDGE 3.0f   // a column is read at frequencies at most this fraction of its ridge's width
                                   // apart, so a tone anywhere in it reads within 0.8 dB, measured by the same
-#define FRAME_MIN 1024         // the transform's length, at least
-#define FRAME_MAX 65536        // and at most
+#define FRAME_MIN 1024         // the frame's length, at least
+#define FRAME_MAX 524288       // and at most: the resolution holds to f_min within it, and the parameters' ranges keep it so
+                               // at 48 kHz
 #define GUARD_ROWS 2           // rows kept below the plot's edge, so a late audio buffer never leaves it blank
 #define EXTRA_ROWS 4           // rows the image has beyond the plot's height: the guard and the overhang above
 #define CLOCK_TC 0.2           // seconds, the time constant of the audio clock's smoothing
@@ -74,7 +75,6 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	const spectrogram_config_t *d = &default_spectrogram_config;
 	sg->config = config ? *config : *d;
 	if (sg->config.hop_ms < 1) sg->config.hop_ms = d->hop_ms;
-	if (!(sg->config.window_s > 0.0f)) sg->config.window_s = d->window_s;
 	if (sg->config.min_window_hops < 1) sg->config.min_window_hops = 1;
 	if (!(sg->config.resolution_semitones > 0.0f)) sg->config.resolution_semitones = d->resolution_semitones;
 	if ((unsigned)sg->config.window_function >= WINDOW_FUNCTION_COUNT) sg->config.window_function = d->window_function;
@@ -84,10 +84,26 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	sg->config_changed = 1;
 }
 
-// the longest power of two within the configured window
+// whether a length has no prime factor above 5, the lengths FFTW transforms fastest
+static int smooth(uint32_t n) {
+	for (uint32_t p = 2; p <= 5; p++)
+		while (n % p == 0) n /= p;
+	return n == 1;
+}
+
+// The frame: the shortest even length with no prime factor above 5 that
+// holds the window of a ridge at f_min, the longest any column needs,
+// within FRAME_MIN and FRAME_MAX.
 static uint32_t frame_length(const spectrogram_t *sg) {
-	uint32_t n = FRAME_MIN;
-	while (n * 2 <= FRAME_MAX && (float)(n * 2) <= sg->config.window_s * (float)sg->stream.sample_rate) n *= 2;
+	double semitones = pow(2.0, (double)sg->config.resolution_semitones / 12.0) - 1.0;
+	double need = window_function_bandwidth(sg->config.window_function) * sg->stream.sample_rate / ((double)sg->config.f_min * semitones);
+	double shortest = (double)sg->hop * sg->config.min_window_hops;
+	if (need < shortest) need = shortest;
+	if (need < FRAME_MIN) need = FRAME_MIN;
+	if (need > FRAME_MAX) need = FRAME_MAX;
+	uint32_t n = (uint32_t)ceil(need);
+	if (n % 2) n++;
+	while (n < FRAME_MAX && !smooth(n)) n += 2;
 	return n;
 }
 
@@ -451,6 +467,10 @@ void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer) {
 
 uint32_t spectrogram_rows(const spectrogram_t *sg) {
 	return sg->written;
+}
+
+uint32_t spectrogram_frame(const spectrogram_t *sg) {
+	return sg->stream.sample_rate ? frame_length(sg) : 0;
 }
 
 void spectrogram_stop_streaming(spectrogram_t *sg) {
