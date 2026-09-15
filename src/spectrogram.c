@@ -35,6 +35,7 @@ struct spectrogram {
 	s9_audio_stream_config_t stream;
 	int streaming;
 	uint32_t hop;                    // frames per row
+	uint32_t frame;                  // the frame's length, as the range and the resolution set it
 	uint64_t consumed;               // frames made into rows since streaming was prepared
 	float f_hi;                      // the top of the range, within the stream's Nyquist
 
@@ -84,6 +85,12 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	sg->config_changed = 1;
 }
 
+// the frames in a row
+static uint32_t hop_frames(const spectrogram_t *sg) {
+	long hop = lround((double)sg->config.hop_ms * sg->stream.sample_rate / 1000.0);
+	return hop < 1 ? 1 : (uint32_t)hop;
+}
+
 // whether a length has no prime factor above 5, the lengths FFTW transforms fastest
 static int smooth(uint32_t n) {
 	for (uint32_t p = 2; p <= 5; p++)
@@ -97,7 +104,7 @@ static int smooth(uint32_t n) {
 static uint32_t frame_length(const spectrogram_t *sg) {
 	double semitones = pow(2.0, (double)sg->config.resolution_semitones / 12.0) - 1.0;
 	double need = window_function_bandwidth(sg->config.window_function) * sg->stream.sample_rate / ((double)sg->config.f_min * semitones);
-	double shortest = (double)sg->hop * sg->config.min_window_hops;
+	double shortest = (double)hop_frames(sg) * sg->config.min_window_hops;
 	if (need < shortest) need = shortest;
 	if (need < FRAME_MIN) need = FRAME_MIN;
 	if (need > FRAME_MAX) need = FRAME_MAX;
@@ -107,10 +114,17 @@ static uint32_t frame_length(const spectrogram_t *sg) {
 	return n;
 }
 
+// the frequency from which the shortest window rules: where the resolution's window would be shorter
+static float floor_frequency(const spectrogram_t *sg) {
+	double semitones = pow(2.0, (double)sg->config.resolution_semitones / 12.0) - 1.0;
+	double shortest = (double)hop_frames(sg) * sg->config.min_window_hops;
+	return (float)(window_function_bandwidth(sg->config.window_function) * sg->stream.sample_rate / (shortest * semitones));
+}
+
 // the analyzer keeps the frame and transforms nothing: the readout transforms it as it needs
 static fft_analyzer_config_t analyzer_config(const spectrogram_t *sg) {
 	return (fft_analyzer_config_t){
-		.fft_len = frame_length(sg),
+		.fft_len = sg->frame,
 		.window_function = WINDOW_FUNCTION_RECTANGULAR,
 		.window_skew = 0.0f,
 		.mode = FFT_ANALYZER_MIX,
@@ -128,8 +142,8 @@ static void apply_config(spectrogram_t *sg) {
 	if (sg->config.palette != sg->colored.palette || sg->config.min_db != sg->colored.min_db || sg->config.max_db != sg->colored.max_db)
 		sg->recolor = 1;
 	if (!sg->stream.sample_rate) return;
-	long hop = lround((double)sg->config.hop_ms * sg->stream.sample_rate / 1000.0);
-	sg->hop = hop < 1 ? 1 : (uint32_t)hop;
+	sg->hop = hop_frames(sg);
+	sg->frame = frame_length(sg);
 	fft_analyzer_config_t ac = analyzer_config(sg);
 	fft_analyzer_set_config(sg->analyzer, &ac);
 	sg->f_hi = fminf(sg->config.f_max, 0.5f * (float)sg->stream.sample_rate);
@@ -436,6 +450,7 @@ spectrogram_t *spectrogram_new(const spectrogram_config_t *config) {
 	memset(sg, 0, sizeof(*sg));
 	spectrogram_set_config(sg, config);
 	sg->config_changed = 0;
+	sg->frame = FRAME_MIN;
 	sg->analyzer = fft_analyzer_new(&(fft_analyzer_config_t){
 		.fft_len = FRAME_MIN, .window_function = WINDOW_FUNCTION_RECTANGULAR, .mode = FFT_ANALYZER_MIX, .channel = sg->config.channel,
 	});
@@ -470,8 +485,17 @@ uint32_t spectrogram_rows(const spectrogram_t *sg) {
 	return sg->written;
 }
 
+// what the configuration as set gives, whether or not a frame has applied it yet
 uint32_t spectrogram_frame(const spectrogram_t *sg) {
 	return sg->stream.sample_rate ? frame_length(sg) : 0;
+}
+
+float spectrogram_time_resolution(const spectrogram_t *sg) {
+	return sg->stream.sample_rate ? (float)frame_length(sg) / (float)sg->stream.sample_rate : 0.0f;
+}
+
+float spectrogram_floor_frequency(const spectrogram_t *sg) {
+	return sg->stream.sample_rate ? floor_frequency(sg) : 0.0f;
 }
 
 void spectrogram_stop_streaming(spectrogram_t *sg) {

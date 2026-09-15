@@ -2,6 +2,7 @@
 #include "s9_params.h"
 #include "s9_ws.h"
 #include "periodic.h"
+#include "spectrogram.h"
 #include "s9.h"
 
 #include <pn/pn.h>
@@ -21,6 +22,11 @@ struct s9_pn {
 	bool fundamental_valid;
 	float fundamental_frequency;
 	float fundamental_midi;
+
+	// the spectrogram's time resolution last pushed
+	spectrogram_t *spectrogram;
+	float spectrogram_time_resolution;
+	float spectrogram_floor_frequency;
 };
 
 // -- manifest text
@@ -77,8 +83,8 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	pn->config = *config;
 	void *osc = s9_components_get(pn->config.components, COMP_OSCILLOSCOPE)->instance;
 	pn->periodic = s9_components_get(pn->config.components, COMP_PERIODIC)->instance;
-	void *spectrogram = s9_components_get(pn->config.components, COMP_SPECTROGRAM)->instance;
-	pn_param_t *root = s9_params_build(&pn->params, osc, pn->periodic, spectrogram);
+	pn->spectrogram = s9_components_get(pn->config.components, COMP_SPECTROGRAM)->instance;
+	pn_param_t *root = s9_params_build(&pn->params, osc, pn->periodic, pn->spectrogram);
 
 	// allocate server
 	pn_server_config_t server_config = {
@@ -157,10 +163,26 @@ static void notify_fundamental(s9_pn_t *pn) {
 	}
 }
 
+// The spectrogram's time resolution follows its settings and the stream, so
+// its parameters are pushed whenever their values move.
+static void notify_spectrogram(s9_pn_t *pn) {
+	float time_resolution = spectrogram_time_resolution(pn->spectrogram);
+	float floor_frequency = spectrogram_floor_frequency(pn->spectrogram);
+	if (time_resolution != pn->spectrogram_time_resolution) {
+		pn->spectrogram_time_resolution = time_resolution;
+		pn_param_notify(&pn->params.spectrogram_params[S9_SPECTROGRAM_TIME_RESOLUTION]);
+	}
+	if (floor_frequency != pn->spectrogram_floor_frequency) {
+		pn->spectrogram_floor_frequency = floor_frequency;
+		pn_param_notify(&pn->params.spectrogram_params[S9_SPECTROGRAM_FLOOR_FREQUENCY]);
+	}
+}
+
 void s9_pn_update(s9_pn_t *pn) {
 	if (!pn) return;
 	if (pn->ws) s9_ws_update(pn->ws);
 	notify_fundamental(pn);
+	notify_spectrogram(pn);
 }
 
 void s9_pn_notify_mode(s9_pn_t *pn) {

@@ -9,6 +9,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -87,6 +88,10 @@ TEST rows_follow_the_hops(void) {
 	spectrogram_t *sg = streaming(100.0f);
 	unsigned N = spectrogram_frame(sg);
 	ASSERT_EQ_FMT(21600u, N, "%u");   // the shortest length of factors 2, 3 and 5 holding a semitone's window at 100 Hz
+	ASSERT_IN_RANGE((float)N / FS, spectrogram_time_resolution(sg), 1e-6f);
+	// the shortest window, two hops, is a semitone's window at this frequency
+	ASSERT_IN_RANGE(window_function_bandwidth(WINDOW_FUNCTION_BLACKMAN_HARRIS) * FS / (2.0 * HOP * (pow(2.0, 1.0 / 12.0) - 1.0)),
+	                (double)spectrogram_floor_frequency(sg), 0.01);
 	unsigned offset = 0;
 	render(sg);
 	unsigned axes_only = lit_pixels();

@@ -73,8 +73,16 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 // a row.
 uint32_t spectrogram_rows(const spectrogram_t *sg);
 
-// the frame's length in samples, as the range and the resolution set it; 0 before streaming
+// The time resolution the settings give, which varies with frequency: the
+// frame's length in samples and in seconds, the window of the lowest
+// column and the longest smear any event can have; and the frequency from
+// which the shortest window rules, above which the smear is that window's
+// and the ridges are narrower than the resolution says. Between the two the
+// smear follows the resolution, doubling with every octave down. 0 before
+// streaming.
 uint32_t spectrogram_frame(const spectrogram_t *sg);
+float spectrogram_time_resolution(const spectrogram_t *sg);
+float spectrogram_floor_frequency(const spectrogram_t *sg);
 
 // stop audio streaming
 void spectrogram_stop_streaming(spectrogram_t *sg);

@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=e656bf89
+# pn manifest v1 s9 fnv1a32=2f0c220b
 s9/mode enum full|scope|spectrum|periodic|spectrogram
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -34,6 +34,8 @@ s9/periodic/waveform/amp_per_div float 0x3a83126f 0x41200000 0x00000000
 s9/periodic/waveform/lock_cycles int 1 16 1
 s9/periodic/waveform/lock_time float 0x00000000 0x40a00000 0x00000000
 s9/periodic/note/a4 float 0x43c80000 0x43f00000 0x00000000
+s9/spectrogram/time_resolution float 0x00000000 0x42700000 0x00000000 ro
+s9/spectrogram/floor_frequency float 0x00000000 0x46bb8000 0x00000000 ro
 s9/spectrogram/channel int -1 31 1
 s9/spectrogram/hop int 5 60 1
 s9/spectrogram/resolution int 25 400 1
