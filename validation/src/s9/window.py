@@ -57,8 +57,8 @@ def _skew(window, skew):
     out = np.empty(length, dtype=np.float32)
     inv_len = 1.0 / (length - 1)
     for i in range(length):
-        t = i * inv_len
-        t_warped = 1.0 - (1.0 - t) ** gamma
+        remaining = (length - 1 - i) * inv_len   # counted down, so it never rounds below zero
+        t_warped = 1.0 - remaining ** gamma
         src = t_warped * (length - 1)
         idx = int(src)
         frac = src - idx

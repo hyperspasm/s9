@@ -140,8 +140,9 @@ static void apply_skew(float *window, uint32_t length, float skew) {
 	double inv_len = 1.0 / (length - 1);
 
 	for (uint32_t i = 0; i < length; i++) {
-		double t = i * inv_len;
-		double t_warped = 1.0 - pow(1.0 - t, gamma);
+		// the distance left to the end, counted down so that it never rounds below zero
+		double remaining = (double)(length - 1 - i) * inv_len;
+		double t_warped = 1.0 - pow(remaining, gamma);
 		double src = t_warped * (length - 1);
 
 		uint32_t idx = (uint32_t)src;
