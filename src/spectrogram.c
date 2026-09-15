@@ -13,6 +13,10 @@
                                // below -95 dB of full scale, measured by validation/scripts/measure_constant_q.py
 #define FRAME_MIN 1024         // the transform's length, at least
 #define FRAME_MAX 65536        // and at most
+#define GUARD_ROWS 2           // rows kept below the plot's edge, so a late audio buffer never leaves it blank
+#define EXTRA_ROWS 4           // rows the image has beyond the plot's height: the guard and the overhang above
+#define CLOCK_TC 0.2           // seconds, the time constant of the audio clock's smoothing
+#define CLOCK_SNAP_ROWS 4      // the clock re-seats when the arrivals get this far from its estimate: after a stall
 #define GRAPH_MARGIN 10        // between the plot with its labels and the viewport
 #define LABEL_MARGIN 8         // between the labels and the ticks
 #define TICK 6                 // the ticks' length
@@ -33,17 +37,25 @@ struct spectrogram {
 	s9_audio_stream_config_t stream;
 	int streaming;
 	uint32_t hop;                    // frames per row
-	uint32_t margin;                 // frames left queued before a second row is written in one frame
+	uint64_t consumed;               // frames made into rows since streaming was prepared
 	float f_hi;                      // the top of the range, within the stream's Nyquist
+
+	// the audio clock: the wall clock's ramp at the stream's rate plus the
+	// smoothed difference between what has arrived and that ramp
+	int clock_started;
+	uint64_t clock_t0, clock_t;      // performance counter at the start, and at the last reading
+	double clock_deviation;          // frames
 
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
-	SDL_Rect plot;                   // the image, within the viewport
-	SDL_Texture *image;              // plot.w x plot.h, a ring of rows
+	SDL_Rect plot;                   // where the image shows, within the viewport
+	int image_h;                     // rows in the image: the plot's height and EXTRA_ROWS
+	SDL_Texture *image;              // plot.w x image_h, a ring of rows
+	SDL_Texture *unrolled;           // the ring in order, newest row last
 	SDL_Texture *axes;               // the ticks, labels and frame, drawn once per viewport and stream
 	int axes_drawn;
 	int head;                        // the row the next hop is written to
-	int rows;                        // rows the ring holds, up to plot.h
+	int rows;                        // rows the ring holds, up to image_h
 	uint32_t written;                // rows written since the image started over
 
 	constant_q_t *cq;                // one column per pixel of the plot
@@ -64,6 +76,7 @@ const spectrogram_config_t *spectrogram_config(const spectrogram_t *sg) {
 void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *config) {
 	const spectrogram_config_t *d = &default_spectrogram_config;
 	sg->config = config ? *config : *d;
+	if (!(sg->config.hop_ms > 0.0f)) sg->config.hop_ms = d->hop_ms;
 	if (!(sg->config.window_s > 0.0f)) sg->config.window_s = d->window_s;
 	if (sg->config.min_window_hops < 1) sg->config.min_window_hops = 1;
 	if (!(sg->config.resolution_semitones > 0.0f)) sg->config.resolution_semitones = d->resolution_semitones;
@@ -98,6 +111,8 @@ static void apply_config(spectrogram_t *sg) {
 	if (!sg->config_changed) return;
 	sg->config_changed = 0;
 	if (!sg->stream.sample_rate) return;
+	long hop = lround((double)sg->config.hop_ms * sg->stream.sample_rate / 1000.0);
+	sg->hop = hop < 1 ? 1 : (uint32_t)hop;
 	fft_analyzer_config_t ac = analyzer_config(sg);
 	fft_analyzer_set_config(sg->analyzer, &ac);
 	sg->f_hi = fminf(sg->config.f_max, 0.5f * (float)sg->stream.sample_rate);
@@ -128,7 +143,7 @@ static void clear_image(spectrogram_t *sg) {
 	void *pixels;
 	int pitch;
 	if (SDL_LockTexture(sg->image, NULL, &pixels, &pitch) == 0) {
-		memset(pixels, 0, (size_t)pitch * (size_t)sg->plot.h);
+		memset(pixels, 0, (size_t)pitch * (size_t)sg->image_h);
 		SDL_UnlockTexture(sg->image);
 	}
 }
@@ -176,31 +191,57 @@ static void write_row(spectrogram_t *sg) {
 		sg->pixels[c] = sg->palette[i];
 	}
 	SDL_UpdateTexture(sg->image, &(SDL_Rect){ 0, sg->head, sg->plot.w, 1 }, sg->pixels, sg->plot.w * (int)sizeof(uint32_t));
-	sg->head = (sg->head + 1) % sg->plot.h;
-	if (sg->rows < sg->plot.h) sg->rows++;
+	sg->head = (sg->head + 1) % sg->image_h;
+	if (sg->rows < sg->image_h) sg->rows++;
 	sg->written++;
 }
 
-// Rows follow the audio: one per hop queued, none until a hop is, and a
-// second in the same frame only while a margin of audio stays queued after
-// it, so the display catches up when it has fallen behind without
-// stuttering on the audio buffers' arrival. Nothing is written until the
-// transform has filled with audio once.
+// Every hop queued becomes a row, as many as a frame finds. Nothing is
+// written until the transform has filled with audio once.
 static void advance(spectrogram_t *sg) {
-	uint32_t queued = fft_analyzer_queued(sg->analyzer);
-	for (int hops = 0; queued >= sg->hop && (hops == 0 || queued - sg->hop >= sg->margin); hops++) {
+	while (fft_analyzer_queued(sg->analyzer) >= sg->hop) {
 		uint32_t consumed = fft_analyzer_update(sg->analyzer);
 		if (consumed < sg->hop) break;
-		queued -= consumed;
+		sg->consumed += consumed;
 		if (ensure_kernels(sg) != 0) break;
 		if (fft_analyzer_filled(sg->analyzer)) write_row(sg);
 	}
+}
+
+// The audio's position now, in frames since streaming was prepared. What
+// has arrived comes in buffers, so it is not read directly: the wall
+// clock's ramp at the stream's rate carries the motion, and only the
+// difference between the arrivals and the ramp is followed, smoothed,
+// which also absorbs the drift between the two clocks. A difference too
+// large to be jitter, after the audio has stalled or run ahead, re-seats
+// the estimate instead of being followed slowly.
+static double clock_now(spectrogram_t *sg) {
+	uint64_t t = SDL_GetPerformanceCounter();
+	double per_second = (double)SDL_GetPerformanceFrequency();
+	double arrived = (double)(sg->consumed + fft_analyzer_queued(sg->analyzer));
+	if (!sg->clock_started) {
+		sg->clock_started = 1;
+		sg->clock_t0 = sg->clock_t = t;
+		sg->clock_deviation = arrived;
+		return arrived;
+	}
+	double expected = (double)(t - sg->clock_t0) / per_second * sg->stream.sample_rate;
+	double dt = (double)(t - sg->clock_t) / per_second;
+	sg->clock_t = t;
+	double error = arrived - expected - sg->clock_deviation;
+	if (fabs(error) > (double)CLOCK_SNAP_ROWS * sg->hop) {
+		sg->clock_deviation = arrived - expected;
+	} else {
+		sg->clock_deviation += error * (1.0 - exp(-dt / CLOCK_TC));
+	}
+	return expected + sg->clock_deviation;
 }
 
 // -- the plot and its axes
 
 static void free_textures(spectrogram_t *sg) {
 	if (sg->image) { SDL_DestroyTexture(sg->image); sg->image = NULL; }
+	if (sg->unrolled) { SDL_DestroyTexture(sg->unrolled); sg->unrolled = NULL; }
 	if (sg->axes) { SDL_DestroyTexture(sg->axes); sg->axes = NULL; }
 	free(sg->frequencies); sg->frequencies = NULL;
 	free(sg->levels); sg->levels = NULL;
@@ -309,10 +350,16 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	compute_plot(sg, font);
 	TTF_CloseFont(font);
 	if (sg->plot.w < 2 || sg->plot.h < 1) return -1;
+	sg->image_h = sg->plot.h + EXTRA_ROWS;
 
-	sg->image = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, sg->plot.w, sg->plot.h);
+	sg->image = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, sg->plot.w, sg->image_h);
 	CHECK_ALLOC(sg->image, return -1);
 	SDL_SetTextureBlendMode(sg->image, SDL_BLENDMODE_NONE);
+	SDL_SetTextureScaleMode(sg->image, SDL_ScaleModeNearest);
+	sg->unrolled = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, sg->plot.w, sg->image_h);
+	CHECK_ALLOC(sg->unrolled, free_textures(sg); return -1);
+	SDL_SetTextureBlendMode(sg->unrolled, SDL_BLENDMODE_NONE);
+	SDL_SetTextureScaleMode(sg->unrolled, SDL_ScaleModeLinear);   // a fractional offset blends neighbouring rows
 	sg->frequencies = malloc(sizeof(double) * sg->plot.w);
 	CHECK_ALLOC(sg->frequencies, free_textures(sg); return -1);
 	sg->levels = malloc(sizeof(float) * sg->plot.w);
@@ -324,13 +371,26 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	return 0;
 }
 
-// the ring unrolled with its newest row at the bottom of the plot, the axes over it
-static void draw(const spectrogram_t *sg, SDL_Renderer *renderer) {
-	int w = sg->plot.w, h = sg->plot.h;
-	if (sg->head > 0)
-		SDL_RenderCopy(renderer, sg->image, &(SDL_Rect){ 0, 0, w, sg->head }, &(SDL_Rect){ sg->plot.x, sg->plot.y + h - sg->head, w, sg->head });
+// The ring unrolled, then placed so that the plot's bottom edge is the
+// audio clock's now less the guard: the newest row sits below the edge by
+// what has arrived since it, moving up as the clock runs and dropping
+// back a row as each row is written, so the picture never jumps.
+static void draw(spectrogram_t *sg, SDL_Renderer *renderer) {
+	int w = sg->plot.w, h = sg->image_h;
+	SDL_SetRenderTarget(renderer, sg->unrolled);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
 	if (sg->rows == h && sg->head < h)
-		SDL_RenderCopy(renderer, sg->image, &(SDL_Rect){ 0, sg->head, w, h - sg->head }, &(SDL_Rect){ sg->plot.x, sg->plot.y, w, h - sg->head });
+		SDL_RenderCopy(renderer, sg->image, &(SDL_Rect){ 0, sg->head, w, h - sg->head }, &(SDL_Rect){ 0, 0, w, h - sg->head });
+	if (sg->head > 0)
+		SDL_RenderCopy(renderer, sg->image, &(SDL_Rect){ 0, 0, w, sg->head }, &(SDL_Rect){ 0, h - sg->head, w, sg->head });
+	SDL_SetRenderTarget(renderer, NULL);
+
+	double below = ((double)sg->consumed + (double)GUARD_ROWS * sg->hop - clock_now(sg)) / (double)sg->hop;   // rows
+	float bottom = (float)(sg->plot.y + sg->plot.h) + (float)below;
+	SDL_RenderSetClipRect(renderer, &sg->plot);
+	SDL_RenderCopyF(renderer, sg->unrolled, NULL, &(SDL_FRect){ (float)sg->plot.x, bottom - (float)h, (float)w, (float)h });
+	SDL_RenderSetClipRect(renderer, NULL);
 	if (sg->axes) SDL_RenderCopy(renderer, sg->axes, NULL, &(SDL_Rect){ 0, 0, sg->viewport.w, sg->viewport.h });
 }
 
@@ -380,8 +440,8 @@ void spectrogram_stop_streaming(spectrogram_t *sg) {
 void spectrogram_prepare_to_stream(spectrogram_t *sg, const s9_audio_stream_config_t *stream_config) {
 	CHECK_PARAMETER(stream_config->samples_per_display_frame > 0 && stream_config->sample_rate > 0, return);
 	sg->stream = *stream_config;
-	sg->hop = stream_config->samples_per_display_frame;
-	sg->margin = stream_config->buffer_frames ? stream_config->buffer_frames : 1;
+	sg->consumed = 0;
+	sg->clock_started = 0;
 	sg->config_changed = 1;
 	apply_config(sg);
 	fft_analyzer_prepare_to_stream(sg->analyzer, stream_config);

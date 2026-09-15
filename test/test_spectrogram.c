@@ -13,7 +13,9 @@
 #include <string.h>
 
 #define FS 48000
-#define HOP 800            // samples per display frame at 60 Hz
+#define HOP_MS 10.0f
+#define HOP 480            // samples in HOP_MS at FS
+#define FRAME 800          // samples per display frame at 60 Hz
 #define BUFFER 256         // frames per audio callback
 #define WIDTH 1280
 #define HEIGHT 720
@@ -23,11 +25,12 @@ static SDL_Renderer *renderer;
 
 static spectrogram_t *streaming(float window_s) {
 	spectrogram_config_t c = default_spectrogram_config;
+	c.hop_ms = HOP_MS;
 	c.window_s = window_s;
 	spectrogram_t *sg = spectrogram_new(&c);
 	spectrogram_prepare_to_stream(sg, &(s9_audio_stream_config_t){
 		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 2,
-		.buffer_frames = BUFFER, .samples_per_display_frame = HOP,
+		.buffer_frames = BUFFER, .samples_per_display_frame = FRAME,
 	});
 	return sg;
 }
@@ -64,9 +67,10 @@ static unsigned hops_to_fill(unsigned n) { return (n + HOP - 1) / HOP; }
 
 // No row until the transform has filled; then one per hop, whether the
 // hops come one per frame or three at once, and a frame without audio
-// writes none. Rows light the plot.
+// writes none. Rows light the plot, even fed faster than real time, when
+// the audio clock re-seats rather than following.
 TEST rows_follow_the_hops(void) {
-	enum { N = 32768 };   // the longest power of two within 0.75 s
+	enum { N = 32768, MORE = 30 };   // the longest power of two within 0.75 s; rows past the first
 	spectrogram_t *sg = streaming(0.75f);
 	unsigned offset = 0;
 	render(sg);
@@ -86,11 +90,15 @@ TEST rows_follow_the_hops(void) {
 
 	feed(sg, 3, &offset);
 	render(sg);
-	ASSERT_EQ_FMT(4u, spectrogram_rows(sg), "%u");   // two now, one kept back behind the margin
-	render(sg);
 	ASSERT_EQ_FMT(5u, spectrogram_rows(sg), "%u");
 	render(sg);
 	ASSERT_EQ_FMT(5u, spectrogram_rows(sg), "%u");
+
+	for (unsigned h = 0; h < MORE; h++) {
+		feed(sg, 1, &offset);
+		render(sg);
+	}
+	ASSERT_EQ_FMT(5u + MORE, spectrogram_rows(sg), "%u");
 	ASSERT(lit_pixels() > axes_only);
 
 	spectrogram_free(&sg);
@@ -129,6 +137,7 @@ TEST new_transform_starts_over(void) {
 TEST config_is_kept_sane(void) {
 	spectrogram_t *sg = spectrogram_new(NULL);
 	spectrogram_config_t c = default_spectrogram_config;
+	c.hop_ms = 0.0f;
 	c.min_db = 0.0f;
 	c.max_db = -10.0f;
 	c.resolution_semitones = 0.0f;
@@ -136,6 +145,7 @@ TEST config_is_kept_sane(void) {
 	c.f_max = 50.0f;
 	spectrogram_set_config(sg, &c);
 	const spectrogram_config_t *got = spectrogram_config(sg);
+	ASSERT_EQ_FMT(default_spectrogram_config.hop_ms, got->hop_ms, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.min_db, got->min_db, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.max_db, got->max_db, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.resolution_semitones, got->resolution_semitones, "%g");

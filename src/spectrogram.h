@@ -8,21 +8,22 @@
 #include <SDL2/SDL.h>
 
 // A scrolling spectrogram: log frequency across, time down with the newest
-// row at the bottom, and level as colour. Each row is one hop of audio, a
-// display frame's worth, read by a constant-Q readout over one long
-// transform: every column has a window sized for its frequency, from the
-// whole transform at the bottom of the range to one hop at the top, all
-// centred on the same instant, so the low frequencies are resolved to a
-// set width at the cost of time smearing and the high ones keep the time
-// resolution of a row. Rows follow audio time: one per hop of audio, none
-// until a hop has arrived, more than one in a frame when the display has
-// fallen behind. The newest row shows audio from half the longest window
-// ago.
+// row at the bottom, and level as colour. Each row is one hop of audio,
+// hop_ms long whatever the display's frame rate, read by a constant-Q
+// readout over one long transform: every column has a window sized for
+// its frequency, from the whole transform at the bottom of the range to
+// one hop at the top, all centred on the same instant, so the low
+// frequencies are resolved to a set width at the cost of time smearing and
+// the high ones keep the time resolution of a row. Rows follow audio
+// time, one per hop as it arrives, and the image is placed by a smoothed
+// audio clock, so it scrolls evenly at any hop, a fraction of a row per
+// frame. The newest row shows audio from half the longest window ago.
 
 typedef struct spectrogram spectrogram_t;
 
 typedef struct {
 	uint32_t channel;                // the channel analyzed, or S9_CHANNEL_ALL for their average
+	float hop_ms;                    // the audio in a row, and so the scroll: one row per this much audio
 	float window_s;                  // the longest window: the transform is the longest power of two within this
 	uint32_t min_window_hops;        // the shortest window, in rows: 1 keeps a row's time resolution, more
 	                                 // overlap the rows so that a click reads alike wherever it falls between them
@@ -36,6 +37,7 @@ typedef struct {
 
 static const spectrogram_config_t default_spectrogram_config = {
 	.channel = S9_CHANNEL_ALL,
+	.hop_ms = 7.0f,
 	.window_s = 0.75f,
 	.min_window_hops = 1,
 	.resolution_semitones = 1.0f,
