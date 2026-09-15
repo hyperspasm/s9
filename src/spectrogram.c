@@ -76,7 +76,7 @@ const spectrogram_config_t *spectrogram_config(const spectrogram_t *sg) {
 void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *config) {
 	const spectrogram_config_t *d = &default_spectrogram_config;
 	sg->config = config ? *config : *d;
-	if (!(sg->config.hop_ms > 0.0f)) sg->config.hop_ms = d->hop_ms;
+	if (sg->config.hop_ms < 1) sg->config.hop_ms = d->hop_ms;
 	if (!(sg->config.window_s > 0.0f)) sg->config.window_s = d->window_s;
 	if (sg->config.min_window_hops < 1) sg->config.min_window_hops = 1;
 	if (!(sg->config.resolution_semitones > 0.0f)) sg->config.resolution_semitones = d->resolution_semitones;

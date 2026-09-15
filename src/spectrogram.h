@@ -23,7 +23,7 @@ typedef struct spectrogram spectrogram_t;
 
 typedef struct {
 	uint32_t channel;                // the channel analyzed, or S9_CHANNEL_ALL for their average
-	float hop_ms;                    // the audio in a row, and so the scroll: one row per this much audio
+	uint32_t hop_ms;                 // the audio in a row, and so the scroll: one row per this many milliseconds
 	float window_s;                  // the longest window: the transform is the longest power of two within this
 	uint32_t min_window_hops;        // the shortest window, in rows: 1 keeps a row's time resolution, more
 	                                 // overlap the rows so that a click reads alike wherever it falls between them
@@ -37,7 +37,7 @@ typedef struct {
 
 static const spectrogram_config_t default_spectrogram_config = {
 	.channel = S9_CHANNEL_ALL,
-	.hop_ms = 7.0f,
+	.hop_ms = 10,
 	.window_s = 0.75f,
 	.min_window_hops = 1,
 	.resolution_semitones = 1.0f,

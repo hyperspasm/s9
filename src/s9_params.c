@@ -102,8 +102,8 @@ static uint32_t get_fundamental_window_function(void *ctx) { return (uint32_t)pe
 	static void set_##param(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.field = (uint32_t)val; spectrogram_set_config(ctx, &c); } \
 	static int32_t get_##param(void *ctx) { return (int32_t)spectrogram_config(ctx)->field; }
 
-SPECTROGRAM_FLOAT(spectrogram_hop, hop_ms)
 SPECTROGRAM_FLOAT(spectrogram_window, window_s)
+SPECTROGRAM_INT(spectrogram_hop, hop_ms)
 SPECTROGRAM_INT(spectrogram_min_window, min_window_hops)
 SPECTROGRAM_FLOAT(spectrogram_resolution, resolution_semitones)
 SPECTROGRAM_FLOAT(spectrogram_min_db, min_db)
@@ -169,7 +169,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *periodic, void *spe
 
 	pn_param_t *spec = p->spectrogram_params;
 	spec[0] = pn_int("channel",           spectrogram, PN_FN(set_spectrogram_channel),         PN_FN(get_spectrogram_channel),         -1, 31, 1);
-	spec[1] = pn_float("hop",             spectrogram, PN_FN(set_spectrogram_hop),             PN_FN(get_spectrogram_hop),             1.0f, 50.0f, 0);
+	spec[1] = pn_int("hop",               spectrogram, PN_FN(set_spectrogram_hop),             PN_FN(get_spectrogram_hop),             5, 60, 1);
 	spec[2] = pn_float("window",          spectrogram, PN_FN(set_spectrogram_window),          PN_FN(get_spectrogram_window),          0.05f, 1.5f, 0);
 	spec[3] = pn_int("min_window",        spectrogram, PN_FN(set_spectrogram_min_window),      PN_FN(get_spectrogram_min_window),      1, 8, 1);
 	spec[4] = pn_float("resolution",      spectrogram, PN_FN(set_spectrogram_resolution),      PN_FN(get_spectrogram_resolution),      0.1f, 4.0f, 0);

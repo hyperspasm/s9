@@ -13,7 +13,7 @@
 #include <string.h>
 
 #define FS 48000
-#define HOP_MS 10.0f
+#define HOP_MS 10
 #define HOP 480            // samples in HOP_MS at FS
 #define FRAME 800          // samples per display frame at 60 Hz
 #define BUFFER 256         // frames per audio callback
@@ -137,7 +137,7 @@ TEST new_transform_starts_over(void) {
 TEST config_is_kept_sane(void) {
 	spectrogram_t *sg = spectrogram_new(NULL);
 	spectrogram_config_t c = default_spectrogram_config;
-	c.hop_ms = 0.0f;
+	c.hop_ms = 0;
 	c.min_db = 0.0f;
 	c.max_db = -10.0f;
 	c.resolution_semitones = 0.0f;
@@ -145,7 +145,7 @@ TEST config_is_kept_sane(void) {
 	c.f_max = 50.0f;
 	spectrogram_set_config(sg, &c);
 	const spectrogram_config_t *got = spectrogram_config(sg);
-	ASSERT_EQ_FMT(default_spectrogram_config.hop_ms, got->hop_ms, "%g");
+	ASSERT_EQ_FMT(default_spectrogram_config.hop_ms, got->hop_ms, "%u");
 	ASSERT_EQ_FMT(default_spectrogram_config.min_db, got->min_db, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.max_db, got->max_db, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.resolution_semitones, got->resolution_semitones, "%g");
