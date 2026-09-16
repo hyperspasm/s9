@@ -31,8 +31,8 @@ function number(entry, client, isInt) {
   const value = document.createElement("span");
   value.className = "value";
   const show = v => { value.textContent = isInt ? String(v) : Number(v).toPrecision(4); };
-  input.oninput = () => {
-    show(input.value);
+  input.oninput = () => show(input.value);   // the number follows the thumb as it moves
+  input.onchange = () => {                   // the value is sent when the thumb is released; the echo confirms it
     if (isInt) client.setInt(entry.path, Number(input.value));
     else client.setFloat(entry.path, Number(input.value));
   };
