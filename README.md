@@ -1,1 +1,100 @@
 # s9
+
+A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL2 for rendering and FFTW for spectral analysis.
+
+## Usage
+
+```
+s9 [options]
+```
+
+| Option | Description | Default |
+|---|---|---|
+| `-w, --window_width` | Window width in pixels | 1280 |
+| `-h, --window_height` | Window height in pixels | 720 |
+| `-a, --audio_device` | Audio input device name | System default |
+| `-r, --sample_rate` | Sample rate in Hz | 44100 |
+| `-l, --log_level` | Log verbosity (0-3) | 1 |
+| `-p, --port` | Port of the parameter server and the web interface | 8080 |
+| `--www_dir` | Serve the web interface from a directory instead of the files built into the binary | built-in |
+| `--home` | The directory s9 keeps its settings and its cache in | `S9_HOME`, else `./.s9` if it exists, else `~/.s9` |
+| `--version` | Print version and git hash, then exit | |
+
+Settings can also be specified in the `settings` file of s9's home directory as key-value pairs (e.g. `sample_rate=48000`), one per line, `#` starting a comment. Command-line arguments override the file.
+
+Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
+
+## Parameters
+
+While running, s9 serves its parameters over [pn](pn/README.md) as a websocket hub on the port given by `--port`: every connected client sends packets and receives everything the server sends, so clients see each other's changes. A client requests the subprotocol `pn` and sends one pn packet per binary message. The same port serves the web interface at `/` and the running program's manifest at `/s9.manifest`.
+
+The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:
+
+```bash
+./build/s9_schema > s9.manifest
+```
+
+The web interface at `/` is [www/app.js](www/app.js): a control for every parameter, generated from the served manifest, live over the websocket through the JavaScript pn client, which is linked into `www/pn/` from [pn/js](pn/js). It warns when the running program's schema differs from the manifest it was generated from.
+
+[python/s9sd](python/s9sd) is a Stream Deck controller built on this: its dials drive the oscilloscope, its top corner keys step the display mode, it takes its ranges and the mode names from the manifest, and it warns when the server's schema differs. It connects to s9 on this machine at the default port; `--url` points it elsewhere.
+
+## Build
+
+### Dependencies
+
+The build needs a C compiler, CMake, pkg-config, and four libraries: SDL2, SDL2_ttf, FFTW (single precision), and libwebsockets. pn's protobuf sources are committed, so nothing generates code at build time. The pn submodule must be checked out.
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt install build-essential cmake pkg-config git libsdl2-dev libsdl2-ttf-dev libfftw3-dev libwebsockets-dev
+```
+
+**macOS:**
+```bash
+brew install cmake pkg-config sdl2 sdl2_ttf fftw libwebsockets
+```
+
+**After cloning:**
+```bash
+git submodule update --init
+```
+
+### Compile
+
+```bash
+mkdir build && cd build
+cmake ..
+make
+```
+
+### Test
+
+```bash
+ctest --test-dir build
+```
+
+The C tests need nothing beyond the build. Two tests use more when it is there and are skipped otherwise: the JavaScript pn client's tests run under Node (`apt install nodejs` or `brew install node`), and the websocket hub's test drives it from pn's Python package, which lives in a venv (below).
+
+### Python tooling
+
+Three parts of the tree are Python, each with its own venv made by its own script; none is needed to build or run s9:
+
+- [pn/python](pn/python), the pn implementation in Python with the `pn-manifest` tool and the hub test: `pn/make_venv.sh`.
+- [python](python), the Stream Deck controller: `python/make_venv.sh`.
+- [validation](validation), the numeric oracle that generates the golden tables the DSP tests check against: `validation/make_venv.sh`.
+
+They need `python3-venv` (`apt install python3-venv`; Homebrew's Python includes it). A venv is bound to the Python that made it, so after a Python upgrade delete it and run its script again.
+
+### Xcode (macOS)
+
+```bash
+mkdir xcode && cd xcode
+cmake -G Xcode ..
+open s9.xcodeproj
+```
+
+### Run
+
+```bash
+./s9
+```

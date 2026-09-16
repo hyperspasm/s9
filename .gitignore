@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Xcode
+**/xcuserdata/
+**/xcshareddata/
+
+build/
+xc_build/
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+venv/
+
+# Temporary files and references
+temp/

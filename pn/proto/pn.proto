@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package pn;
+
+// --- Value ---
+
+message Value {
+	oneof kind {
+		bool     bool_val   = 1;
+		int32    int_val    = 2;
+		float    float_val  = 3;
+		uint32   enum_val   = 4;
+		string   string_val = 5;
+	}
+}
+
+// --- Parameters ---
+
+message Set {
+	string path  = 1;
+	Value  value = 2;
+}
+
+message Get {
+	string path = 1;
+}
+
+message Update {
+	string path  = 1;
+	Value  value = 2;
+}
+
+// --- Schema ---
+// A server's schema hash is the hash of its manifest (see MANIFEST.md).
+
+message SchemaGet {
+	string root = 1;  // empty: every server on the transport answers
+}
+
+message Schema {
+	fixed32 hash = 1;
+	string  root = 2;
+}
+
+// --- Manifest ---
+// The server streams its manifest in chunks; the client concatenates data
+// until a chunk with last set arrives.
+
+message ManifestGet {
+	string root = 1;  // only the server with this root answers
+}
+
+message ManifestChunk {
+	bytes data = 1;
+	bool  last = 2;
+}
+
+// --- Envelope ---
+
+message Message {
+	oneof msg {
+		Set           set            = 1;
+		Get           get            = 2;
+		Update        update         = 3;
+		SchemaGet     schema_get     = 4;
+		Schema        schema         = 5;
+		ManifestGet   manifest_get   = 6;
+		ManifestChunk manifest_chunk = 7;
+	}
+}
