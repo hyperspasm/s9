@@ -126,8 +126,8 @@ static float get_spectrogram_floor_frequency(void *ctx) { return spectrogram_flo
 SPECTROGRAM_INT(spectrogram_hop, hop_ms)
 SPECTROGRAM_FLOAT(spectrogram_f_min, f_min)
 SPECTROGRAM_FLOAT(spectrogram_f_max, f_max)
-SPECTROGRAM_FLOAT(spectrogram_min_db, min_db)
 SPECTROGRAM_FLOAT(spectrogram_max_db, max_db)
+SPECTROGRAM_FLOAT(spectrogram_range_db, range_db)
 
 static void set_spectrogram_resolution(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.resolution_semitones = (float)val / 100.0f; spectrogram_set_config(ctx, &c); }
 static int32_t get_spectrogram_resolution(void *ctx) { return (int32_t)lroundf(spectrogram_config(ctx)->resolution_semitones * 100.0f); }
@@ -207,8 +207,8 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	spec[4] = pn_int("resolution",        spectrogram, PN_FN(set_spectrogram_resolution),      PN_FN(get_spectrogram_resolution),      25, 400, 1);
 	spec[5] = pn_float("f_min",           spectrogram, PN_FN(set_spectrogram_f_min),           PN_FN(get_spectrogram_f_min),           20.0f, 1000.0f, 0);
 	spec[6] = pn_float("f_max",           spectrogram, PN_FN(set_spectrogram_f_max),           PN_FN(get_spectrogram_f_max),           1100.0f, 24000.0f, 0);
-	spec[7] = pn_float("min_db",          spectrogram, PN_FN(set_spectrogram_min_db),          PN_FN(get_spectrogram_min_db),          -140.0f, 0.0f, 0);
-	spec[8] = pn_float("max_db",          spectrogram, PN_FN(set_spectrogram_max_db),          PN_FN(get_spectrogram_max_db),          -100.0f, 40.0f, 0);
+	spec[7] = pn_float("max_db",          spectrogram, PN_FN(set_spectrogram_max_db),          PN_FN(get_spectrogram_max_db),          -60.0f, 0.0f, 0);
+	spec[8] = pn_float("range_db",        spectrogram, PN_FN(set_spectrogram_range_db),        PN_FN(get_spectrogram_range_db),        10.0f, 120.0f, 0);
 	spec[9] = pn_enum("palette",          spectrogram, PN_FN(set_spectrogram_palette),         PN_FN(get_spectrogram_palette),         palette_names, PALETTE_COUNT);
 	spec[10] = pn_bool("grid",            spectrogram, PN_FN(set_spectrogram_grid),            PN_FN(get_spectrogram_grid));
 

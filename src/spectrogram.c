@@ -30,7 +30,7 @@ struct spectrogram {
 	spectrogram_config_t config;
 	int config_changed;              // applied at the next frame
 	int recolor;                     // the scale or the range changed: the image is colored again
-	struct { palette_t palette; float min_db, max_db; } colored;   // what the image's colors were made with
+	struct { palette_t palette; float max_db, range_db; } colored;   // what the image's colors were made with
 
 	fft_analyzer_t *analyzer;
 	s9_audio_stream_config_t stream;
@@ -81,7 +81,7 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	if (sg->config.min_window_hops < 1) sg->config.min_window_hops = 1;
 	if (!(sg->config.resolution_semitones > 0.0f)) sg->config.resolution_semitones = d->resolution_semitones;
 	if ((unsigned)sg->config.window_function >= WINDOW_FUNCTION_COUNT) sg->config.window_function = d->window_function;
-	if (!(sg->config.max_db > sg->config.min_db)) { sg->config.min_db = d->min_db; sg->config.max_db = d->max_db; }
+	if (!(sg->config.range_db > 0.0f)) sg->config.range_db = d->range_db;
 	if ((unsigned)sg->config.palette >= PALETTE_COUNT) sg->config.palette = d->palette;
 	if (!(sg->config.f_min > 0.0f && sg->config.f_max > sg->config.f_min)) { sg->config.f_min = d->f_min; sg->config.f_max = d->f_max; }
 	sg->config.grid = sg->config.grid != 0;
@@ -131,7 +131,7 @@ static fft_analyzer_config_t analyzer_config(const spectrogram_t *sg) {
 static void apply_config(spectrogram_t *sg) {
 	if (!sg->config_changed) return;
 	sg->config_changed = 0;
-	if (sg->config.palette != sg->colored.palette || sg->config.min_db != sg->colored.min_db || sg->config.max_db != sg->colored.max_db)
+	if (sg->config.palette != sg->colored.palette || sg->config.max_db != sg->colored.max_db || sg->config.range_db != sg->colored.range_db)
 		sg->recolor = 1;
 	if (!sg->stream.sample_rate) return;
 	sg->hop = hop_frames(sg);
@@ -149,13 +149,13 @@ static void build_palette(spectrogram_t *sg) {
 	for (int i = 0; i < PALETTE_STEPS; i++)
 		sg->palette[i] = 0xFF000000u | (uint32_t)table[i][0] << 16 | (uint32_t)table[i][1] << 8 | table[i][2];
 	sg->colored.palette = sg->config.palette;
-	sg->colored.min_db = sg->config.min_db;
 	sg->colored.max_db = sg->config.max_db;
+	sg->colored.range_db = sg->config.range_db;
 }
 
 // a row's levels as pixels: the range between the floor and full brightness, through the scale
 static void color_row(const spectrogram_t *sg, const float *levels, uint32_t *pixels) {
-	float lo = sg->config.min_db, scale = (float)(PALETTE_STEPS - 1) / (sg->config.max_db - lo);
+	float lo = sg->config.max_db - sg->config.range_db, scale = (float)(PALETTE_STEPS - 1) / sg->config.range_db;
 	for (int c = 0; c < sg->plot.w; c++) {
 		float u = (levels[c] - lo) * scale;
 		int i = u <= 0.0f ? 0 : u >= (float)(PALETTE_STEPS - 1) ? PALETTE_STEPS - 1 : (int)(u + 0.5f);

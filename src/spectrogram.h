@@ -32,7 +32,8 @@ typedef struct {
 	                                 // reads alike wherever it falls; more evens that out further
 	float resolution_semitones;      // the width of a tone's ridge at half amplitude
 	window_function_t window_function;
-	float min_db, max_db;            // the color scale's floor and full brightness, dB relative to a full-scale sine
+	float max_db;                    // full brightness, dB relative to a full-scale sine
+	float range_db;                  // the depth of the color scale below that: its floor is max_db - range_db
 	palette_t palette;               // the color scale between them
 	float f_min, f_max;              // Hz, the range across the plot; the top is held within the stream's Nyquist
 	int grid;                        // lines across the plot at the decades, the steps between them, and the
@@ -47,8 +48,8 @@ static const spectrogram_config_t default_spectrogram_config = {
 	.min_window_hops = 2,
 	.resolution_semitones = 1.0f,
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
-	.min_db = -90.0f,
 	.max_db = 0.0f,
+	.range_db = 60.0f,
 	.palette = PALETTE_INFERNO,
 	.f_min = 20.0f,
 	.f_max = 20000.0f,

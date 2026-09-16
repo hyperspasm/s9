@@ -234,8 +234,7 @@ TEST config_is_kept_sane(void) {
 	spectrogram_t *sg = spectrogram_new(NULL);
 	spectrogram_config_t c = default_spectrogram_config;
 	c.hop_ms = 0;
-	c.min_db = 0.0f;
-	c.max_db = -10.0f;
+	c.range_db = 0.0f;
 	c.palette = (palette_t)PALETTE_COUNT;
 	c.resolution_semitones = 0.0f;
 	c.f_min = 100.0f;
@@ -243,8 +242,7 @@ TEST config_is_kept_sane(void) {
 	spectrogram_set_config(sg, &c);
 	const spectrogram_config_t *got = spectrogram_config(sg);
 	ASSERT_EQ_FMT(default_spectrogram_config.hop_ms, got->hop_ms, "%u");
-	ASSERT_EQ_FMT(default_spectrogram_config.min_db, got->min_db, "%g");
-	ASSERT_EQ_FMT(default_spectrogram_config.max_db, got->max_db, "%g");
+	ASSERT_EQ_FMT(default_spectrogram_config.range_db, got->range_db, "%g");
 	ASSERT_EQ(default_spectrogram_config.palette, got->palette);
 	ASSERT_EQ_FMT(default_spectrogram_config.resolution_semitones, got->resolution_semitones, "%g");
 	ASSERT_EQ_FMT(default_spectrogram_config.f_min, got->f_min, "%g");
