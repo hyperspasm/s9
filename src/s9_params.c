@@ -12,7 +12,7 @@ static const char *const periodic_view_names[PERIODIC_VIEW_COUNT] = { [PERIODIC_
 #ifndef PN_SCHEMA_ONLY
 #include "s9_app.h"
 #include "oscilloscope.h"
-#include "spectrum.h"
+#include "stereo_spectrum.h"
 #include "periodic.h"
 #include "spectrogram.h"
 
@@ -53,11 +53,11 @@ static int32_t channel_to_param(uint32_t channel) { return channel == S9_CHANNEL
 static void set_channel(void *ctx, int32_t val) { oscilloscope_set_channel(ctx, channel_from_param(val)); }
 static int32_t get_channel(void *ctx) { return channel_to_param(oscilloscope_get_channel(ctx)); }
 
-// -- spectrum callbacks: the fields of its configuration a listener sets
+// -- spectrum callbacks: the fields of the stereo spectrum's configuration a listener sets
 
 #define SPECTRUM_INT(param, field, type) \
-	static void set_##param(void *ctx, int32_t val) { spectrum_config_t c = *spectrum_config(ctx); c.field = (type)val; spectrum_set_config(ctx, &c); } \
-	static int32_t get_##param(void *ctx) { return (int32_t)spectrum_config(ctx)->field; }
+	static void set_##param(void *ctx, int32_t val) { spectrum_config_t c = *stereo_spectrum_config(ctx); c.field = (type)val; stereo_spectrum_set_config(ctx, &c); } \
+	static int32_t get_##param(void *ctx) { return (int32_t)stereo_spectrum_config(ctx)->field; }
 
 SPECTRUM_INT(spectrum_resolution, resolution_cents, uint32_t)
 SPECTRUM_INT(spectrum_padding, padding, uint32_t)

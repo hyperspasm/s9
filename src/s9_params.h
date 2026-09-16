@@ -56,9 +56,9 @@ typedef struct {
 } s9_params_t;
 
 // Build the tree into p and return its root. osc, spectrum, periodic and
-// spectrogram are the oscilloscope, the spectrum, the periodic analyzer and
-// the spectrogram that the "osc", "spectrum", "periodic" and "spectrogram"
-// parameters read and write; all NULL in a schema-only build. The mode and
+// spectrogram are the oscilloscope, the stereo spectrum, the periodic
+// analyzer and the spectrogram that the "osc", "spectrum", "periodic" and
+// "spectrogram" parameters read and write; all NULL in a schema-only build. The mode and
 // debug parameters read and write the app.
 pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *periodic, void *spectrogram);
 

@@ -2,7 +2,7 @@
 #include "s9.h"
 #include "fps.h"
 #include "vu.h"
-#include "spectrum.h"
+#include "stereo_spectrum.h"
 #include "oscilloscope.h"
 #include "lissajous.h"
 #include "periodic.h"
@@ -40,16 +40,16 @@ s9_components_t *s9_components_new(void) {
 		.stop_streaming = (void (*)(void *))vu_stop_streaming,
 	};
 
-	// spectrum
-	spectrum_t *sp = spectrum_new(NULL);
-	CHECK_ERROR(sp != NULL, s9_components_free(&comps); return NULL, "Failed to create spectrum instance");
+	// spectrum: the stereo one
+	stereo_spectrum_t *sp = stereo_spectrum_new(NULL);
+	CHECK_ERROR(sp != NULL, s9_components_free(&comps); return NULL, "Failed to create stereo spectrum instance");
 	comps->components[COMP_SPECTRUM] = (s9_component_t){
 		.instance = sp,
-		.destroy = (void (*)(void **))spectrum_free,
-		.render = (void (*)(void *, SDL_Renderer *))spectrum_render,
-		.enqueue_audio = (void (*)(void *, uint8_t *, int))spectrum_enqueue_audio_data,
-		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))spectrum_prepare_to_stream,
-		.stop_streaming = (void (*)(void *))spectrum_stop_streaming,
+		.destroy = (void (*)(void **))stereo_spectrum_free,
+		.render = (void (*)(void *, SDL_Renderer *))stereo_spectrum_render,
+		.enqueue_audio = (void (*)(void *, uint8_t *, int))stereo_spectrum_enqueue_audio_data,
+		.prepare_to_stream = (void (*)(void *, const s9_audio_stream_config_t *))stereo_spectrum_prepare_to_stream,
+		.stop_streaming = (void (*)(void *))stereo_spectrum_stop_streaming,
 	};
 
 	// oscilloscope

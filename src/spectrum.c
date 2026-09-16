@@ -9,6 +9,7 @@
 #define FRAME_MAX 524288         // and at most
 #define PADDING_MAX 3            // the transform at most 8 times the frame
 #define BANDWIDTH_LENGTH 4096    // the length the window's width is measured at
+#define FLOOR_POWER 1e-20f       // a level below this is silence, -200 dB, drawn below the plot rather than at infinity
 
 typedef struct spectrum {
 	SDL_Renderer *renderer;
@@ -20,8 +21,7 @@ typedef struct spectrum {
 	fft_analyzer_t *analyzer;
 	s9_audio_stream_config_t stream;
 
-	uint32_t n_graphs;
-	fresp_graph_t **graphs;
+	fresp_graph_t *graph;
 } spectrum_t;
 
 // -- configuration
@@ -69,12 +69,13 @@ static fft_analyzer_config_t analyzer_config(const spectrum_t *sp) {
 		.fft_len = frame_length(sp),
 		.window_function = sp->config.window_function,
 		.window_skew = sp->config.window_skew,
-		.mode = FFT_ANALYZER_EACH_CHANNEL,
+		.mode = FFT_ANALYZER_MIX,
+		.channel = sp->config.channel,
 		.pad = 1u << sp->config.padding,
 	};
 }
 
-// hand a changed configuration to the analyzer and the graphs
+// hand a changed configuration to the analyzer and the graph
 static void apply_config(spectrum_t *sp) {
 	if (!sp->config_changed) return;
 	sp->config_changed = 0;
@@ -83,8 +84,7 @@ static void apply_config(spectrum_t *sp) {
 		fft_analyzer_config_t ac = analyzer_config(sp);
 		fft_analyzer_set_config(sp->analyzer, &ac);
 	}
-	for (uint32_t i = 0; i < sp->n_graphs; i++)
-		fresp_graph_set_config(sp->graphs[i], &sp->config.graph_config);
+	if (sp->graph) fresp_graph_set_config(sp->graph, &sp->config.graph_config);
 }
 
 // -- lifecycle
@@ -102,7 +102,8 @@ spectrum_t *spectrum_new(const spectrum_config_t *config) {
 		.fft_len = FRAME_MIN,
 		.window_function = sp->config.window_function,
 		.window_skew = sp->config.window_skew,
-		.mode = FFT_ANALYZER_EACH_CHANNEL,
+		.mode = FFT_ANALYZER_MIX,
+		.channel = sp->config.channel,
 		.pad = 1u << sp->config.padding,
 	});
 	CHECK_ALLOC(sp->analyzer, free(sp); return NULL);
@@ -110,22 +111,10 @@ spectrum_t *spectrum_new(const spectrum_config_t *config) {
 	return sp;
 }
 
-static void free_graphs(spectrum_t *sp) {
-	if( sp->n_graphs ) {
-		for(uint32_t i=0; i < sp->n_graphs; i++) {
-			fresp_graph_free(&(sp->graphs[i]));
-		}
-		sp->n_graphs = 0;
-
-		free(sp->graphs);
-		sp->graphs = NULL;
-	}
-}
-
 void spectrum_free(spectrum_t **sp) {
 	if(sp && *sp) {
 		fft_analyzer_free(&(*sp)->analyzer);
-		free_graphs(*sp);
+		fresp_graph_free(&(*sp)->graph);
 		free(*sp);
 		*sp = NULL;
 	}
@@ -142,21 +131,8 @@ static S9_FORCE_INLINE void prepare_to_draw(spectrum_t *sp, SDL_Renderer *render
 	if(sp->renderer != renderer || !SDL_RectEquals(&sp->viewport, &viewport)) {
 		sp->renderer = renderer;
 		sp->viewport = viewport;
-
-		free_graphs(sp);
-
-		uint32_t n = fft_analyzer_transforms(sp->analyzer);
-		if(n) {
-			sp->graphs = malloc(sizeof(fresp_graph_t*) * n);
-			CHECK_ALLOC(sp->graphs, return);
-			memset(sp->graphs, 0, sizeof(fresp_graph_t*) * n);
-
-			for(uint32_t i=0; i < n; i++) {
-				sp->graphs[i] = fresp_graph_new(&sp->config.graph_config);
-			}
-
-			sp->n_graphs = n;
-		}
+		fresp_graph_free(&sp->graph);
+		sp->graph = fresp_graph_new(&sp->config.graph_config);
 	}
 }
 
@@ -197,24 +173,17 @@ static void compute_plot_data(const float *fft, uint32_t transform_len, uint32_t
 		}
 
 		// scaled to amplitude and in dB: 10 log10 of the power is 20 log10 of the magnitude, sparing the root
-		data[i] = 10.0f * log10f(max_power * inv_frame_len_quarter);
+		float power = max_power * inv_frame_len_quarter;
+		if (power < FLOOR_POWER) power = FLOOR_POWER;
+		data[i] = 10.0f * log10f(power);
 	}
 }
 
-typedef struct {
-	spectrum_t *sp;
-	uint32_t channel;
-} fresp_graph_data_callback_context_t;
-
 static int fresp_graph_data_callback(void *context, float *plot_data, uint32_t n_points) {
-	fresp_graph_data_callback_context_t *callback_context = (fresp_graph_data_callback_context_t*)context;
-
-	spectrum_t *sp = callback_context->sp;
+	spectrum_t *sp = context;
 	fft_analyzer_t *fa = sp->analyzer;
-
-	compute_plot_data(fft_analyzer_spectrum(fa, callback_context->channel), fft_analyzer_transform_len(fa), fft_analyzer_fft_len(fa),
+	compute_plot_data(fft_analyzer_spectrum(fa, 0), fft_analyzer_transform_len(fa), fft_analyzer_fft_len(fa),
 	                  fft_analyzer_sample_rate(fa), sp->config.graph_config.min_freq, sp->config.graph_config.max_freq, plot_data, n_points);
-
 	return 0;
 }
 
@@ -222,26 +191,10 @@ void spectrum_render(spectrum_t *sp, SDL_Renderer *renderer) {
 	if(!fft_analyzer_streaming(sp->analyzer)) return;
 	apply_config(sp);
 	prepare_to_draw(sp, renderer);
+	if (!sp->graph) return;
 
 	fft_analyzer_update(sp->analyzer);
-
-	SDL_Rect save_viewport, graph_viewport;
-	SDL_RenderGetViewport(renderer, &save_viewport);
-
-	graph_viewport = save_viewport;
-	graph_viewport.h = save_viewport.h / sp->n_graphs;
-
-	fresp_graph_data_callback_context_t callback_context = { .sp = sp };
-
-	for(uint32_t i = 0; i < sp->n_graphs; i++) {
-		SDL_RenderSetViewport(renderer, &graph_viewport);
-		callback_context.channel = i;
-		fresp_graph_render(sp->graphs[i], renderer, fresp_graph_data_callback, &callback_context);
-
-		graph_viewport.y += graph_viewport.h;
-	}
-
-	SDL_RenderSetViewport(renderer, &save_viewport);
+	fresp_graph_render(sp->graph, renderer, fresp_graph_data_callback, sp);
 }
 
 void spectrum_stop_streaming(spectrum_t *sp) {

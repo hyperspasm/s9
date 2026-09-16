@@ -228,6 +228,23 @@ target_include_directories(test_spectrum PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
 add_test(NAME spectrum COMMAND test_spectrum)
 
+add_executable(test_stereo_spectrum test_stereo_spectrum.c
+    ${CMAKE_SOURCE_DIR}/src/stereo_spectrum.c
+    ${CMAKE_SOURCE_DIR}/src/spectrum.c
+    ${CMAKE_SOURCE_DIR}/src/fresp_graph.c
+    ${CMAKE_SOURCE_DIR}/src/graph_axis.c
+    ${CMAKE_SOURCE_DIR}/src/draw_sdl.c
+    ${CMAKE_SOURCE_DIR}/src/s9_font.c
+    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/window_function.c
+    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
+    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_stereo_spectrum PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_stereo_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+add_test(NAME stereo_spectrum COMMAND test_stereo_spectrum)
+
 add_executable(test_home test_home.c
     ${CMAKE_SOURCE_DIR}/src/s9_home.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c

@@ -8,26 +8,29 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-// A live spectrum: one graph per channel of level against log frequency,
-// from the newest frame of audio through a window skewed toward its end,
-// so that peaks fall as they age, read as the largest transform bin within
-// each pixel, so that nothing is missed. The frame is as long as it takes
-// for a tone's ridge to be resolution_cents wide at the bottom of the
-// range, and narrower above in proportion to frequency; its transform is
-// zero-padded so that a tone between the frame's own bins reads its level.
+// A live spectrum of one channel, or of the channels averaged: level
+// against log frequency, from the newest frame of audio through a window
+// skewed toward its end, so that peaks fall as they age, read as the
+// largest transform bin within each pixel, so that nothing is missed. The
+// frame is as long as it takes for a tone's ridge to be resolution_cents
+// wide at the bottom of the range, and narrower above in proportion to
+// frequency; its transform is zero-padded so that a tone between the
+// frame's own bins reads its level.
 
 typedef struct spectrum spectrum_t;
 
 typedef struct {
+	uint32_t channel;                   // the channel shown, or S9_CHANNEL_ALL for their average
 	uint32_t resolution_cents;          // the width of a tone's ridge at half amplitude at the bottom of the range
 	uint32_t padding;                   // the transform is 2^padding times the frame: the same spectrum sampled
 	                                    // that many times as finely, at that much more cost
 	window_function_t window_function;
 	float window_skew;                  // toward the newest audio: fresher peaks, higher skirts
-	fresp_graph_config_t graph_config;  // the range, the dB axis and the colours
+	fresp_graph_config_t graph_config;  // the range, the dB axis and the colors
 } spectrum_config_t;
 
 static const spectrum_config_t default_spectrum_config = {
+	.channel = S9_CHANNEL_ALL,
 	.resolution_cents = 200,
 	.padding = 2,
 	.window_function = WINDOW_FUNCTION_HAMMING,
