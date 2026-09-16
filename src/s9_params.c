@@ -110,7 +110,7 @@ static void set_fundamental_window_function(void *ctx, uint32_t val) { periodic_
 static uint32_t get_fundamental_window_function(void *ctx) { return (uint32_t)periodic_config(ctx)->tracker.window_function; }
 
 // -- spectrogram callbacks: what its settings give, read only, and the fields of its configuration a
-// listener sets; the resolution in cents
+// listener sets; the resolution in cents, the range in whole dB
 
 static float get_spectrogram_time_resolution(void *ctx) { return spectrogram_time_resolution(ctx); }
 static float get_spectrogram_floor_frequency(void *ctx) { return spectrogram_floor_frequency(ctx); }
@@ -119,15 +119,16 @@ static float get_spectrogram_floor_frequency(void *ctx) { return spectrogram_flo
 	static void set_##param(void *ctx, float val) { spectrogram_config_t c = *spectrogram_config(ctx); c.field = val; spectrogram_set_config(ctx, &c); } \
 	static float get_##param(void *ctx) { return spectrogram_config(ctx)->field; }
 
-#define SPECTROGRAM_INT(param, field) \
-	static void set_##param(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.field = (uint32_t)val; spectrogram_set_config(ctx, &c); } \
-	static int32_t get_##param(void *ctx) { return (int32_t)spectrogram_config(ctx)->field; }
+// an integer parameter on a field of the given type, read rounded
+#define SPECTROGRAM_INT(param, field, type) \
+	static void set_##param(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.field = (type)val; spectrogram_set_config(ctx, &c); } \
+	static int32_t get_##param(void *ctx) { return (int32_t)lround((double)spectrogram_config(ctx)->field); }
 
-SPECTROGRAM_INT(spectrogram_hop, hop_ms)
+SPECTROGRAM_INT(spectrogram_hop, hop_ms, uint32_t)
 SPECTROGRAM_FLOAT(spectrogram_f_min, f_min)
 SPECTROGRAM_FLOAT(spectrogram_f_max, f_max)
-SPECTROGRAM_FLOAT(spectrogram_max_db, max_db)
-SPECTROGRAM_FLOAT(spectrogram_range_db, range_db)
+SPECTROGRAM_INT(spectrogram_range_db, range_db, float)
+SPECTROGRAM_INT(spectrogram_max_db, max_db, float)
 
 static void set_spectrogram_resolution(void *ctx, int32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.resolution_semitones = (float)val / 100.0f; spectrogram_set_config(ctx, &c); }
 static int32_t get_spectrogram_resolution(void *ctx) { return (int32_t)lroundf(spectrogram_config(ctx)->resolution_semitones * 100.0f); }
@@ -137,6 +138,14 @@ static void set_spectrogram_palette(void *ctx, uint32_t val) { spectrogram_confi
 static uint32_t get_spectrogram_palette(void *ctx) { return (uint32_t)spectrogram_config(ctx)->palette; }
 static void set_spectrogram_grid(void *ctx, bool val) { spectrogram_config_t c = *spectrogram_config(ctx); c.grid = val; spectrogram_set_config(ctx, &c); }
 static bool get_spectrogram_grid(void *ctx) { return spectrogram_config(ctx)->grid != 0; }
+// following ends with the top at a whole dB, as the parameter shows it
+static void set_spectrogram_auto_range(void *ctx, bool val) {
+	spectrogram_config_t c = *spectrogram_config(ctx);
+	c.auto_range = val;
+	if (!val) c.max_db = (float)lround((double)c.max_db);
+	spectrogram_set_config(ctx, &c);
+}
+static bool get_spectrogram_auto_range(void *ctx) { return spectrogram_config(ctx)->auto_range != 0; }
 
 #endif /* PN_SCHEMA_ONLY */
 
@@ -202,15 +211,16 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	pn_param_t *spec = p->spectrogram_params;
 	spec[S9_SPECTROGRAM_TIME_RESOLUTION] = pn_readonly(pn_float("time_resolution", spectrogram, NULL, PN_FN(get_spectrogram_time_resolution), 0.0f, 60.0f, 0));
 	spec[S9_SPECTROGRAM_FLOOR_FREQUENCY] = pn_readonly(pn_float("floor_frequency", spectrogram, NULL, PN_FN(get_spectrogram_floor_frequency), 0.0f, 24000.0f, 0));
-	spec[2] = pn_int("channel",           spectrogram, PN_FN(set_spectrogram_channel),         PN_FN(get_spectrogram_channel),         -1, 31, 1);
-	spec[3] = pn_int("hop",               spectrogram, PN_FN(set_spectrogram_hop),             PN_FN(get_spectrogram_hop),             5, 60, 1);
-	spec[4] = pn_int("resolution",        spectrogram, PN_FN(set_spectrogram_resolution),      PN_FN(get_spectrogram_resolution),      25, 400, 1);
-	spec[5] = pn_float("f_min",           spectrogram, PN_FN(set_spectrogram_f_min),           PN_FN(get_spectrogram_f_min),           20.0f, 1000.0f, 0);
-	spec[6] = pn_float("f_max",           spectrogram, PN_FN(set_spectrogram_f_max),           PN_FN(get_spectrogram_f_max),           1100.0f, 24000.0f, 0);
-	spec[7] = pn_float("max_db",          spectrogram, PN_FN(set_spectrogram_max_db),          PN_FN(get_spectrogram_max_db),          -60.0f, 0.0f, 0);
-	spec[8] = pn_float("range_db",        spectrogram, PN_FN(set_spectrogram_range_db),        PN_FN(get_spectrogram_range_db),        10.0f, 120.0f, 0);
-	spec[9] = pn_enum("palette",          spectrogram, PN_FN(set_spectrogram_palette),         PN_FN(get_spectrogram_palette),         palette_names, PALETTE_COUNT);
-	spec[10] = pn_bool("grid",            spectrogram, PN_FN(set_spectrogram_grid),            PN_FN(get_spectrogram_grid));
+	spec[S9_SPECTROGRAM_CHANNEL]    = pn_int("channel",      spectrogram, PN_FN(set_spectrogram_channel),    PN_FN(get_spectrogram_channel),    -1, 31, 1);
+	spec[S9_SPECTROGRAM_HOP]        = pn_int("hop",          spectrogram, PN_FN(set_spectrogram_hop),        PN_FN(get_spectrogram_hop),        5, 60, 1);
+	spec[S9_SPECTROGRAM_RESOLUTION] = pn_int("resolution",   spectrogram, PN_FN(set_spectrogram_resolution), PN_FN(get_spectrogram_resolution), 25, 400, 1);
+	spec[S9_SPECTROGRAM_F_MIN]      = pn_float("f_min",      spectrogram, PN_FN(set_spectrogram_f_min),      PN_FN(get_spectrogram_f_min),      20.0f, 1000.0f, 0);
+	spec[S9_SPECTROGRAM_F_MAX]      = pn_float("f_max",      spectrogram, PN_FN(set_spectrogram_f_max),      PN_FN(get_spectrogram_f_max),      1100.0f, 24000.0f, 0);
+	spec[S9_SPECTROGRAM_RANGE_DB]   = pn_int("range_db",     spectrogram, PN_FN(set_spectrogram_range_db),   PN_FN(get_spectrogram_range_db),   10, 120, 1);
+	spec[S9_SPECTROGRAM_MAX_DB]     = pn_int("max_db",       spectrogram, PN_FN(set_spectrogram_max_db),     PN_FN(get_spectrogram_max_db),     -60, 0, 1);
+	spec[S9_SPECTROGRAM_AUTO_RANGE] = pn_bool("auto_range",  spectrogram, PN_FN(set_spectrogram_auto_range), PN_FN(get_spectrogram_auto_range));
+	spec[S9_SPECTROGRAM_PALETTE]    = pn_enum("palette",     spectrogram, PN_FN(set_spectrogram_palette),    PN_FN(get_spectrogram_palette),    palette_names, PALETTE_COUNT);
+	spec[S9_SPECTROGRAM_GRID]       = pn_bool("grid",        spectrogram, PN_FN(set_spectrogram_grid),       PN_FN(get_spectrogram_grid));
 
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 

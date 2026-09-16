@@ -14,7 +14,6 @@
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   4
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
 #define S9_PERIODIC_NOTE_NUM_PARAMS        1
-#define S9_SPECTROGRAM_NUM_PARAMS        11
 #define S9_DEBUG_NUM_PARAMS              1
 
 // The root's children, in declared order
@@ -35,10 +34,21 @@ typedef enum {
 	S9_FUNDAMENTAL_MIDI,
 } s9_fundamental_param_t;
 
-// The spectrogram group's children that the app pushes, in declared order
+// The spectrogram group's children, in declared order
 typedef enum {
 	S9_SPECTROGRAM_TIME_RESOLUTION,
 	S9_SPECTROGRAM_FLOOR_FREQUENCY,
+	S9_SPECTROGRAM_CHANNEL,
+	S9_SPECTROGRAM_HOP,
+	S9_SPECTROGRAM_RESOLUTION,
+	S9_SPECTROGRAM_F_MIN,
+	S9_SPECTROGRAM_F_MAX,
+	S9_SPECTROGRAM_RANGE_DB,
+	S9_SPECTROGRAM_MAX_DB,
+	S9_SPECTROGRAM_AUTO_RANGE,
+	S9_SPECTROGRAM_PALETTE,
+	S9_SPECTROGRAM_GRID,
+	S9_SPECTROGRAM_NUM_PARAMS,
 } s9_spectrogram_param_t;
 
 typedef struct {

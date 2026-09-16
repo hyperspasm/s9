@@ -25,11 +25,12 @@
 #define FONT_SIZE 16
 #define MAJOR_MIN_PX 60        // seconds are marked no closer than this, with labels
 #define MINOR_MIN_PX 6         // and ticked no closer than this between them
+#define LEVEL_BIN_LO -150      // dB, the lowest of the 1 dB bins the rows' levels are counted in, for the
+#define LEVEL_BINS 160         // top max_db follows; levels beyond the bins count at the ends
 
 struct spectrogram {
 	spectrogram_config_t config;
 	int config_changed;              // applied at the next frame
-	int recolor;                     // the scale or the range changed: the image is colored again
 	struct { palette_t palette; float max_db, range_db; } colored;   // what the image's colors were made with
 
 	fft_analyzer_t *analyzer;
@@ -64,6 +65,8 @@ struct spectrogram {
 	float built_f_min, built_f_hi;
 	double *edges;                   // plot.w + 1, the columns' bands
 	float *history;                  // plot.w x image_h, dB: the rows as the ring holds them
+	uint16_t *counts;                // image_h x LEVEL_BINS: each row's levels counted by bin
+	uint32_t sum[LEVEL_BINS];        // the counts of the rows the ring holds, together
 	uint32_t *pixels;                // one row
 	uint32_t palette[PALETTE_STEPS];
 };
@@ -82,6 +85,10 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	if (!(sg->config.resolution_semitones > 0.0f)) sg->config.resolution_semitones = d->resolution_semitones;
 	if ((unsigned)sg->config.window_function >= WINDOW_FUNCTION_COUNT) sg->config.window_function = d->window_function;
 	if (!(sg->config.range_db > 0.0f)) sg->config.range_db = d->range_db;
+	if (!(sg->config.auto_percentile > 0.0f && sg->config.auto_percentile <= 1.0f)) sg->config.auto_percentile = d->auto_percentile;
+	if (!(sg->config.auto_rise > 0.0f)) sg->config.auto_rise = d->auto_rise;
+	if (!(sg->config.auto_fall > 0.0f)) sg->config.auto_fall = d->auto_fall;
+	sg->config.auto_range = sg->config.auto_range != 0;
 	if ((unsigned)sg->config.palette >= PALETTE_COUNT) sg->config.palette = d->palette;
 	if (!(sg->config.f_min > 0.0f && sg->config.f_max > sg->config.f_min)) { sg->config.f_min = d->f_min; sg->config.f_max = d->f_max; }
 	sg->config.grid = sg->config.grid != 0;
@@ -127,12 +134,10 @@ static fft_analyzer_config_t analyzer_config(const spectrogram_t *sg) {
 	};
 }
 
-// hand a changed configuration to the analyzer and the coloring; the readout follows at the next row
+// hand a changed configuration to the analyzer; the readout follows at the next row
 static void apply_config(spectrogram_t *sg) {
 	if (!sg->config_changed) return;
 	sg->config_changed = 0;
-	if (sg->config.palette != sg->colored.palette || sg->config.max_db != sg->colored.max_db || sg->config.range_db != sg->colored.range_db)
-		sg->recolor = 1;
 	if (!sg->stream.sample_rate) return;
 	sg->hop = hop_frames(sg);
 	sg->frame = frame_length(sg);
@@ -153,6 +158,14 @@ static void build_palette(spectrogram_t *sg) {
 	sg->colored.range_db = sg->config.range_db;
 }
 
+// whether the image's colors no longer show the scale and range: the top may drift under
+// a step of the scale before they do, as it does while it follows the material
+static int colors_stale(const spectrogram_t *sg) {
+	float step = sg->colored.range_db / (float)(PALETTE_STEPS - 1);
+	return sg->config.palette != sg->colored.palette || sg->config.range_db != sg->colored.range_db ||
+	       fabsf(sg->config.max_db - sg->colored.max_db) >= step;
+}
+
 // a row's levels as pixels: the range between the floor and full brightness, through the scale
 static void color_row(const spectrogram_t *sg, const float *levels, uint32_t *pixels) {
 	float lo = sg->config.max_db - sg->config.range_db, scale = (float)(PALETTE_STEPS - 1) / sg->config.range_db;
@@ -168,6 +181,7 @@ static void color_row(const spectrogram_t *sg, const float *levels, uint32_t *pi
 static void clear_image(spectrogram_t *sg) {
 	sg->head = sg->rows = 0;
 	sg->written = 0;
+	memset(sg->sum, 0, sizeof sg->sum);
 	if (!sg->image) return;
 	void *pixels;
 	int pitch;
@@ -211,10 +225,46 @@ static int ensure_kernels(spectrogram_t *sg) {
 	return 0;
 }
 
-// one hop's readout as a row of the ring, its levels kept for coloring again
+// a row's levels counted by bin, and the count added to or taken from the ring's sum
+static void count_row(spectrogram_t *sg, int row, const float *levels, int sign) {
+	uint16_t *counts = sg->counts + (size_t)row * LEVEL_BINS;
+	if (levels) {
+		memset(counts, 0, sizeof(uint16_t) * LEVEL_BINS);
+		for (int c = 0; c < sg->plot.w; c++) {
+			float b = floorf(levels[c] - (float)LEVEL_BIN_LO);
+			counts[b <= 0.0f ? 0 : b >= (float)(LEVEL_BINS - 1) ? LEVEL_BINS - 1 : (int)b]++;
+		}
+	}
+	for (int b = 0; b < LEVEL_BINS; b++) sg->sum[b] += sign * (int32_t)counts[b];
+}
+
+// The top a step nearer the material: the level that auto_percentile of the
+// ring's levels lie below, the upper edge of its bin, approached no faster
+// than the rise and fall rates allow in a row's worth of audio.
+static void follow(spectrogram_t *sg) {
+	uint32_t total = 0;
+	for (int b = 0; b < LEVEL_BINS; b++) total += sg->sum[b];
+	if (!total) return;
+	uint32_t need = (uint32_t)ceil((double)sg->config.auto_percentile * (double)total), cum = 0;
+	int bin = LEVEL_BINS - 1;
+	for (int b = 0; b < LEVEL_BINS; b++) {
+		cum += sg->sum[b];
+		if (cum >= need) { bin = b; break; }
+	}
+	float target = (float)(LEVEL_BIN_LO + bin + 1);
+	float per_row = (float)sg->hop / (float)sg->stream.sample_rate;
+	float d = target - sg->config.max_db;
+	if (d > 0.0f) sg->config.max_db += fminf(d, sg->config.auto_rise * per_row);
+	else sg->config.max_db += fmaxf(d, -sg->config.auto_fall * per_row);
+}
+
+// one hop's readout as a row of the ring, its levels kept for coloring again and counted
 static void write_row(spectrogram_t *sg) {
 	float *levels = sg->history + (size_t)sg->head * (size_t)sg->plot.w;
+	if (sg->rows == sg->image_h) count_row(sg, sg->head, NULL, -1);   // the row overwritten leaves the sum
 	constant_q_readout(sg->cq, fft_analyzer_frame(sg->analyzer, 0), levels);
+	count_row(sg, sg->head, levels, 1);
+	if (sg->config.auto_range) follow(sg);
 	color_row(sg, levels, sg->pixels);
 	SDL_UpdateTexture(sg->image, &(SDL_Rect){ 0, sg->head, sg->plot.w, 1 }, sg->pixels, sg->plot.w * (int)sizeof(uint32_t));
 	sg->head = (sg->head + 1) % sg->image_h;
@@ -286,6 +336,7 @@ static void free_textures(spectrogram_t *sg) {
 	if (sg->axes) { SDL_DestroyTexture(sg->axes); sg->axes = NULL; }
 	free(sg->edges); sg->edges = NULL;
 	free(sg->history); sg->history = NULL;
+	free(sg->counts); sg->counts = NULL;
 	free(sg->pixels); sg->pixels = NULL;
 }
 
@@ -410,6 +461,8 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	CHECK_ALLOC(sg->edges, free_textures(sg); return -1);
 	sg->history = malloc(sizeof(float) * (size_t)sg->plot.w * (size_t)sg->image_h);
 	CHECK_ALLOC(sg->history, free_textures(sg); return -1);
+	sg->counts = malloc(sizeof(uint16_t) * LEVEL_BINS * (size_t)sg->image_h);
+	CHECK_ALLOC(sg->counts, free_textures(sg); return -1);
 	sg->pixels = malloc(sizeof(uint32_t) * sg->plot.w);
 	CHECK_ALLOC(sg->pixels, free_textures(sg); return -1);
 	clear_image(sg);
@@ -471,10 +524,7 @@ void spectrogram_render(spectrogram_t *sg, SDL_Renderer *renderer) {
 	if (!sg->streaming) return;
 	apply_config(sg);
 	if (prepare_to_draw(sg, renderer) != 0) return;
-	if (sg->recolor) {
-		recolor(sg);
-		sg->recolor = 0;
-	}
+	if (colors_stale(sg)) recolor(sg);
 	advance(sg);
 	draw(sg, renderer);
 }

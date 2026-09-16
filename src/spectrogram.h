@@ -34,6 +34,10 @@ typedef struct {
 	window_function_t window_function;
 	float max_db;                    // full brightness, dB relative to a full-scale sine
 	float range_db;                  // the depth of the color scale below that: its floor is max_db - range_db
+	int auto_range;                  // max_db follows the material instead: the top of the levels in the rows
+	                                 // the image holds, so the scale's depth is used whatever the level
+	float auto_percentile;           // the share of those levels max_db is held above when it follows
+	float auto_rise, auto_fall;      // how fast it may then move, dB per second of audio, up and down
 	palette_t palette;               // the color scale between them
 	float f_min, f_max;              // Hz, the range across the plot; the top is held within the stream's Nyquist
 	int grid;                        // lines across the plot at the decades, the steps between them, and the
@@ -50,6 +54,10 @@ static const spectrogram_config_t default_spectrogram_config = {
 	.window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS,
 	.max_db = 0.0f,
 	.range_db = 60.0f,
+	.auto_range = 1,
+	.auto_percentile = 0.999f,
+	.auto_rise = 6.0f,
+	.auto_fall = 2.0f,
 	.palette = PALETTE_INFERNO,
 	.f_min = 20.0f,
 	.f_max = 20000.0f,

@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=027de999
+# pn manifest v1 s9 fnv1a32=a72c982d
 s9/mode enum full|scope|spectrum|periodic|spectrogram
 s9/osc/time_per_div float 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -47,8 +47,9 @@ s9/spectrogram/hop int 5 60 1
 s9/spectrogram/resolution int 25 400 1
 s9/spectrogram/f_min float 0x41a00000 0x447a0000 0x00000000
 s9/spectrogram/f_max float 0x44898000 0x46bb8000 0x00000000
-s9/spectrogram/max_db float 0xc2700000 0x00000000 0x00000000
-s9/spectrogram/range_db float 0x41200000 0x42f00000 0x00000000
+s9/spectrogram/range_db int 10 120 1
+s9/spectrogram/max_db int -60 0 1
+s9/spectrogram/auto_range bool
 s9/spectrogram/palette enum inferno|magma|plasma|viridis|mako|rocket|turbo|grey|heat
 s9/spectrogram/grid bool
 s9/debug/fps bool

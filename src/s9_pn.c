@@ -6,6 +6,7 @@
 #include "s9.h"
 
 #include <pn/pn.h>
+#include <math.h>
 
 #include <stdlib.h>
 
@@ -23,10 +24,12 @@ struct s9_pn {
 	float fundamental_frequency;
 	float fundamental_midi;
 
-	// the spectrogram's time resolution last pushed
+	// the spectrogram's time resolution last pushed, and its top while it follows the material
 	spectrogram_t *spectrogram;
 	float spectrogram_time_resolution;
 	float spectrogram_floor_frequency;
+	int spectrogram_max_db;
+	int spectrogram_following;
 };
 
 // -- manifest text
@@ -177,6 +180,16 @@ static void notify_spectrogram(s9_pn_t *pn) {
 		pn->spectrogram_floor_frequency = floor_frequency;
 		pn_param_notify(&pn->params.spectrogram_params[S9_SPECTROGRAM_FLOOR_FREQUENCY]);
 	}
+
+	// the top moves on its own while it follows the material: pushed at every whole dB, as
+	// the parameter shows it, and once more where it stops when following ends
+	const spectrogram_config_t *c = spectrogram_config(pn->spectrogram);
+	int top = (int)lround((double)c->max_db);
+	if (top != pn->spectrogram_max_db && (c->auto_range || pn->spectrogram_following)) {
+		pn->spectrogram_max_db = top;
+		pn_param_notify(&pn->params.spectrogram_params[S9_SPECTROGRAM_MAX_DB]);
+	}
+	pn->spectrogram_following = c->auto_range;
 }
 
 void s9_pn_update(s9_pn_t *pn) {

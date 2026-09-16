@@ -37,9 +37,9 @@ static spectrogram_t *streaming(float f_min) {
 	return sg;
 }
 
-// hops of a tone, both channels alike, queued as the audio thread would
-static void feed(spectrogram_t *sg, unsigned hops, unsigned *offset) {
-	test_signal_t s = { SIGNAL_SINE, 1000.0, 0, 0.5, 0, 0, 0, 0 };
+// hops of a tone at an amplitude, both channels alike, queued as the audio thread would
+static void feed_tone(spectrogram_t *sg, unsigned hops, unsigned *offset, double amplitude) {
+	test_signal_t s = { SIGNAL_SINE, 1000.0, 0, amplitude, 0, 0, 0, 0 };
 	unsigned n = hops * HOP;
 	float *mono = malloc(sizeof(float) * (*offset + n)), *stereo = malloc(sizeof(float) * n * 2);
 	test_signal_generate(&s, mono, *offset + n, FS);
@@ -48,6 +48,11 @@ static void feed(spectrogram_t *sg, unsigned hops, unsigned *offset) {
 	spectrogram_enqueue_audio_data(sg, stereo, sizeof(float) * n * 2);
 	free(stereo);
 	free(mono);
+}
+
+// hops of the tone at half scale, -6 dB
+static void feed(spectrogram_t *sg, unsigned hops, unsigned *offset) {
+	feed_tone(sg, hops, offset, 0.5);
 }
 
 static void render(spectrogram_t *sg) {
@@ -229,6 +234,43 @@ TEST grid_is_off_until_turned_on(void) {
 	PASS();
 }
 
+// With auto_range on, the top follows the material at the configured rates:
+// a tone at -6 dB brings max_db down from 0 at the fall rate until it sits
+// on the tone; a louder tone lifts it at the rise rate once enough of the
+// image shows it; with following off again, the top stays where it was.
+TEST auto_range_follows_the_material(void) {
+	spectrogram_config_t c = default_spectrogram_config;
+	c.hop_ms = HOP_MS;
+	c.f_min = 100.0f;
+	c.auto_range = 1;
+	spectrogram_t *sg = spectrogram_new(&c);
+	spectrogram_prepare_to_stream(sg, &(s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 2,
+		.buffer_frames = BUFFER, .samples_per_display_frame = FRAME,
+	});
+	unsigned offset = 0;
+	for (unsigned h = 0; h < hops_to_fill(spectrogram_frame(sg)); h += 2) { feed(sg, 2, &offset); render(sg); }
+	ASSERT_IN_RANGE(0.0f, spectrogram_config(sg)->max_db, 0.1f);
+
+	for (unsigned h = 0; h < 200; h += 2) { feed(sg, 2, &offset); render(sg); }   // 2 s at 2 dB/s
+	ASSERT_IN_RANGE(-4.0f, spectrogram_config(sg)->max_db, 0.1f);
+	for (unsigned h = 0; h < 200; h += 2) { feed(sg, 2, &offset); render(sg); }
+	ASSERT_IN_RANGE(-6.0f, spectrogram_config(sg)->max_db, 0.1f);
+
+	for (unsigned h = 0; h < 500; h += 2) { feed_tone(sg, 2, &offset, 0.7); render(sg); }   // -3.1 dB
+	ASSERT_IN_RANGE(-3.0f, spectrogram_config(sg)->max_db, 0.1f);
+
+	c = *spectrogram_config(sg);
+	c.auto_range = 0;
+	spectrogram_set_config(sg, &c);
+	float held = spectrogram_config(sg)->max_db;
+	for (unsigned h = 0; h < 200; h += 2) { feed(sg, 2, &offset); render(sg); }
+	ASSERT_EQ_FMT(held, spectrogram_config(sg)->max_db, "%g");
+
+	spectrogram_free(&sg);
+	PASS();
+}
+
 // A configuration that makes no sense falls back to the default.
 TEST config_is_kept_sane(void) {
 	spectrogram_t *sg = spectrogram_new(NULL);
@@ -268,6 +310,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(new_frame_starts_over);
 	RUN_TEST(scale_change_recolors_the_history);
 	RUN_TEST(grid_is_off_until_turned_on);
+	RUN_TEST(auto_range_follows_the_material);
 	RUN_TEST(config_is_kept_sane);
 	GREATEST_MAIN_END();
 }
