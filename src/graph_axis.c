@@ -5,8 +5,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#define MINOR_TICK_LENGTH 6
-
 void graph_format_hz(char *buf, size_t size, double hz) {
 	static const struct { double unit; const char *name; } units[] = {
 		{ 1e9, "GHz" }, { 1e6, "MHz" }, { 1e3, "KHz" }, { 1.0, "Hz" },
@@ -57,7 +55,7 @@ void graph_db_axis_draw(const graph_db_axis_t *axis, SDL_Renderer *renderer, TTF
 											 plot->x - label_margin, (int)y);
 		} else if (db % (int)axis->minor_interval == 0) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &axis->minor_color);
-			SDL_RenderDrawLineF(renderer, plot->x, y, plot->x + MINOR_TICK_LENGTH, y);
+			SDL_RenderDrawLineF(renderer, plot->x, y, plot->x + GRAPH_DB_AXIS_TICK_LENGTH, y);
 		}
 	}
 }

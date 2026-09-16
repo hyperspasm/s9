@@ -76,6 +76,23 @@ TEST frame_follows_the_resolution(void) {
 	PASS();
 }
 
+// A display names its channel as the oscilloscope does: one channel by
+// number, every channel joined, nothing for a stream without any.
+TEST channels_are_named(void) {
+	char buf[32];
+	s9_channel_label(0, 2, buf, sizeof buf);
+	ASSERT_STR_EQ("CH1", buf);
+	s9_channel_label(1, 2, buf, sizeof buf);
+	ASSERT_STR_EQ("CH2", buf);
+	s9_channel_label(S9_CHANNEL_ALL, 2, buf, sizeof buf);
+	ASSERT_STR_EQ("CH1+CH2", buf);
+	s9_channel_label(S9_CHANNEL_ALL, 1, buf, sizeof buf);
+	ASSERT_STR_EQ("CH1", buf);
+	s9_channel_label(0, 0, buf, sizeof buf);
+	ASSERT_STR_EQ("", buf);
+	PASS();
+}
+
 // A configuration that makes no sense falls back to the default.
 TEST config_is_kept_sane(void) {
 	spectrum_t *sp = spectrum_new(NULL);
@@ -126,6 +143,7 @@ int main(int argc, char **argv) {
 
 	GREATEST_MAIN_BEGIN();
 	RUN_TEST(frame_follows_the_resolution);
+	RUN_TEST(channels_are_named);
 	RUN_TEST(config_is_kept_sane);
 	RUN_TEST(a_tone_lights_the_plot);
 	GREATEST_MAIN_END();

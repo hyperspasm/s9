@@ -17,7 +17,8 @@ typedef struct fresp_graph {
 	SDL_Rect plot_rect;
 	SDL_Texture *graticule_texture;
 	float *plot_data_buffer;
-	
+	char *label;                     // in the plot's top left corner, or NULL
+
 } fresp_graph_t;
 
 // margin between edge of labels and plot_rect
@@ -59,9 +60,18 @@ void fresp_graph_free(fresp_graph_t **frg) {
 			free((*frg)->plot_data_buffer);
 			(*frg)->plot_data_buffer = NULL;
 		}
-		
+		free((*frg)->label);
+
 		free(*frg);
 		*frg = NULL;
+	}
+}
+
+void fresp_graph_set_label(fresp_graph_t *frg, const char *label) {
+	if ((label == NULL) != (frg->label == NULL) || (label && strcmp(label, frg->label) != 0)) {
+		free(frg->label);
+		frg->label = label ? strdup(label) : NULL;
+		frg->renderer = NULL;   // the graticule is drawn again with it
 	}
 }
 
@@ -255,7 +265,13 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
 	}
-	
+
+	// draw the label, inside the plot's top left corner, clear of the dB axis's ticks
+	if(frg->label) {
+		draw_sdl_render_text_at_position(renderer, font, frg->label, ANCHOR_TOP_LEFT, frg->config.major_color,
+										 frg->plot_rect.x + GRAPH_DB_AXIS_TICK_LENGTH + 4, frg->plot_rect.y + 4);
+	}
+
 	TTF_CloseFont(font);
 }
 

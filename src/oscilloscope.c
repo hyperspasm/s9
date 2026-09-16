@@ -81,26 +81,9 @@ static void update_label(oscilloscope_t *osc) {
 }
 
 static void update_channel_label(oscilloscope_t *osc) {
-	uint32_t n = osc->stream_config.channels;
-	if (n == 0) {
-		scope_display_set_label_top(osc->display, NULL);
-		return;
-	}
-
 	char buf[256];
-	uint32_t ch = osc->settings.channel;
-
-	if (ch < n) {
-		snprintf(buf, sizeof(buf), "CH%u", ch + 1);
-	} else {
-		int pos = 0;
-		for (uint32_t i = 0; i < n && pos < (int)sizeof(buf) - 1; i++) {
-			if (i > 0) pos += snprintf(buf + pos, sizeof(buf) - pos, "+");
-			pos += snprintf(buf + pos, sizeof(buf) - pos, "CH%u", i + 1);
-		}
-	}
-
-	scope_display_set_label_top(osc->display, buf);
+	s9_channel_label(osc->settings.channel, osc->stream_config.channels, buf, sizeof buf);
+	scope_display_set_label_top(osc->display, buf[0] ? buf : NULL);
 }
 
 static void free_dsp_allocations(oscilloscope_t *osc) {

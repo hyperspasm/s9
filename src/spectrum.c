@@ -22,6 +22,7 @@ typedef struct spectrum {
 	s9_audio_stream_config_t stream;
 
 	fresp_graph_t *graph;
+	char label[64];                  // the channel's name, shown in the plot's corner
 } spectrum_t;
 
 // -- configuration
@@ -75,16 +76,20 @@ static fft_analyzer_config_t analyzer_config(const spectrum_t *sp) {
 	};
 }
 
-// hand a changed configuration to the analyzer and the graph
+// hand a changed configuration to the analyzer and the graph, and the channel's name to the graph
 static void apply_config(spectrum_t *sp) {
 	if (!sp->config_changed) return;
 	sp->config_changed = 0;
 	sp->bandwidth = measure_bandwidth(sp);
+	s9_channel_label(sp->config.channel, sp->stream.channels, sp->label, sizeof sp->label);
 	if (sp->stream.sample_rate) {
 		fft_analyzer_config_t ac = analyzer_config(sp);
 		fft_analyzer_set_config(sp->analyzer, &ac);
 	}
-	if (sp->graph) fresp_graph_set_config(sp->graph, &sp->config.graph_config);
+	if (sp->graph) {
+		fresp_graph_set_config(sp->graph, &sp->config.graph_config);
+		fresp_graph_set_label(sp->graph, sp->label[0] ? sp->label : NULL);
+	}
 }
 
 // -- lifecycle
@@ -133,6 +138,7 @@ static S9_FORCE_INLINE void prepare_to_draw(spectrum_t *sp, SDL_Renderer *render
 		sp->viewport = viewport;
 		fresp_graph_free(&sp->graph);
 		sp->graph = fresp_graph_new(&sp->config.graph_config);
+		if (sp->graph) fresp_graph_set_label(sp->graph, sp->label[0] ? sp->label : NULL);
 	}
 }
 

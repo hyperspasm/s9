@@ -25,6 +25,9 @@ void graph_format_db(char *buf, size_t size, int db);
 // the room the labels need: the widest label and the label height
 void graph_db_axis_measure(const graph_db_axis_t *axis, TTF_Font *font, int *width, int *height);
 
+// how far the minor ticks reach into the plot from its left edge, pixels
+#define GRAPH_DB_AXIS_TICK_LENGTH 6
+
 // the y of a dB value within a plot rectangle: max_db at the top
 float graph_db_axis_y(const graph_db_axis_t *axis, const SDL_Rect *plot, float db);
 

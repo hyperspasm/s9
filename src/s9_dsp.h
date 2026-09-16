@@ -2,6 +2,7 @@
 #define s9_dsp_h
 
 #include "stdint.h"
+#include <stddef.h>
 
 typedef enum {
 	S9_SAMPLE_NONE = 0,
@@ -21,6 +22,11 @@ extern const s9_audio_format_t S9_FORMAT_FLOAT32;
 
 // Where one channel of the stream may be chosen: every channel instead
 #define S9_CHANNEL_ALL UINT32_MAX
+
+// The name a display shows for its channel: "CH1" for a channel, and
+// "CH1+CH2" for every one of a stream's channels together; empty when the
+// stream has none. Into buf, which holds size bytes.
+void s9_channel_label(uint32_t channel, uint32_t channels, char *buf, size_t size);
 
 typedef struct {
 	s9_audio_format_t 	audio_format;				// sample format
