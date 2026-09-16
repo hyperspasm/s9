@@ -28,7 +28,7 @@ typedef struct constant_q constant_q_t;
 
 typedef struct {
 	double sample_rate;
-	uint32_t n;                        // the frame's length, even: the longest window
+	uint32_t n;                        // the frame's length, a fast length (fft_fast_length): the longest window
 	uint32_t min_window;               // the shortest window, frames
 	float resolution_semitones;        // the width of a tone's ridge at half amplitude
 	window_function_t window_function;

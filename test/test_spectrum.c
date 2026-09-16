@@ -5,7 +5,7 @@
 // tested on the analyzer.
 #include "greatest.h"
 #include "spectrum.h"
-#include "fft_analyzer.h"
+#include "fft.h"
 #include "test_signals.h"
 
 #include <SDL2/SDL.h>
@@ -93,7 +93,7 @@ TEST frame_follows_the_resolution(void) {
 	create_window_function(c->window_function, 4096, 0, c->window_skew, w);
 	double need = window_bandwidth(w, 4096) * FS / (c->graph_config.min_freq * (pow(2.0, c->resolution_cents / 1200.0) - 1.0));
 	unsigned n = spectrum_frame(sp);
-	ASSERT_EQ_FMT(fft_analyzer_fast_length((uint32_t)ceil(need)), n, "%u");
+	ASSERT_EQ_FMT(fft_fast_length((uint32_t)ceil(need)), n, "%u");
 	ASSERT(n >= need && n < need * 1.1);
 
 	spectrum_config_t finer = *c;

@@ -51,8 +51,12 @@ set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED IMPORTED_TARGET SDL2_ttf)
-pkg_check_modules(FFTW3F REQUIRED IMPORTED_TARGET fftw3f)
 pkg_check_modules(LWS REQUIRED IMPORTED_TARGET libwebsockets)
+
+# PFFFT, the FFT, compiled in from its one source file (see extern/pffft/pffft.h for its license)
+add_library(pffft STATIC extern/pffft/pffft.c)
+target_include_directories(pffft PUBLIC extern/pffft)
+target_compile_options(pffft PRIVATE -w)   # vendored as is
 
 # Tests
 include(CTest)
@@ -102,8 +106,8 @@ target_compile_definitions(s9 PRIVATE S9_VERSION="${S9_VERSION}")
 target_link_libraries(s9
     PkgConfig::SDL2
     PkgConfig::SDL2_TTF
-    PkgConfig::FFTW3F
     PkgConfig::LWS
+    pffft
     pn
     s9_www
     m

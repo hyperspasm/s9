@@ -1,6 +1,7 @@
 #include "spectrogram.h"
 #include "s9.h"
 #include "fft_analyzer.h"
+#include "fft.h"
 #include "constant_q.h"
 #include "graph_axis.h"
 #include "draw_sdl.h"
@@ -110,7 +111,7 @@ static uint32_t frame_length(const spectrogram_t *sg) {
 	if (need < shortest) need = shortest;
 	if (need < FRAME_MIN) need = FRAME_MIN;
 	if (need > FRAME_MAX) need = FRAME_MAX;
-	return fft_analyzer_fast_length((uint32_t)ceil(need));
+	return fft_fast_length((uint32_t)ceil(need));
 }
 
 // the frequency from which the shortest window rules: where the resolution's window would be shorter

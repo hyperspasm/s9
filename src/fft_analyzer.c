@@ -1,8 +1,8 @@
 #include "fft_analyzer.h"
 #include "s9.h"
 #include "ring_buffer.h"
+#include "fft.h"
 
-#include <fftw3.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,8 +28,8 @@ struct fft_analyzer {
 	float *window;                // fft_len, normalized
 	float *frame;                 // transform_len: the windowed mono frame handed to the transform, zeros past fft_len
 	uint32_t transforms;
-	fftwf_complex **spectra;      // transforms x (transform_len/2 + 1)
-	fftwf_plan plan;              // frame -> spectrum
+	float **spectra;              // transforms x (transform_len/2 + 1) pairs
+	fft_t *fft;                   // frame -> spectrum
 	float **power;                // transforms x (transform_len/2 + 1): the averaged power
 	int power_primed;             // the average holds a transform
 	float fraction;               // how far the last update moved the average toward its transform
@@ -46,20 +46,6 @@ static uint32_t next_power_of_2(uint32_t n) {
 	n |= n >> 8;
 	n |= n >> 16;
 	return n + 1;
-}
-
-// whether a length has no prime factor above 5
-static int smooth(uint32_t n) {
-	for (uint32_t p = 2; p <= 5; p++)
-		while (n % p == 0) n /= p;
-	return n == 1;
-}
-
-uint32_t fft_analyzer_fast_length(uint32_t n) {
-	if (n < 2) n = 2;
-	if (n % 2) n++;
-	while (!smooth(n)) n += 2;
-	return n;
 }
 
 // -- allocation
@@ -83,10 +69,9 @@ static void free_transform(fft_analyzer_t *fa) {
 	free(fa->history[0]); fa->history[0] = NULL;
 	free(fa->history[1]); fa->history[1] = NULL;
 	free(fa->window); fa->window = NULL;
-	if (fa->frame) { fftwf_free(fa->frame); fa->frame = NULL; }
+	free(fa->frame); fa->frame = NULL;
 	if (fa->spectra) {
-		for (uint32_t i = 0; i < fa->transforms; i++)
-			if (fa->spectra[i]) fftwf_free(fa->spectra[i]);
+		for (uint32_t i = 0; i < fa->transforms; i++) free(fa->spectra[i]);
 		free(fa->spectra);
 		fa->spectra = NULL;
 	}
@@ -97,7 +82,7 @@ static void free_transform(fft_analyzer_t *fa) {
 	}
 	fa->power_primed = 0;
 	fa->transforms = 0;
-	if (fa->plan) { fftwf_destroy_plan(fa->plan); fa->plan = NULL; }
+	fft_free(&fa->fft);
 }
 
 static uint32_t padding(const fft_analyzer_config_t *config) {
@@ -114,8 +99,8 @@ static int needs_rebuild(const fft_analyzer_config_t *built, const fft_analyzer_
 static int alloc_transform(fft_analyzer_t *fa) {
 	fa->built = fa->config;
 	uint32_t channels = fa->stream.channels;
-	fa->fft_len = fa->config.fft_len ? fa->config.fft_len
-	                                 : next_power_of_2((uint32_t)((float)fa->stream.sample_rate / fa->config.resolution_hz));
+	fa->fft_len = fft_fast_length(fa->config.fft_len ? fa->config.fft_len
+	                                                 : next_power_of_2((uint32_t)((float)fa->stream.sample_rate / fa->config.resolution_hz)));
 	fa->transform_len = fa->fft_len * padding(&fa->config);
 	S9_LOG_DEBUG("fft_analyzer: %u point transform of a %u frame", fa->transform_len, fa->fft_len);
 
@@ -130,9 +115,8 @@ static int alloc_transform(fft_analyzer_t *fa) {
 	CHECK_ALLOC(fa->window, return -1);
 	create_window_function(fa->config.window_function, fa->fft_len, 1, fa->config.window_skew, fa->window);
 
-	fa->frame = fftwf_malloc(sizeof(float) * fa->transform_len);
+	fa->frame = calloc(fa->transform_len, sizeof(float));   // the padding stays zero
 	CHECK_ALLOC(fa->frame, return -1);
-	memset(fa->frame, 0, sizeof(float) * fa->transform_len);   // the padding stays zero
 
 	uint32_t transforms = fa->config.mode == FFT_ANALYZER_MIX ? 1 : channels;
 	fa->spectra = calloc(transforms, sizeof(*fa->spectra));
@@ -140,12 +124,11 @@ static int alloc_transform(fft_analyzer_t *fa) {
 	fa->transforms = transforms;
 	uint32_t bins = fa->transform_len / 2 + 1;
 	for (uint32_t i = 0; i < transforms; i++) {
-		fa->spectra[i] = fftwf_malloc(sizeof(fftwf_complex) * bins);
+		fa->spectra[i] = calloc(2 * (size_t)bins, sizeof(float));
 		CHECK_ALLOC(fa->spectra[i], return -1);
-		memset(fa->spectra[i], 0, sizeof(fftwf_complex) * bins);
 	}
-	fa->plan = fftwf_plan_dft_r2c_1d((int)fa->transform_len, fa->frame, fa->spectra[0], FFTW_ESTIMATE);
-	CHECK_ERROR(fa->plan != NULL, return -1, "fftwf_plan_dft_r2c_1d() failed");
+	fa->fft = fft_new(fa->transform_len, FFT_REAL);
+	CHECK_ERROR(fa->fft != NULL, return -1, "fft_analyzer: no %u point transform", fa->transform_len);
 
 	fa->power = calloc(transforms, sizeof(*fa->power));
 	CHECK_ALLOC(fa->power, return -1);
@@ -296,12 +279,12 @@ uint32_t fft_analyzer_update(fft_analyzer_t *fa) {
 	for (uint32_t i = 0; i < fa->transforms; i++) {
 		mono_frame(fa, i, fa->frame);
 		for (uint32_t j = 0; j < fa->fft_len; j++) fa->frame[j] *= fa->window[j];
-		fftwf_execute_dft_r2c(fa->plan, fa->frame, fa->spectra[i]);
+		fft_forward_real(fa->fft, fa->frame, fa->spectra[i]);
 
-		const fftwf_complex *s = fa->spectra[i];
+		const float *s = fa->spectra[i];
 		float *avg = fa->power[i];
 		for (uint32_t k = 0; k < bins; k++) {
-			float p = s[k][0] * s[k][0] + s[k][1] * s[k][1];
+			float p = s[2 * k] * s[2 * k] + s[2 * k + 1] * s[2 * k + 1];
 			avg[k] += alpha * (p - avg[k]);
 		}
 	}
@@ -324,7 +307,7 @@ uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa) { return fa->stream.
 uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa) { return fa->transforms; }
 
 const float *fft_analyzer_spectrum(const fft_analyzer_t *fa, uint32_t index) {
-	return index < fa->transforms && !fa->config.frame_only ? (const float *)fa->spectra[index] : NULL;
+	return index < fa->transforms && !fa->config.frame_only ? fa->spectra[index] : NULL;
 }
 
 const float *fft_analyzer_power(const fft_analyzer_t *fa, uint32_t index) {

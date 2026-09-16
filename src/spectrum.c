@@ -1,6 +1,7 @@
 #include "s9.h"
 #include "spectrum.h"
 #include "fft_analyzer.h"
+#include "fft.h"
 #include "fresp_graph.h"
 
 #include <math.h>
@@ -62,7 +63,7 @@ static uint32_t frame_length(const spectrum_t *sp) {
 	double need = sp->bandwidth * sp->stream.sample_rate / ((double)sp->config.graph_config.min_freq * semitones);
 	if (need < FRAME_MIN) need = FRAME_MIN;
 	if (need > FRAME_MAX) need = FRAME_MAX;
-	return fft_analyzer_fast_length((uint32_t)ceil(need));
+	return fft_fast_length((uint32_t)ceil(need));
 }
 
 static fft_analyzer_config_t analyzer_config(const spectrum_t *sp) {

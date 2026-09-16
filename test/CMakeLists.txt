@@ -80,13 +80,14 @@ set(DSP_TEST_INCLUDES
 
 add_executable(test_fft_analyzer test_fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_fft_analyzer PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_fft_analyzer PkgConfig::SDL2 PkgConfig::FFTW3F m)
+target_link_libraries(test_fft_analyzer PkgConfig::SDL2 pffft m)
 add_test(NAME fft_analyzer COMMAND test_fft_analyzer)
 
 add_executable(test_conditioner test_conditioner.c ${CMAKE_SOURCE_DIR}/src/conditioner.c)
@@ -97,35 +98,38 @@ add_test(NAME conditioner COMMAND test_conditioner)
 add_executable(test_harmonic_readout test_harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_harmonic_readout PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_harmonic_readout PkgConfig::SDL2 PkgConfig::FFTW3F m)
+target_link_libraries(test_harmonic_readout PkgConfig::SDL2 pffft m)
 add_test(NAME harmonic_readout COMMAND test_harmonic_readout)
 
 add_executable(test_harmonic_series test_harmonic_series.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_harmonic_series PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_harmonic_series PkgConfig::SDL2 PkgConfig::FFTW3F m)
+target_link_libraries(test_harmonic_series PkgConfig::SDL2 pffft m)
 add_test(NAME harmonic_series COMMAND test_harmonic_series)
 
 add_executable(test_constant_q test_constant_q.c
     ${CMAKE_SOURCE_DIR}/src/constant_q.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_constant_q PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_constant_q PkgConfig::SDL2 PkgConfig::FFTW3F m)
+target_link_libraries(test_constant_q PkgConfig::SDL2 pffft m)
 add_test(NAME constant_q COMMAND test_constant_q)
 
 add_executable(test_pll test_pll.c ${CMAKE_SOURCE_DIR}/src/pll.c)
@@ -143,26 +147,28 @@ add_executable(test_fundamental test_fundamental.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/conditioner.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_fundamental PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_fundamental PkgConfig::SDL2 PkgConfig::FFTW3F m)
+target_link_libraries(test_fundamental PkgConfig::SDL2 pffft m)
 add_test(NAME fundamental COMMAND test_fundamental)
 
 add_executable(test_harmonic_reader test_harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_harmonic_reader PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_harmonic_reader PkgConfig::SDL2 PkgConfig::FFTW3F m)
+target_link_libraries(test_harmonic_reader PkgConfig::SDL2 pffft m)
 add_test(NAME harmonic_reader COMMAND test_harmonic_reader)
 
 add_executable(test_periodic test_periodic.c
@@ -184,6 +190,7 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/conditioner.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/graph_axis.c
     ${CMAKE_SOURCE_DIR}/src/draw_sdl.c
     ${CMAKE_SOURCE_DIR}/src/s9_font.c
@@ -193,13 +200,14 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_periodic PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_periodic PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+target_link_libraries(test_periodic PkgConfig::SDL2 PkgConfig::SDL2_TTF pffft m)
 add_test(NAME periodic COMMAND test_periodic)
 
 add_executable(test_spectrogram test_spectrogram.c
     ${CMAKE_SOURCE_DIR}/src/spectrogram.c
     ${CMAKE_SOURCE_DIR}/src/constant_q.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/graph_axis.c
     ${CMAKE_SOURCE_DIR}/src/draw_sdl.c
     ${CMAKE_SOURCE_DIR}/src/s9_font.c
@@ -209,7 +217,7 @@ add_executable(test_spectrogram test_spectrogram.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_spectrogram PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_spectrogram PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+target_link_libraries(test_spectrogram PkgConfig::SDL2 PkgConfig::SDL2_TTF pffft m)
 add_test(NAME spectrogram COMMAND test_spectrogram)
 
 add_executable(test_spectrum test_spectrum.c
@@ -219,13 +227,14 @@ add_executable(test_spectrum test_spectrum.c
     ${CMAKE_SOURCE_DIR}/src/draw_sdl.c
     ${CMAKE_SOURCE_DIR}/src/s9_font.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_spectrum PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+target_link_libraries(test_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF pffft m)
 add_test(NAME spectrum COMMAND test_spectrum)
 
 add_executable(test_stereo_spectrum test_stereo_spectrum.c
@@ -236,13 +245,14 @@ add_executable(test_stereo_spectrum test_stereo_spectrum.c
     ${CMAKE_SOURCE_DIR}/src/draw_sdl.c
     ${CMAKE_SOURCE_DIR}/src/s9_font.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
     ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
     ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
 target_include_directories(test_stereo_spectrum PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_stereo_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
+target_link_libraries(test_stereo_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF pffft m)
 add_test(NAME stereo_spectrum COMMAND test_stereo_spectrum)
 
 add_executable(test_home test_home.c

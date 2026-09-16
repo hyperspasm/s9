@@ -1,6 +1,7 @@
 // The analyzer's transforms, against known signals.
 #include "greatest.h"
 #include "fft_analyzer.h"
+#include "fft.h"
 #include "test_signals.h"
 
 #include <math.h>
@@ -389,12 +390,17 @@ TEST spectrum_is_the_frames_dft(void) {
 	PASS();
 }
 
-// The fast lengths are even with no prime factor above 5, the shortest at or above the request.
+// The fast lengths are multiples of 32 with no prime factor above 5, the
+// shortest at or above the request; the analyzer takes a frame's length up
+// to one.
 TEST fast_lengths(void) {
-	ASSERT_EQ_FMT(1024u, fft_analyzer_fast_length(1024), "%u");
-	ASSERT_EQ_FMT(1080u, fft_analyzer_fast_length(1025), "%u");
-	ASSERT_EQ_FMT(108000u, fft_analyzer_fast_length(107563), "%u");
-	ASSERT_EQ_FMT(2u, fft_analyzer_fast_length(0), "%u");
+	ASSERT_EQ_FMT(1024u, fft_fast_length(1024), "%u");
+	ASSERT_EQ_FMT(1152u, fft_fast_length(1025), "%u");
+	ASSERT_EQ_FMT(108000u, fft_fast_length(107563), "%u");
+	ASSERT_EQ_FMT(32u, fft_fast_length(0), "%u");
+	fft_analyzer_t *fa = make(1000, FFT_ANALYZER_MIX, 0, WINDOW_FUNCTION_HANN, 0.0f, 1);
+	ASSERT_EQ_FMT(1024u, fft_analyzer_fft_len(fa), "%u");
+	fft_analyzer_free(&fa);
 	PASS();
 }
 

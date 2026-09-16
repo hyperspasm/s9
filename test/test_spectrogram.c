@@ -197,7 +197,7 @@ TEST new_frame_starts_over(void) {
 	c.f_min = 200.0f;
 	spectrogram_set_config(sg, &c);
 	unsigned SHORTER = spectrogram_frame(sg);
-	ASSERT_EQ_FMT(10800u, SHORTER, "%u");
+	ASSERT_EQ_FMT(11520u, SHORTER, "%u");
 	for (unsigned h = 1; h < hops_to_fill(SHORTER); h++) {
 		feed(sg, 1, &offset);
 		render(sg);
