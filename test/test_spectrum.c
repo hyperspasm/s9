@@ -1,8 +1,8 @@
 // The spectrum end to end: audio in, frames rendered on SDL's software
 // renderer. Runs without a display. The frame follows the resolution at
 // the bottom of the range, a configuration that makes no sense falls back
-// to the default, and a tone lights the plot. What the bins hold is tested
-// on the analyzer.
+// to the default, and a tone peaks at its frequency. What the bins hold is
+// tested on the analyzer.
 #include "greatest.h"
 #include "spectrum.h"
 #include "fft_analyzer.h"
@@ -51,6 +51,36 @@ static unsigned lit_pixels(void) {
 	for (int i = 0; i < WIDTH * HEIGHT; i++)
 		if ((px[i] & 0xffffff00) != 0) lit++;
 	return lit;
+}
+
+// The x of each white line two or three pixels wide crossing the row at
+// y, left to right: the plot's frame at either end and the decades between.
+static unsigned white_lines(int y, int *xs, unsigned max) {
+	const uint32_t *px = (const uint32_t *)surface->pixels + (size_t)y * WIDTH;
+	unsigned lines = 0;
+	int start = -1;
+	for (int x = 0; x <= WIDTH; x++) {
+		int white = x < WIDTH && (px[x] & 0xffffff00) == 0xffffff00;
+		if (white && start < 0) start = x;
+		if (!white && start >= 0) {
+			if (x - start >= 2 && x - start <= 3 && lines < max) xs[lines++] = start + 1;
+			start = -1;
+		}
+	}
+	return lines;
+}
+
+// the x of the topmost pixel of the trace's color
+static int trace_peak_x(void) {
+	const uint32_t *px = surface->pixels;
+	for (int y = 0; y < HEIGHT; y++) {
+		for (int x = 0; x < WIDTH; x++) {
+			Uint8 r, g, b;
+			SDL_GetRGB(px[y * WIDTH + x], surface->format, &r, &g, &b);
+			if (g > 0x40 && r < g / 2 && b < g) return x;
+		}
+	}
+	return -1;
 }
 
 // The frame is the shortest fast length that holds the window of a ridge
@@ -115,16 +145,28 @@ TEST config_is_kept_sane(void) {
 	PASS();
 }
 
-// A tone through a second of frames lights the plots beyond their graticules.
-TEST a_tone_lights_the_plot(void) {
+// A tone through a second of frames lights the plot beyond its graticule,
+// and its peak sits on the graticule's line for its frequency: of the
+// white lines crossing a row of the plot, the frame's two edges and the
+// three decades between them, the middle one is 1 kHz, and the trace is
+// highest within a few pixels of it.
+TEST a_tone_peaks_at_its_frequency(void) {
 	spectrum_t *sp = streaming();
 	unsigned offset = 0;
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	spectrum_render(sp, renderer);
 	unsigned before = lit_pixels();
+	int xs[8];
+	unsigned lines = 0;
+	for (int y = HEIGHT / 2; y < HEIGHT / 2 + 40 && lines != 5; y++) lines = white_lines(y, xs, 8);
+	ASSERT_EQ_FMT(5u, lines, "%u");
+
 	for (int i = 0; i < 60; i++) frame(sp, &offset);
 	ASSERT(lit_pixels() > before);
+	int peak = trace_peak_x();
+	ASSERT(peak >= 0);
+	ASSERT_IN_RANGE(xs[2], peak, 3);
 	spectrum_free(&sp);
 	PASS();
 }
@@ -145,6 +187,6 @@ int main(int argc, char **argv) {
 	RUN_TEST(frame_follows_the_resolution);
 	RUN_TEST(channels_are_named);
 	RUN_TEST(config_is_kept_sane);
-	RUN_TEST(a_tone_lights_the_plot);
+	RUN_TEST(a_tone_peaks_at_its_frequency);
 	GREATEST_MAIN_END();
 }

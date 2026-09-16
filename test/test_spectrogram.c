@@ -106,6 +106,35 @@ static unsigned lit_runs_down(int x) {
 // the hops it takes to fill a frame of n samples
 static unsigned hops_to_fill(unsigned n) { return (n + HOP - 1) / HOP; }
 
+// The x of each white line two or three pixels wide crossing the row at
+// y, left to right: the plot's frame at either end and the decades between.
+static unsigned white_lines(int y, int *xs, unsigned max) {
+	const uint32_t *px = (const uint32_t *)surface->pixels + (size_t)y * WIDTH;
+	unsigned lines = 0;
+	int start = -1;
+	for (int x = 0; x <= WIDTH; x++) {
+		int white = x < WIDTH && (px[x] & 0xffffff00) == 0xffffff00;
+		if (white && start < 0) start = x;
+		if (!white && start >= 0) {
+			if (x - start >= 2 && x - start <= 3 && lines < max) xs[lines++] = start + 1;
+			start = -1;
+		}
+	}
+	return lines;
+}
+
+// the x of the brightest pixel that is not a grey: the image's, not the graticule's
+static int brightest_x(void) {
+	const uint32_t *px = surface->pixels;
+	int best = -1, x_best = -1;
+	for (int i = 0; i < WIDTH * HEIGHT; i++) {
+		Uint8 r, g, b;
+		SDL_GetRGB(px[i], surface->format, &r, &g, &b);
+		if ((r != g || g != b) && r + g + b > best) { best = r + g + b; x_best = i % WIDTH; }
+	}
+	return x_best;
+}
+
 // No row until the frame has filled; then one per hop, whether the hops
 // come one per display frame or three at once, and a display frame
 // without audio writes none. Rows light the plot, even fed faster than
@@ -234,6 +263,38 @@ TEST grid_is_off_until_turned_on(void) {
 	PASS();
 }
 
+// A tone shows at its frequency: with the grid on, the white lines crossing
+// a row of the plot are the frame's two edges and the three decades between
+// them, the middle one 1 kHz; with the grid off again and a 1 kHz tone
+// written, the brightest pixel of the image is within a few pixels of it.
+TEST a_tone_shows_at_its_frequency(void) {
+	spectrogram_config_t c = default_spectrogram_config;
+	c.hop_ms = HOP_MS;
+	c.f_min = 50.0f;
+	c.grid = 1;
+	spectrogram_t *sg = spectrogram_new(&c);
+	spectrogram_prepare_to_stream(sg, &(s9_audio_stream_config_t){
+		.audio_format = S9_FORMAT_FLOAT32, .sample_rate = FS, .channels = 2,
+		.buffer_frames = BUFFER, .samples_per_display_frame = FRAME,
+	});
+	render(sg);
+	int xs[8];
+	unsigned lines = 0;
+	for (int y = HEIGHT / 2; y < HEIGHT / 2 + 40 && lines != 5; y++) lines = white_lines(y, xs, 8);
+	ASSERT_EQ_FMT(5u, lines, "%u");
+
+	c = *spectrogram_config(sg);
+	c.grid = 0;
+	spectrogram_set_config(sg, &c);
+	unsigned offset = 0;
+	for (unsigned h = 0; h < hops_to_fill(spectrogram_frame(sg)) + 20; h += 2) { feed(sg, 2, &offset); render(sg); }
+	ASSERT(spectrogram_rows(sg) >= 20);
+	ASSERT_IN_RANGE(xs[2], brightest_x(), 3);
+
+	spectrogram_free(&sg);
+	PASS();
+}
+
 // With auto_range on, the top follows the material at the configured rates:
 // a tone at -6 dB brings max_db down from 0 at the fall rate until it sits
 // on the tone; a louder tone lifts it at the rise rate once enough of the
@@ -310,6 +371,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(new_frame_starts_over);
 	RUN_TEST(scale_change_recolors_the_history);
 	RUN_TEST(grid_is_off_until_turned_on);
+	RUN_TEST(a_tone_shows_at_its_frequency);
 	RUN_TEST(auto_range_follows_the_material);
 	RUN_TEST(config_is_kept_sane);
 	GREATEST_MAIN_END();
