@@ -5,6 +5,7 @@
 #include <getopt.h>
 
 #include "s9_app.h"
+#include "s9_home.h"
 #include "s9_git_version.h"
 
 // version info (S9_VERSION is defined by CMake, S9_GIT_HASH by the generated header)
@@ -22,22 +23,14 @@
 #define DEFAULT_SAMPLE_RATE 44100
 #define DEFAULT_PORT 8080
 
-// function to load configuration from ~/.s9rc
-void load_config_file(s9_app_config_t *config) {
-	char *home = getenv("HOME");
-	if (home == NULL) {
-		return;
-	}
-	
-	char path[1024];
-	snprintf(path, sizeof(path), "%s/.s9rc", home);
-	
-	FILE *file = fopen(path, "r");
+// load the configuration from the settings file in s9's home, when there is one
+void load_config_file(s9_app_config_t *config, s9_home_t *home) {
+	FILE *file = s9_home_open_settings(home, "r");
 	if (file == NULL) {
 		return;
 	}
 	
-	S9_LOG_INFO("parsing %s", path);
+	S9_LOG_INFO("parsing %s/settings", s9_home_directory(home));
 	
 	char line[256];
 	while (fgets(line, sizeof(line), file) != NULL) {
@@ -93,11 +86,12 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
 	fprintf(stdout, "  -p, --port <port>                Set the parameter server and web interface port (default: %d)\n", DEFAULT_PORT);
 	fprintf(stdout, "  --www_dir <dir>                  Serve the web interface from a directory instead of the built-in files\n");
+	fprintf(stdout, "  --home <dir>                     Keep the settings and the cache in this directory (default: S9_HOME, ./.s9 if it exists, else ~/.s9)\n");
 	fprintf(stdout, "  --help                           Display this help message\n");
 	fprintf(stdout, "  --version                        Display version information\n");
 	fprintf(stdout, "\nConfiguration File:\n");
-	fprintf(stdout, "  The application can also be configured using a ~/.s9rc file.\n");
-	fprintf(stdout, "  The configuration file supports the following key-value pairs:\n");
+	fprintf(stdout, "  The application can also be configured using the settings file in its home directory.\n");
+	fprintf(stdout, "  The settings file supports the following key-value pairs:\n");
 	fprintf(stdout, "    window_width=<width>\n");
 	fprintf(stdout, "    window_height=<height>\n");
 	fprintf(stdout, "    log_level=<log_level>\n");
@@ -138,14 +132,23 @@ int main(int argc, const char * argv[]) {
 		.www_dir = NULL, // built-in files
 	};
 
-	// load configuration from file
-	load_config_file(&config);
+	// the home directory: an option on the command line first, so that the settings come from it
+	const char *home_override = NULL;
+	for (int i = 1; i + 1 < argc; i++) {
+		if (strcmp(argv[i], "--home") == 0) home_override = argv[i + 1];
+	}
+	s9_home_t *home = s9_home_new(home_override);
+	if (home == NULL) return 1;
+
+	// load configuration from the settings file
+	load_config_file(&config, home);
 
 	// define long options
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 0},
 		{"version", no_argument, 0, 0},
 		{"www_dir", required_argument, 0, 0},
+		{"home", required_argument, 0, 0},
 		{"window_width", required_argument, 0, 'w'},
 		{"window_height", required_argument, 0, 'h'},
 		{"log_level", required_argument, 0, 'l'},
@@ -208,6 +211,7 @@ int main(int argc, const char * argv[]) {
 	
 	s9_app_destroy();
 
+	s9_home_free(&home);
 	free(config.audio_device);
 	free(config.www_dir);
 

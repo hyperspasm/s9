@@ -228,6 +228,14 @@ target_include_directories(test_spectrum PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_spectrum PkgConfig::SDL2 PkgConfig::SDL2_TTF PkgConfig::FFTW3F m)
 add_test(NAME spectrum COMMAND test_spectrum)
 
+add_executable(test_home test_home.c
+    ${CMAKE_SOURCE_DIR}/src/s9_home.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_home PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_home PkgConfig::SDL2)
+add_test(NAME home COMMAND test_home)
+
 add_executable(test_www test_www.c)
 target_link_libraries(test_www s9_www)
 target_compile_definitions(test_www PRIVATE S9_WWW_SRC="${CMAKE_SOURCE_DIR}/www")

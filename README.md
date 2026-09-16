@@ -17,9 +17,10 @@ s9 [options]
 | `-l, --log_level` | Log verbosity (0-3) | 1 |
 | `-p, --port` | Port of the parameter server and the web interface | 8080 |
 | `--www_dir` | Serve the web interface from a directory instead of the files built into the binary | built-in |
+| `--home` | The directory s9 keeps its settings and its cache in | `S9_HOME`, else `./.s9` if it exists, else `~/.s9` |
 | `--version` | Print version and git hash, then exit | |
 
-Settings can also be specified in `~/.s9rc` as key-value pairs (e.g. `sample_rate=48000`). Command-line arguments override the config file.
+Settings can also be specified in the `settings` file of s9's home directory as key-value pairs (e.g. `sample_rate=48000`), one per line, `#` starting a comment. Command-line arguments override the file.
 
 Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
 
