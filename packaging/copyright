@@ -4,8 +4,10 @@ Upstream-Contact: Shea Ako <commits@hyperspasm.com>
 
 Files: *
 Copyright: 2024-2026 Shea Ako
-License: proprietary
- Shared by the author with the people it is given to. Not for redistribution.
+License: all-rights-reserved
+ Shared by the author with the people it is given to. No license to copy,
+ modify or redistribute it is granted yet; one is still to be chosen. See
+ LICENSE in the source tree.
 
 Files: src/Roboto-Regular.h
 Copyright: Christian Robertson, Google

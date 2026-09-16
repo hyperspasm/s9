@@ -109,3 +109,7 @@ sudo apt install ./build/s9_0.0.1_arm64.deb
 ```
 
 The version is the last tag of the form `vX.Y.Z`. A build past the tag carries the commits since and the hash, as in `0.0.1+3.g9734b76`, which apt orders after the tag and before the next one; uncommitted changes add `+dirty`. CMake reads the version when it configures, which a commit triggers again; after tagging, run `cmake -S . -B build` before packaging.
+
+## License
+
+Copyright Shea Ako, all rights reserved for now; see [LICENSE](LICENSE). The third-party pieces compiled in, and their licenses, are listed in [packaging/copyright](packaging/copyright).
