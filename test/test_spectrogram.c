@@ -76,6 +76,28 @@ static unsigned colored_pixels(void) {
 	return colored;
 }
 
+// lit pixels in the rows from y0 up to y1
+static unsigned lit_pixels_in_rows(int y0, int y1) {
+	unsigned lit = 0;
+	const uint32_t *px = surface->pixels;
+	for (int i = y0 * WIDTH; i < y1 * WIDTH; i++)
+		if ((px[i] & 0xffffff00) != 0) lit++;
+	return lit;
+}
+
+// the separate runs of lit pixels down the column at x
+static unsigned lit_runs_down(int x) {
+	unsigned runs = 0;
+	int in = 0;
+	const uint32_t *px = surface->pixels;
+	for (int y = 0; y < HEIGHT; y++) {
+		int lit = (px[y * WIDTH + x] & 0xffffff00) != 0;
+		if (lit && !in) runs++;
+		in = lit;
+	}
+	return runs;
+}
+
 // the hops it takes to fill a frame of n samples
 static unsigned hops_to_fill(unsigned n) { return (n + HOP - 1) / HOP; }
 
@@ -182,6 +204,31 @@ TEST scale_change_recolors_the_history(void) {
 	PASS();
 }
 
+// The grid is off unless asked for: nothing crosses an empty plot but its
+// frame, so down the middle the frame's top and bottom edges are the only
+// marks. Turned on, the grid has a line at every labelled second. The
+// labels below the plot are there either way, unchanged.
+TEST grid_is_off_until_turned_on(void) {
+	enum { LABEL_ROWS = 24 };   // the bottom rows, holding the frequency labels and nothing else
+	spectrogram_t *sg = streaming(100.0f);
+	render(sg);
+	unsigned without_grid = lit_pixels();
+	unsigned labels = lit_pixels_in_rows(HEIGHT - LABEL_ROWS, HEIGHT);
+	ASSERT(labels > 0);
+	ASSERT_EQ_FMT(2u, lit_runs_down(WIDTH / 2), "%u");
+
+	spectrogram_config_t c = *spectrogram_config(sg);
+	c.grid = 1;
+	spectrogram_set_config(sg, &c);
+	render(sg);
+	ASSERT(lit_runs_down(WIDTH / 2) > 2);
+	ASSERT_EQ_FMT(labels, lit_pixels_in_rows(HEIGHT - LABEL_ROWS, HEIGHT), "%u");
+	ASSERT(lit_pixels() > without_grid);
+
+	spectrogram_free(&sg);
+	PASS();
+}
+
 // A configuration that makes no sense falls back to the default.
 TEST config_is_kept_sane(void) {
 	spectrogram_t *sg = spectrogram_new(NULL);
@@ -222,6 +269,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(rows_follow_the_hops);
 	RUN_TEST(new_frame_starts_over);
 	RUN_TEST(scale_change_recolors_the_history);
+	RUN_TEST(grid_is_off_until_turned_on);
 	RUN_TEST(config_is_kept_sane);
 	GREATEST_MAIN_END();
 }

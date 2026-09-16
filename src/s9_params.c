@@ -135,6 +135,8 @@ static void set_spectrogram_channel(void *ctx, int32_t val) { spectrogram_config
 static int32_t get_spectrogram_channel(void *ctx) { return channel_to_param(spectrogram_config(ctx)->channel); }
 static void set_spectrogram_palette(void *ctx, uint32_t val) { spectrogram_config_t c = *spectrogram_config(ctx); c.palette = (palette_t)val; spectrogram_set_config(ctx, &c); }
 static uint32_t get_spectrogram_palette(void *ctx) { return (uint32_t)spectrogram_config(ctx)->palette; }
+static void set_spectrogram_grid(void *ctx, bool val) { spectrogram_config_t c = *spectrogram_config(ctx); c.grid = val; spectrogram_set_config(ctx, &c); }
+static bool get_spectrogram_grid(void *ctx) { return spectrogram_config(ctx)->grid != 0; }
 
 #endif /* PN_SCHEMA_ONLY */
 
@@ -208,6 +210,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	spec[7] = pn_float("min_db",          spectrogram, PN_FN(set_spectrogram_min_db),          PN_FN(get_spectrogram_min_db),          -140.0f, 0.0f, 0);
 	spec[8] = pn_float("max_db",          spectrogram, PN_FN(set_spectrogram_max_db),          PN_FN(get_spectrogram_max_db),          -100.0f, 40.0f, 0);
 	spec[9] = pn_enum("palette",          spectrogram, PN_FN(set_spectrogram_palette),         PN_FN(get_spectrogram_palette),         palette_names, PALETTE_COUNT);
+	spec[10] = pn_bool("grid",            spectrogram, PN_FN(set_spectrogram_grid),            PN_FN(get_spectrogram_grid));
 
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 

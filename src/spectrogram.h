@@ -35,8 +35,10 @@ typedef struct {
 	float min_db, max_db;            // the color scale's floor and full brightness, dB relative to a full-scale sine
 	palette_t palette;               // the color scale between them
 	float f_min, f_max;              // Hz, the range across the plot; the top is held within the stream's Nyquist
-	SDL_Color major_color;           // labels and the decades' ticks
-	SDL_Color minor_color;           // the other ticks and the frame
+	int grid;                        // lines across the plot at the decades, the steps between them, and the
+	                                 // seconds; the frame and the labels are drawn without it too
+	SDL_Color major_color;           // the labels, the decades' lines, and the frame
+	SDL_Color minor_color;           // the other lines and the ticks
 } spectrogram_config_t;
 
 static const spectrogram_config_t default_spectrogram_config = {
@@ -50,8 +52,9 @@ static const spectrogram_config_t default_spectrogram_config = {
 	.palette = PALETTE_INFERNO,
 	.f_min = 20.0f,
 	.f_max = 20000.0f,
+	.grid = 0,
 	.major_color = S9_WHITE,
-	.minor_color = (SDL_Color){ .r = 0xff, .g = 0xff, .b = 0xff, .a = 0x80 },
+	.minor_color = S9_WHITE,
 };
 
 // create a spectrogram; NULL takes the default configuration

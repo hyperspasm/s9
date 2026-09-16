@@ -9,10 +9,6 @@ typedef struct fresp_graph {
 	SDL_Rect viewport;
 	
 	fresp_graph_config_t config;
-	float log10_min_freq;
-	float log10_max_freq;
-	
-	float log10_freq_scale;
 	int font_size;
 	SDL_Rect plot_rect;
 	SDL_Texture *graticule_texture;
@@ -33,9 +29,7 @@ void fresp_graph_set_config(fresp_graph_t *frg, fresp_graph_config_t *config) {
 	} else {
 		frg->config = default_fresp_graph_config;
 	}
-	
-	frg->log10_min_freq = log10f(frg->config.min_freq);
-	frg->log10_max_freq = log10f(frg->config.max_freq);
+
 	frg->renderer = NULL;
 }
 
@@ -86,6 +80,15 @@ static graph_db_axis_t db_axis(const fresp_graph_t *frg) {
 	};
 }
 
+static graph_hz_axis_t hz_axis(const fresp_graph_t *frg) {
+	return (graph_hz_axis_t){
+		.min_hz = frg->config.min_freq,
+		.max_hz = frg->config.max_freq,
+		.major_color = frg->config.major_color,
+		.minor_color = frg->config.minor_color,
+	};
+}
+
 // measures unit labels and sets plot_rect member accordingly
 static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 	int top_margin = 0;
@@ -93,47 +96,16 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 	int bottom_margin = 0;
 	int right_margin = 0;
 	
-	// set margins to make room for frequency labels 
+	// set margins to make room for frequency labels
 	{
-		float freq = frg->config.min_freq;
-		while(freq < frg->config.max_freq) {
-			float log10_freq = log10f(freq);
-			float step = powf(10.f, floorf(log10_freq));
-			
-			if(freq == step) {
-				// major tick
-				char label[32];
-				graph_format_hz(label, sizeof(label), freq);
-				int width, height;
-				int ret = TTF_SizeUTF8(font, label, &width, &height);
-				if(ret == 0) {
-					if(bottom_margin < height) {
-						bottom_margin = height;
-					}
-				}
-				CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", label);
-			}
-			
-			freq = step * (1.f + floorf(freq / step));
+		graph_hz_axis_t axis = hz_axis(frg);
+		int height, right;
+		graph_hz_axis_measure(&axis, font, &height, &right);
+		if(bottom_margin < height) {
+			bottom_margin = height;
 		}
-		
-		// handle max_freq
-		if(powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq) {
-			// major tick
-			char label[32];
-			graph_format_hz(label, sizeof(label), frg->config.max_freq);
-			int width, height;
-			int ret = TTF_SizeUTF8(font, label, &width, &height);
-			if(ret == 0) {
-				if(bottom_margin < height) {
-					bottom_margin = height;
-				}
-				
-				if(right_margin < width / 2) {
-					right_margin = width / 2;
-				}
-			}
-			CHECK_ERROR(ret == 0, , "failed to measure string \"%s\"", label);
+		if(right_margin < right) {
+			right_margin = right;
 		}
 	}
 	
@@ -171,86 +143,11 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	CHECK_ERROR(font != NULL, return, "unable to create font");
 	
 	compute_plot_rect(frg, font);
-	
-	frg->log10_freq_scale = frg->plot_rect.w / (frg->log10_max_freq - frg->log10_min_freq);
-	
+
 	// draw frequency graticule
 	{
-		float freq = frg->config.min_freq;
-		while(freq < frg->config.max_freq) {
-			float log10_freq = log10f(freq);
-			float step = powf(10.f, floorf(log10_freq));
-			float x = (log10_freq - frg->log10_min_freq) * frg->log10_freq_scale;
-			
-			if(freq == step) {
-				// major tick
-				float line_width = 2.0;
-				sdl_polygon_t *line = rect_new(frg->plot_rect.x + x - line_width * 0.5f,
-											   frg->plot_rect.y - line_width * 0.5f,
-											   line_width,
-											   frg->plot_rect.h + line_width,
-											   frg->config.major_color);
-				if(line) {
-					SDL_RENDER_GEOMETRY_POLYGON(renderer, line);
-					sdl_polygon_free(&line);
-				}
-				
-				char label[32];
-				graph_format_hz(label, sizeof(label), freq);
-				draw_sdl_render_text_at_position(renderer,
-										font,
-										label,
-										ANCHOR_TOP_MIDDLE,
-										frg->config.major_color,
-										frg->plot_rect.x + x,
-										frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
-				
-			} else {
-				float x1, x2, y1, y2;
-				// minor tick
-				SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
-				x1 = x2  = frg->plot_rect.x + x;
-				y1 = frg->plot_rect.y;
-				y2 = frg->plot_rect.y + frg->plot_rect.h;
-				SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
-			}
-			
-			freq = step * (1.f + floorf(freq / step));
-		}
-		
-		// draw max_freq
-		if(powf(10.f, floorf(frg->log10_max_freq)) == frg->config.max_freq) {
-			// major tick
-			float line_width = 2.0;
-			sdl_polygon_t *line = rect_new(frg->plot_rect.x + frg->plot_rect.w - line_width * 0.5f,
-										   frg->plot_rect.y - line_width * 0.5f,
-										   line_width,
-										   frg->plot_rect.h + line_width,
-										   frg->config.major_color);
-			if(line) {
-				SDL_RENDER_GEOMETRY_POLYGON(renderer, line);
-				sdl_polygon_free(&line);
-			}
-
-			char label[32];
-			graph_format_hz(label, sizeof(label), frg->config.max_freq);
-			draw_sdl_render_text_at_position(renderer,
-									font,
-									label,
-									ANCHOR_TOP_MIDDLE,
-									frg->config.major_color,
-									frg->plot_rect.x + frg->plot_rect.w,
-									frg->plot_rect.y + frg->plot_rect.h + LABEL_MARGIN);
-			
-		} else {
-			float x1, x2, y1, y2;
-			// minor tick
-			SDL_SET_RENDER_DRAW_COLOR(renderer, &frg->config.minor_color);
-			x1 = x2  = frg->plot_rect.x + frg->plot_rect.w;
-			y1 = frg->plot_rect.y;
-			y2 = frg->plot_rect.y + frg->plot_rect.h;
-			SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
-		}
+		graph_hz_axis_t axis = hz_axis(frg);
+		graph_hz_axis_draw(&axis, renderer, font, &frg->plot_rect, LABEL_MARGIN);
 	}
 	
 	// draw db graticule

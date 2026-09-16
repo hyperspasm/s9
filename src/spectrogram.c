@@ -21,9 +21,10 @@
 #define CLOCK_TC 0.2           // seconds, the time constant of the audio clock's smoothing
 #define CLOCK_SNAP_ROWS 4      // the clock re-seats when the arrivals get this far from its estimate: after a stall
 #define GRAPH_MARGIN 10        // between the plot with its labels and the viewport
-#define LABEL_MARGIN 8         // between the labels and the ticks
-#define TICK 6                 // the ticks' length
+#define LABEL_MARGIN 8         // between the labels and the plot
 #define FONT_SIZE 16
+#define MAJOR_MIN_PX 60        // seconds are marked no closer than this, with labels
+#define MINOR_MIN_PX 6         // and ticked no closer than this between them
 
 struct spectrogram {
 	spectrogram_config_t config;
@@ -38,6 +39,7 @@ struct spectrogram {
 	uint32_t frame;                  // the frame's length, as the range and the resolution set it
 	uint64_t consumed;               // frames made into rows since streaming was prepared
 	float f_hi;                      // the top of the range, within the stream's Nyquist
+	char label[64];                  // the channel's name, shown in the plot's corner
 
 	// the audio clock: the wall clock's ramp at the stream's rate plus the
 	// smoothed difference between what has arrived and that ramp
@@ -82,6 +84,7 @@ void spectrogram_set_config(spectrogram_t *sg, const spectrogram_config_t *confi
 	if (!(sg->config.max_db > sg->config.min_db)) { sg->config.min_db = d->min_db; sg->config.max_db = d->max_db; }
 	if ((unsigned)sg->config.palette >= PALETTE_COUNT) sg->config.palette = d->palette;
 	if (!(sg->config.f_min > 0.0f && sg->config.f_max > sg->config.f_min)) { sg->config.f_min = d->f_min; sg->config.f_max = d->f_max; }
+	sg->config.grid = sg->config.grid != 0;
 	sg->config_changed = 1;
 }
 
@@ -136,6 +139,7 @@ static void apply_config(spectrogram_t *sg) {
 	fft_analyzer_config_t ac = analyzer_config(sg);
 	fft_analyzer_set_config(sg->analyzer, &ac);
 	sg->f_hi = fminf(sg->config.f_max, 0.5f * (float)sg->stream.sample_rate);
+	s9_channel_label(sg->config.channel, sg->stream.channels, sg->label, sizeof sg->label);
 	sg->axes_drawn = 0;
 }
 
@@ -285,35 +289,63 @@ static void free_textures(spectrogram_t *sg) {
 	free(sg->pixels); sg->pixels = NULL;
 }
 
-// the x of a frequency across the plot: each pixel column is a band of the readout, its centre at the pixel's
-static int frequency_x(const spectrogram_t *sg, double hz) {
-	double lo = log((double)sg->config.f_min), hi = log((double)sg->f_hi);
-	return sg->plot.x + (int)lround((log(hz) - lo) / (hi - lo) * sg->plot.w - 0.5);
+static graph_hz_axis_t hz_axis(const spectrogram_t *sg) {
+	return (graph_hz_axis_t){
+		.min_hz = sg->config.f_min,
+		.max_hz = sg->f_hi,
+		.major_color = sg->config.major_color,
+		.minor_color = sg->config.minor_color,
+	};
 }
 
 // room for the time labels on the left, the frequency labels below
 static void compute_plot(spectrogram_t *sg, TTF_Font *font) {
-	int time_w = 0, time_h = 0, freq_w = 0, freq_h = 0;
-	char label[32];
-	TTF_SizeUTF8(font, "10 s", &time_w, &time_h);
-	graph_format_hz(label, sizeof label, sg->f_hi);
-	TTF_SizeUTF8(font, label, &freq_w, &freq_h);
-	int left = GRAPH_MARGIN + time_w + LABEL_MARGIN + TICK;
-	int bottom = GRAPH_MARGIN + freq_h + LABEL_MARGIN + TICK;
+	int time_w = 0, time_h = 0, hz_h = 0, hz_right = 0;
+	TTF_SizeUTF8(font, "100 s", &time_w, &time_h);
+	graph_hz_axis_t axis = hz_axis(sg);
+	graph_hz_axis_measure(&axis, font, &hz_h, &hz_right);
+	int left = GRAPH_MARGIN + time_w + LABEL_MARGIN;
+	int bottom = GRAPH_MARGIN + LABEL_MARGIN + hz_h;
 	int top = GRAPH_MARGIN + time_h / 2;
-	int right = GRAPH_MARGIN + freq_w / 2;
+	int right = GRAPH_MARGIN + hz_right;
 	sg->plot = (SDL_Rect){ left, top, sg->viewport.w - left - right, sg->viewport.h - top - bottom };
 }
 
-static void tick_down(SDL_Renderer *renderer, int x, int y, int major, const spectrogram_config_t *c) {
-	SDL_SET_RENDER_DRAW_COLOR(renderer, major ? &c->major_color : &c->minor_color);
-	SDL_RenderDrawLine(renderer, x, y, x, y + TICK);
-	if (major) SDL_RenderDrawLine(renderer, x + 1, y, x + 1, y + TICK);
+// Time up the left, in the dB axis's manner: seconds marked by lines
+// across the plot with their labels, no closer than MAJOR_MIN_PX, at the
+// first of 1, 2, 5, 10, 20 or 50 seconds that keeps them so, and ticked in
+// fifths or halves between where those stay MINOR_MIN_PX apart. The lines
+// and ticks belong to the grid; the labels are drawn without it too.
+static void draw_time_axis(const spectrogram_t *sg, SDL_Renderer *renderer, TTF_Font *font) {
+	static const double majors[] = { 1.0, 2.0, 5.0, 10.0, 20.0, 50.0 };
+	double rows_per_second = (double)sg->stream.sample_rate / (double)sg->hop;
+	double major = majors[sizeof majors / sizeof *majors - 1];
+	for (unsigned i = 0; i < sizeof majors / sizeof *majors; i++) {
+		if (majors[i] * rows_per_second >= MAJOR_MIN_PX) { major = majors[i]; break; }
+	}
+	int per_major = major / 5.0 * rows_per_second >= MINOR_MIN_PX ? 5 : major / 2.0 * rows_per_second >= MINOR_MIN_PX ? 2 : 1;
+	double minor = major / per_major;
+
+	const spectrogram_config_t *c = &sg->config;
+	int below = sg->plot.y + sg->plot.h;
+	for (int i = 1; ; i++) {
+		int y = below - 1 - (int)lround(i * minor * rows_per_second);
+		if (y < sg->plot.y) break;
+		SDL_SET_RENDER_DRAW_COLOR(renderer, &c->minor_color);
+		if (i % per_major == 0) {
+			if (c->grid) SDL_RenderDrawLine(renderer, sg->plot.x, y, sg->plot.x + sg->plot.w, y);
+			char label[32];
+			snprintf(label, sizeof label, "%g s", i * minor);
+			draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_MIDDLE_RIGHT, c->major_color, sg->plot.x - LABEL_MARGIN, y);
+		} else if (c->grid) {
+			SDL_RenderDrawLine(renderer, sg->plot.x, y, sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH, y);
+		}
+	}
 }
 
-// Frequency across the bottom: the decades labelled, the steps between
-// them ticked. Time up the left: a tick and its seconds at every second
-// of rows above the newest.
+// The graticule as the spectrum's graph draws it: frequency across the
+// bottom, time up the left, a frame, and the channel's name in the
+// plot's corner. Without the grid, the labels and the frame alone.
 static void draw_axes(spectrogram_t *sg, SDL_Renderer *renderer) {
 	if (sg->axes) SDL_DestroyTexture(sg->axes);
 	sg->axes = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, sg->viewport.w, sg->viewport.h);
@@ -324,43 +356,20 @@ static void draw_axes(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_RenderClear(renderer);
 
 	const spectrogram_config_t *c = &sg->config;
-	int below = sg->plot.y + sg->plot.h;
 	TTF_Font *font = s9_open_font(FONT_SIZE);
 	if (font) {
-		char label[32];
-		float freq = c->f_min;
-		while (freq < sg->f_hi) {
-			float step = powf(10.0f, floorf(log10f(freq)));
-			int major = freq == step;
-			int x = frequency_x(sg, freq);
-			tick_down(renderer, x, below, major, c);
-			if (major) {
-				graph_format_hz(label, sizeof label, freq);
-				draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_TOP_MIDDLE, c->major_color, x, below + TICK + LABEL_MARGIN);
-			}
-			freq = step * (1.0f + floorf(freq / step));
-		}
-		int major = powf(10.0f, floorf(log10f(sg->f_hi))) == sg->f_hi;
-		int x = frequency_x(sg, sg->f_hi);
-		tick_down(renderer, major ? x - 1 : x, below, major, c);
-		if (major) {
-			graph_format_hz(label, sizeof label, sg->f_hi);
-			draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_TOP_MIDDLE, c->major_color, x, below + TICK + LABEL_MARGIN);
-		}
-
-		double rows_per_second = (double)sg->stream.sample_rate / (double)sg->hop;
-		for (int s = 1; ; s++) {
-			int y = below - 1 - (int)lround(s * rows_per_second);
-			if (y < sg->plot.y) break;
-			SDL_SET_RENDER_DRAW_COLOR(renderer, &c->minor_color);
-			SDL_RenderDrawLine(renderer, sg->plot.x - TICK, y, sg->plot.x - 1, y);
-			snprintf(label, sizeof label, "%d s", s);
-			draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_MIDDLE_RIGHT, c->major_color, sg->plot.x - TICK - LABEL_MARGIN, y);
+		graph_hz_axis_t axis = hz_axis(sg);
+		if (c->grid) graph_hz_axis_draw(&axis, renderer, font, &sg->plot, LABEL_MARGIN);
+		else graph_hz_axis_draw_labels(&axis, renderer, font, &sg->plot, LABEL_MARGIN);
+		draw_time_axis(sg, renderer, font);
+		if (sg->label[0]) {
+			draw_sdl_render_text_at_position(renderer, font, sg->label, ANCHOR_TOP_LEFT, c->major_color,
+			                                 sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH + 4, sg->plot.y + 4);
 		}
 		TTF_CloseFont(font);
 	}
 
-	sdl_polygon_t *frame = frame_new(sg->plot.x - 1, sg->plot.y - 1, sg->plot.w + 2, sg->plot.h + 2, 1.0f, c->minor_color);
+	sdl_polygon_t *frame = frame_new_from_rect(sg->plot, 2.0, c->major_color);
 	if (frame) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
