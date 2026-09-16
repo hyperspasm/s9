@@ -45,6 +45,8 @@ uint32_t constant_q_columns(const constant_q_t *cq);
 uint32_t constant_q_window(const constant_q_t *cq, uint32_t column);     // a column's window length, frames
 uint32_t constant_q_readouts(const constant_q_t *cq, uint32_t column);   // the frequencies a column is read at
 uint32_t constant_q_taps(const constant_q_t *cq);                        // taps in all: the cost of a readout
+uint32_t constant_q_levels(const constant_q_t *cq);                      // the transforms a readout makes, longest first
+uint32_t constant_q_level_length(const constant_q_t *cq, uint32_t level);
 
 // The columns' levels in dB relative to a full-scale sine, from a frame of
 // n samples, the audio around the instant the columns are read at.

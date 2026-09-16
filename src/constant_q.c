@@ -229,6 +229,8 @@ uint32_t constant_q_columns(const constant_q_t *cq) { return cq->columns; }
 uint32_t constant_q_window(const constant_q_t *cq, uint32_t column) { return column < cq->columns ? cq->column[column].window : 0; }
 uint32_t constant_q_readouts(const constant_q_t *cq, uint32_t column) { return column < cq->columns ? cq->column[column].count : 0; }
 uint32_t constant_q_taps(const constant_q_t *cq) { return cq->tap_count; }
+uint32_t constant_q_levels(const constant_q_t *cq) { return cq->levels; }
+uint32_t constant_q_level_length(const constant_q_t *cq, uint32_t level) { return level < cq->levels ? cq->level[level].n : 0; }
 
 void constant_q_readout(constant_q_t *cq, const float *frame, float *out_db) {
 	for (uint32_t i = 0; i < cq->levels; i++) {

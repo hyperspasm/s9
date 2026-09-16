@@ -120,6 +120,11 @@ target_compile_definitions(s9_schema PRIVATE PN_SCHEMA_ONLY)
 target_include_directories(s9_schema PRIVATE src)
 target_link_libraries(s9_schema pn)
 
+# Readout benchmark: the spectrogram's readout timed at the display's defaults, for sizing a machine
+add_executable(cq_bench tools/cq_bench.c src/constant_q.c src/fft.c src/window_function.c src/s9_log.c)
+target_include_directories(cq_bench PRIVATE src)
+target_link_libraries(cq_bench PkgConfig::SDL2 pffft m)
+
 add_subdirectory(test)
 
 # The package: the program, its documentation and its copyright notices,
