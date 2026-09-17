@@ -42,7 +42,7 @@ static void run(int cents) {
 	if (!cq) { fprintf(stderr, "%d cents: no readout\n", cents); return; }
 
 	float *frame = malloc(sizeof(float) * n), *bins = malloc(sizeof(float) * (n + 2)), db[COLUMNS];
-	for (uint32_t i = 0; i < n; i++) frame[i] = (float)rand() / RAND_MAX - 0.5f;
+	for (uint32_t i = 0; i < n; i++) frame[i] = (float)rand() / (float)RAND_MAX - 0.5f;
 
 	// the transforms alone, one per level
 	double transforms = 0.0;
