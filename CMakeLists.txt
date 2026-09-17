@@ -53,6 +53,24 @@ pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 pkg_check_modules(SDL2_TTF REQUIRED IMPORTED_TARGET SDL2_ttf)
 pkg_check_modules(LWS REQUIRED IMPORTED_TARGET libwebsockets)
 
+# Workaround: libwebsockets.h includes the headers of the TLS library libwebsockets was built
+# with, but libwebsockets' pkg-config file need not name that library. Where its headers are
+# outside the compiler's default include path, as Homebrew's are, libwebsockets.h does not
+# compile from PkgConfig::LWS alone. OpenSSL is the usual TLS library, so its include path is
+# added when pkg-config knows it; nothing here calls OpenSSL, so its libraries are not linked.
+pkg_check_modules(OPENSSL QUIET openssl)
+if(OPENSSL_FOUND)
+    set_property(TARGET PkgConfig::LWS APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INCLUDE_DIRS})
+endif()
+# The requirement itself, whichever TLS library that is
+include(CheckCSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES PkgConfig::LWS)
+check_c_source_compiles("#include <libwebsockets.h>\nint main(void) { return 0; }" LWS_HEADER_COMPILES)
+unset(CMAKE_REQUIRED_LIBRARIES)
+if(NOT LWS_HEADER_COMPILES)
+    message(FATAL_ERROR "libwebsockets.h does not compile: it includes the headers of the TLS library libwebsockets was built with, which must be installed and on the include path")
+endif()
+
 # PFFFT, the FFT, compiled in from its one source file (see extern/pffft/pffft.h for its license)
 add_library(pffft STATIC extern/pffft/pffft.c)
 target_include_directories(pffft PUBLIC extern/pffft)
