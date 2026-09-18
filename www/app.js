@@ -30,7 +30,8 @@ function number(entry, client, isInt) {
   input.step = isInt ? Math.max(1, entry.step) : entry.step || (entry.max - entry.min) / 1000;
   const value = document.createElement("span");
   value.className = "value";
-  const show = v => { value.textContent = isInt ? String(v) : Number(v).toPrecision(4); };
+  const unit = entry.unit ? " " + entry.unit : "";
+  const show = v => { value.textContent = (isInt ? String(v) : Number(v).toPrecision(4)) + unit; };
   input.oninput = () => show(input.value);   // the number follows the thumb as it moves
   input.onchange = () => {                   // the value is sent when the thumb is released; the echo confirms it
     if (isInt) client.setInt(entry.path, Number(input.value));
@@ -78,8 +79,10 @@ function action(entry, client) {
 function display(entry) {
   const value = document.createElement("span");
   value.className = "value";
+  const unit = entry.unit ? " " + entry.unit : "";
   const show = v => {
-    if (entry.type === "float") value.textContent = Number(v).toPrecision(6);
+    if (entry.type === "float") value.textContent = Number(v).toPrecision(6) + unit;
+    else if (entry.type === "int") value.textContent = String(v) + unit;
     else if (entry.type === "bool") value.textContent = v ? "yes" : "no";
     else if (entry.type === "enum") value.textContent = entry.labels[v] ?? String(v);
     else value.textContent = String(v);
