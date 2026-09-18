@@ -75,6 +75,7 @@ typedef struct pn_node {
 	pn_type_t type;
 	pn_meta_t meta;
 	bool readonly;    // a client's set is refused
+	const char *unit; // what an int or float value is measured in, or NULL; see MANIFEST.md
 } pn_node_t;
 
 #ifdef __cplusplus

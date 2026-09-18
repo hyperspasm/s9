@@ -99,6 +99,7 @@ class Entry:
     labels: Optional[list] = None   # enum
     max_len: Optional[int] = None   # string
     readonly: bool = False          # any type but action
+    unit: Optional[str] = None      # int and float
 
     @property
     def name(self) -> str:
@@ -106,7 +107,7 @@ class Entry:
 
     def line(self) -> str:
         """The entry as it appears in a manifest."""
-        fields = [self.path, _TYPE_TOKEN[self.type]]
+        fields = [self.path, _TYPE_TOKEN[self.type] + (":" + self.unit if self.unit else "")]
         if self.type == ParamType.INT:
             fields += [str(self.min), str(self.max), str(self.step)]
         elif self.type == ParamType.FLOAT:
@@ -165,6 +166,23 @@ def _check_name(name, what: str, where: str) -> None:
         raise SchemaError(f"{where}: {what} {name!r} {problem}")
 
 
+def _unit_problem(unit) -> Optional[str]:
+    """Why a unit is not one, or None: the name rules, and no colon, which separates it from the type."""
+    problem = _name_problem(unit)
+    if problem is None and ":" in unit:
+        problem = "contains a colon"
+    return problem
+
+
+def _check_unit(unit, where: str) -> Optional[str]:
+    if unit is None:
+        return None
+    problem = _unit_problem(unit)
+    if problem:
+        raise SchemaError(f"{where}: unit {unit!r} {problem}")
+    return unit
+
+
 def _entry(path: str, attr) -> Entry:
     t = attr.param_type
     ro = bool(getattr(attr, "readonly", False))
@@ -172,14 +190,16 @@ def _entry(path: str, attr) -> Entry:
         for v, what in ((attr.min, "min"), (attr.max, "max"), (attr.step, "step")):
             if not isinstance(v, int) or not -2**31 <= v < 2**31:
                 raise SchemaError(f"{path}: {what} {v!r} is not an int32")
-        return Entry(path, t, min=attr.min, max=attr.max, step=attr.step, readonly=ro)
+        return Entry(path, t, min=attr.min, max=attr.max, step=attr.step, readonly=ro,
+                     unit=_check_unit(getattr(attr, "unit", None), path))
     if t == ParamType.FLOAT:
         for v, what in ((attr.min, "min"), (attr.max, "max"), (attr.step, "step")):
             try:
                 struct.pack(">f", v)
             except (OverflowError, struct.error, TypeError):
                 raise SchemaError(f"{path}: {what} {v!r} is not a binary32 float") from None
-        return Entry(path, t, min=float(attr.min), max=float(attr.max), step=float(attr.step), readonly=ro)
+        return Entry(path, t, min=float(attr.min), max=float(attr.max), step=float(attr.step), readonly=ro,
+                     unit=_check_unit(getattr(attr, "unit", None), path))
     if t == ParamType.ENUM:
         if not attr.labels:
             raise SchemaError(f"{path}: enum has no labels")
@@ -263,7 +283,9 @@ def _parse_entry(line: bytes) -> Entry:
         raise ManifestError(f"{line!r}: invalid UTF-8") from e
     if len(fields) < 2:
         raise ManifestError(f"{fields[0]!r}: expected a path and a type")
-    path, token, meta = fields[0], fields[1], fields[2:]
+    path, typed, meta = fields[0], fields[1], fields[2:]
+    token, colon, unit = typed.partition(":")
+    unit = unit if colon else None
     readonly = bool(meta) and meta[-1] == "ro"
     if readonly:
         meta = meta[:-1]
@@ -278,6 +300,12 @@ def _parse_entry(line: bytes) -> Entry:
         raise ManifestError(f"{path}: unknown type {token!r}")
     if readonly and t == ParamType.ACTION:
         raise ManifestError(f"{path}: an action cannot be read-only")
+    if unit is not None:
+        if t not in (ParamType.INT, ParamType.FLOAT):
+            raise ManifestError(f"{path}: a {token} has no unit")
+        problem = _unit_problem(unit)
+        if problem:
+            raise ManifestError(f"{path}: unit {unit!r} {problem}")
 
     def expect(n: int) -> None:
         if len(meta) != n:
@@ -286,11 +314,11 @@ def _parse_entry(line: bytes) -> Entry:
     if t == ParamType.INT:
         expect(3)
         lo, hi, step = (_parse_int32(f, path) for f in meta)
-        return Entry(path, t, min=lo, max=hi, step=step, readonly=readonly)
+        return Entry(path, t, min=lo, max=hi, step=step, readonly=readonly, unit=unit)
     if t == ParamType.FLOAT:
         expect(3)
         lo, hi, step = (_parse_f32(f, path) for f in meta)
-        return Entry(path, t, min=lo, max=hi, step=step, readonly=readonly)
+        return Entry(path, t, min=lo, max=hi, step=step, readonly=readonly, unit=unit)
     if t == ParamType.ENUM:
         expect(1)
         labels = meta[0].split("|")

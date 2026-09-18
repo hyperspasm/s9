@@ -1171,17 +1171,17 @@ static const char *manifest_body(const manifest_sink_t *s) {
 
 // The manifest of the amp schema (amp_tree.h), as MANIFEST.md shows it.
 static const char amp_manifest[] =
-	"# pn manifest v1 amp fnv1a32=fb9c41f2\n"
+	"# pn manifest v1 amp fnv1a32=76a2b061\n"
 	"amp/power bool\n"
-	"amp/volume int 0 100 1\n"
-	"amp/eq/bass float 0xc1400000 0x41400000 0x3f000000\n"
-	"amp/eq/treble float 0xc1400000 0x41400000 0x3f000000\n"
+	"amp/volume int:% 0 100 1\n"
+	"amp/eq/bass float:dB 0xc1400000 0x41400000 0x3f000000\n"
+	"amp/eq/treble float:dB 0xc1400000 0x41400000 0x3f000000\n"
 	"amp/input enum mic|line|aux\n"
 	"amp/name string 32\n"
 	"amp/level float 0x00000000 0x3f800000 0x00000000 ro\n"
 	"amp/reset action\n";
 
-#define AMP_HASH 0xfb9c41f2u
+#define AMP_HASH 0x76a2b061u
 
 // === Hash tests ===
 
@@ -1402,6 +1402,32 @@ static int test_validate_labels(void) {
 
 	leaf = pn_enum("e", NULL, NULL, NULL, NULL, 0);
 	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_EMPTY_ENUM);
+	return 0;
+}
+
+// A unit belongs to an int or a float, follows the name rules, and holds no
+// colon; the manifest writes it after the type.
+static int test_validate_unit(void) {
+	pn_param_t leaf = pn_unit(pn_float("f", NULL, NULL, NULL, 0.0f, 1.0f, 0.0f), "dB");
+	pn_param_t root = pn_group("r", &leaf, 1);
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_OK);
+
+	manifest_sink_t s = {0};
+	ASSERT_EQ(pn_manifest_write(&root, manifest_sink, &s), 0);
+	ASSERT_STR(manifest_body(&s), "r/f float:dB 0x00000000 0x3f800000 0x00000000\n");
+
+	leaf = pn_unit(pn_bool("b", NULL, NULL, NULL), "dB");
+	const pn_param_t *bad = NULL;
+	ASSERT_EQ(pn_schema_validate(&root, &bad), PN_SCHEMA_BAD_UNIT);
+	ASSERT(bad == &leaf);
+
+	leaf = pn_unit(pn_int("i", NULL, NULL, NULL, 0, 1, 1), "a:b");
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_UNIT);
+	leaf = pn_unit(pn_int("i", NULL, NULL, NULL, 0, 1, 1), "");
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_UNIT);
+	leaf = pn_unit(pn_int("i", NULL, NULL, NULL, 0, 1, 1), "per cent");
+	ASSERT_EQ(pn_schema_validate(&root, NULL), PN_SCHEMA_BAD_UNIT);
+	ASSERT_STR(pn_schema_result_name(PN_SCHEMA_BAD_UNIT), "bad unit");
 	return 0;
 }
 
@@ -1713,6 +1739,7 @@ int main(void) {
 	TEST(test_validate_bad_name);
 	TEST(test_validate_bad_root_name);
 	TEST(test_validate_labels);
+	TEST(test_validate_unit);
 	TEST(test_validate_duplicate);
 	TEST(test_validate_not_group);
 	TEST(test_validate_bad_type);

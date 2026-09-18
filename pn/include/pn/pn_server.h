@@ -136,6 +136,13 @@ static inline pn_param_t pn_readonly(pn_param_t param) {
 	return param;
 }
 
+// An int or float with its unit, a token such as "Hz", "dB" or "cents":
+// part of the schema, written in the manifest after the type.
+static inline pn_param_t pn_unit(pn_param_t param, const char *unit) {
+	param.node.unit = unit;
+	return param;
+}
+
 // --- Server (opaque) ---
 
 typedef struct pn_server pn_server_t;

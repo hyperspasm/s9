@@ -36,6 +36,13 @@ name_ok(const char *s) {
 	return 1;
 }
 
+// A unit follows the name rules and, since it follows the type after a
+// colon, holds no colon of its own.
+static int
+unit_ok(const char *s) {
+	return name_ok(s) && !strchr(s, ':');
+}
+
 // Join the names on a walk path with '/'. buf must hold PN_MAX_PATH bytes.
 // Returns the length, or -1 if the path exceeds MAX_PATH_LEN.
 static int
@@ -75,6 +82,12 @@ validate_visitor(const pn_param_t *param, const pn_param_t **path,
 		return v->result = PN_SCHEMA_NOT_GROUP;
 	if (param->node.readonly && param->node.type == PN_ACTION)
 		return v->result = PN_SCHEMA_READONLY_ACTION;
+	if (param->node.unit) {
+		if (param->node.type != PN_INT && param->node.type != PN_FLOAT)
+			return v->result = PN_SCHEMA_BAD_UNIT;
+		if (!unit_ok(param->node.unit))
+			return v->result = PN_SCHEMA_BAD_UNIT;
+	}
 
 	if (param->node.type == PN_ENUM) {
 		const pn_enum_meta_t *m = &param->node.meta.enum_meta;
@@ -179,6 +192,10 @@ entry_visitor(const pn_param_t *param, const pn_param_t **path,
 	emit(e, buf, (uint32_t)len);
 	emit(e, " ", 1);
 	emit_str(e, type_names[param->node.type]);
+	if (param->node.unit) {
+		emit(e, ":", 1);
+		emit_str(e, param->node.unit);
+	}
 
 	const pn_meta_t *m = &param->node.meta;
 	switch (param->node.type) {
@@ -268,14 +285,15 @@ static const char *const result_names[] = {
 	[PN_SCHEMA_NOT_GROUP]      = "not a group",
 	[PN_SCHEMA_TOO_DEEP]       = "too deep",
 	[PN_SCHEMA_PATH_TOO_LONG]  = "path too long",
+	[PN_SCHEMA_BAD_UNIT]       = "bad unit",
 };
 
-_Static_assert(sizeof(result_names) / sizeof(result_names[0]) == PN_SCHEMA_PATH_TOO_LONG + 1,
+_Static_assert(sizeof(result_names) / sizeof(result_names[0]) == PN_SCHEMA_BAD_UNIT + 1,
 	"result_names out of sync with pn_schema_result_t");
 
 const char *
 pn_schema_result_name(pn_schema_result_t result) {
-	if ((unsigned)result > PN_SCHEMA_PATH_TOO_LONG)
+	if ((unsigned)result > PN_SCHEMA_BAD_UNIT)
 		return "unknown";
 	return result_names[result];
 }
