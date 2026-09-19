@@ -81,10 +81,11 @@ def test_sub_oscillator_truth_is_the_sub():
     r = _recipe(pitch={"kind": "static", "f0": 220.0}, timbre={"kind": "sub", "sub_db": -12.0}, realism={"jitter_cents": 0.0})
     audio, truth = synth.render(r)
     fs = r["fs"]
-    assert np.all(truth.f0[truth.voiced] == 110.0)
-    assert truth.partials[0] == (1.0, -12.0)
+    assert np.all(truth.f0[truth.voiced] == 220.0)
+    assert truth.partials[:2] == [(1.0, -12.0), (2.0, 0.0)]
     steady = audio[int(0.5 * fs):int(2.5 * fs)]
-    assert abs(synth.cents(_peak_hz(steady, fs, 100.0, 120.0), 110.0)) < 1.0
+    assert abs(synth.cents(_peak_hz(steady, fs, 200.0, 240.0), 220.0)) < 1.0
+    assert abs(synth.cents(_peak_hz(steady, fs, 400.0, 480.0), 440.0)) < 1.0
 
 
 def test_steps_and_gates_are_onsets():

@@ -29,9 +29,11 @@ import numpy as np
 
 from s9.recipes import formant_lift
 
-VERSION = 1            # bumped when a change here alters what a recipe renders to, so cached vectors are remade
+VERSION = 3            # bumped when a change here alters what a recipe renders to, so cached vectors are remade
 TRUTH_STEP_S = 0.001
 MAX_PARTIALS = 120
+SILENCE_DBFS = -60.0   # a note below this is silence to the truth: the bottom of the amplitude range objective.md promises
+FLOOR_MARGIN_DB = 6.0  # as is a note within this of the noise floor
 
 
 @dataclass
@@ -161,14 +163,14 @@ def timbre(spec, f0_ctl, t_ctl, fs, rng):
             if m <= kmax:
                 a[m - 1] = 0.0
     elif kind == "sub":
-        # the sub-oscillator an octave down is the physical fundamental: the series is of f0/2
+        # the sub-oscillator is the physical fundamental, at f0: the main oscillator plays an octave above it
         sub_db = spec.get("sub_db", -12.0)
-        k = np.arange(1, 2 * kmax + 1, dtype=float)      # harmonics of f0/2
+        k = np.arange(1, 2 * kmax + 1, dtype=float)
         stretch = np.ones_like(k)
-        a = np.where(k % 2 == 0, 2.0 / k, 0.0)            # the main oscillator: a saw at f0
-        a[0] = 10.0 ** (sub_db / 20.0)                    # the sub: a sine at f0/2
+        a = np.where(k % 2 == 0, 2.0 / k, 0.0)            # the main oscillator: a saw at 2 f0
+        a[0] = 10.0 ** (sub_db / 20.0)                    # the sub: a sine at f0
         gains = np.repeat(a[:, None], steps, axis=1)
-        return k / 2.0, stretch, gains
+        return k, stretch, gains
     elif kind == "stretched":
         b = spec.get("inharmonicity", 1e-4)
         stretch = np.sqrt(1.0 + b * k * k)
@@ -264,7 +266,7 @@ def _control_grid(seconds):
 
 def render_voice(recipe, rng, detune_cents=0.0, f0_override=None):
     """The clean periodic signal of a recipe at unit peak, with its truth ingredients:
-    (audio, f0 on the control grid, voiced on the control grid, tolerance, onsets, partials)."""
+    (audio, f0 on the control grid, envelope on the control grid, tolerance, onsets, partials)."""
     fs, seconds = int(recipe.get("fs", 48000)), float(recipe.get("seconds", 3.0))
     n = int(seconds * fs)
     t = np.arange(n) / fs
@@ -317,10 +319,6 @@ def render_voice(recipe, rng, detune_cents=0.0, f0_override=None):
 
     strongest = max(a for _, a in present) if present else 1.0
     partials = [(kk, round(20.0 * math.log10(a / strongest), 1)) for kk, a in present if a > 0.0]
-    if recipe["timbre"]["kind"] == "sub":
-        # the sub-oscillator is the physical fundamental: the truth is its frequency, the partials its harmonics
-        f0_ctl = f0_ctl / 2.0
-        partials = [(kk * 2.0, db) for kk, db in partials]
 
     peak = float(np.max(np.abs(y))) if n else 0.0
     if peak > 0.0:
@@ -335,8 +333,7 @@ def render_voice(recipe, rng, detune_cents=0.0, f0_override=None):
                 burst = rng.standard_normal(i1 - i0) * np.linspace(1.0, 0.0, i1 - i0)
                 y[i0:i1] += burst * 10.0 ** (onset_db / 20.0)
 
-    voiced = env > 1e-3
-    return y, f0_ctl, voiced, tolerance, onsets, partials
+    return y, f0_ctl, env, tolerance, onsets, partials
 
 
 def render_negative(spec, fs, seconds, rng):
@@ -376,8 +373,15 @@ def render(recipe):
                       [], [], [], recipe["negative"]["kind"])
         return y.astype(np.float32), truth
 
-    y, f0_ctl, voiced, tolerance, onsets, partials = render_voice(recipe, rng)
+    y, f0_ctl, env, tolerance, onsets, partials = render_voice(recipe, rng)
     y = y * level
+    # voiced while the note sounds above silence and above the floor
+    note_level = level * env
+    audible = 10.0 ** (SILENCE_DBFS / 20.0)
+    floor_db = realism.get("floor_db", None)
+    if floor_db is not None:
+        audible = max(audible, 10.0 ** ((floor_db + FLOOR_MARGIN_DB) / 20.0))
+    voiced = (env > 1e-3) & (note_level >= audible)
     signal_rms = float(np.sqrt(np.mean(y[np.interp(t, t_ctl, voiced.astype(float)) > 0.5] ** 2))) if np.any(voiced) else 1e-6
 
     for item in recipe.get("nuisance", []):
@@ -434,7 +438,6 @@ def render(recipe):
         else:
             raise ValueError(f"unknown nuisance kind {kind!r}")
 
-    floor_db = realism.get("floor_db", None)
     if floor_db is not None:
         y = y + rng.standard_normal(n) * 10.0 ** (floor_db / 20.0)
     bandwidth = realism.get("bandwidth_hz", None)

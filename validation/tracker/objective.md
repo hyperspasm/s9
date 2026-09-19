@@ -61,9 +61,10 @@ Each vector carries the fundamental's trajectory at 1 ms steps, the intervals wh
 
 - Chorus: the truth is the mean of the two; the beat depth is tolerance, not error.
 - Stretched partials: the truth is the frequency of the lowest partial, what a string is tuned by. The ear hears a few cents sharp of it, and a period-based method measures the best common period of all the partials, sharper still, since the waveform never repeats exactly; neither is chased.
-- A sub-oscillator: the truth is the physics. A sub an octave below the played note is the fundamental of the whole series, however quiet, since any threshold on its level would be a guess at the player's intention. A quiet sub is then a test of the balance promise.
+- A sub-oscillator: the truth is the physics. A sub an octave below the played note is the fundamental of the whole series, however quiet, since any threshold on its level would be a guess at the player's intention. A quiet sub is then a test of the balance promise. By the same physics, hum an octave or two below a note is a sub-oscillator and is read as one; at any other ratio it is another source, and the note, being louder, wins.
 - A second voice: the truth is the louder voice, or invalid. The mean is wrong.
 - Negatives: the truth is invalid throughout.
+- Silence: a note below −60 dBFS, the bottom of the amplitude range above, or within 6 dB of the noise floor, is silence, and the truth is invalid there; a plucked note's truth ends where its decay reaches either.
 - Onsets: validity is expected from the lock latency after the onset, not from the onset.
 - Glitches: through a dropout shorter than the hold time the truth is the note's trajectory as if uninterrupted, and validity is expected throughout; through a longer one, validity is expected to lapse and to return within the lock latency of the note resuming.
 

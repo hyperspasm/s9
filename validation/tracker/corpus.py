@@ -84,7 +84,7 @@ def random_set(count=100, seed=7):
     out = []
     for i in range(count):
         note = rng.choice(GRID_PITCHES)
-        f0 = NOTES[note] * 2.0 ** rng.uniform(-0.5, 0.5)
+        f0 = float(np.clip(NOTES[note] * 2.0 ** rng.uniform(-0.5, 0.5), NOTES["C1"], NOTES["C7"]))   # within the range promised
         pk = rng.choice(["static", "vibrato", "glide", "lfo", "pluck"])
         if pk == "static":
             pitch = {"kind": "static", "f0": f0}
