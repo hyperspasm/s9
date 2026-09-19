@@ -14,6 +14,7 @@ NAMES = {
     "crepe": "tracker.estimators.crepe",                       # torchcrepe, the full model: slow on a CPU
     "crepe_tiny": "tracker.estimators.crepe:estimate_tiny",    # the tiny model
     "pesto": "tracker.estimators.pesto_pitch",                 # pesto-pitch
+    "two_stage": "tracker.estimators.two_stage",               # the objective's design, prototyped
 }
 
 

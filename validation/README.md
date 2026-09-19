@@ -24,14 +24,17 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 
 ## Tracker (`tracker/`)
 
-The fundamental tracker's objective, corpus and harness, separate from the oracle because it judges any estimator rather than mirroring one. [tracker/objective.md](tracker/objective.md) states what the tracker promises and how each promise is checked. `synth.py` is the generative engine: a recipe over the objective's axes, pitch trajectory, timbre, envelope, nuisances, realism, becomes audio and its truth. `corpus.py` holds the recipes in three sets, a grid over pitch, timbre and noise, a seeded random sample of every axis, and named cases for particular promises; vectors are generated on demand into `tracker/cache/`, which is not committed. `score.py` computes the metrics against a vector's truth and aggregates them along the axes. `estimators/` adapts estimators to the harness: `yin`, a plain stateless YIN, and `current`, the tracker s9 runs today through its oracle.
+The fundamental tracker's objective, corpus and harness, separate from the oracle because it judges any estimator rather than mirroring one. [tracker/objective.md](tracker/objective.md) states what the tracker promises and how each promise is checked. `synth.py` is the generative engine: a recipe over the objective's axes, pitch trajectory, timbre, envelope, nuisances, realism, becomes audio and its truth. `corpus.py` holds the recipes in three sets, a grid over pitch, timbre and noise, a seeded random sample of every axis, and named cases for particular promises; vectors are generated on demand into `tracker/cache/`, which is not committed. `score.py` computes the metrics against a vector's truth and aggregates them along the axes. `estimators/` adapts estimators to the harness: `yin`, a plain stateless YIN; `current_c`, the tracker s9 runs today, through `build/track_vectors` (and `current`, the same through its Python oracle, much slower); the outside baselines `pyin`, `pesto`, `crepe` and `crepe_tiny`; and `two_stage`, the objective's design prototyped in Python.
 
 ```sh
 cd validation
 venv/bin/python -m pytest tracker                       # the engine's promises
 venv/bin/python -m tracker.run generate                 # every vector into the cache, once
 venv/bin/python -m tracker.run score --estimator yin    # metrics per axis; --set, --only, --by, --verbose narrow it
+venv/bin/python -m tracker.run compare --estimators two_stage,pyin --by set   # saved runs side by side
 venv/bin/python -m tracker.run show grid-C4-saw-clean   # a recipe and its truth
+venv/bin/python -m tracker.debug named-sh --every 10    # what the two-stage prototype saw, hop by hop
+venv/bin/python -m tracker.plot two_stage named-sh /tmp/sh.png   # a trajectory against the truth
 ```
 
 ## Scripts
