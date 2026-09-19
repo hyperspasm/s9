@@ -85,9 +85,15 @@ def cmd_score(args):
 
 
 def _load_rows(estimator, which, only=""):
-    rows = json.loads(_rows_path(estimator, which).read_text())
+    """the saved rows of an estimator over the sets asked for: their own file, or the
+    rows of a run over every set, narrowed to them"""
+    path = _rows_path(estimator, which)
+    if not path.exists() and which != "all":
+        path = _rows_path(estimator, "all")
+    rows = json.loads(path.read_text())
     rows = [{k: (np.nan if v is None else v) for k, v in r.items()} for r in rows]
-    return [r for r in rows if not only or only in r["id"]]
+    wanted = None if which == "all" else set(which.split(","))
+    return [r for r in rows if (not only or only in r["id"]) and (wanted is None or r.get("tag:set") in wanted)]
 
 
 def cmd_report(args):
