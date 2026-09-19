@@ -3,13 +3,15 @@
     venv/bin/python -m tracker.run generate [--set grid,random,named]
     venv/bin/python -m tracker.run score --estimator yin [--set ...] [--only substring] [--by axis,...]
     venv/bin/python -m tracker.run report --estimator yin [--set ...] [--only substring] [--by axis,...]
+    venv/bin/python -m tracker.run compare --estimators yin,current_c,pyin,pesto [--set ...] [--by axis,...]
     venv/bin/python -m tracker.run show ID
 
 generate renders every vector of the chosen sets into the cache. score runs an
 estimator over them, prints each vector's metrics with --verbose, saves every
 vector's metrics beside the cache, and aggregates along the axes named by --by
 (default: every tag). report aggregates saved metrics again without running the
-estimator. show prints a recipe and a summary of its truth.
+estimator; compare sets several estimators' saved metrics side by side, one table per
+value of an axis. show prints a recipe and a summary of its truth.
 """
 from __future__ import annotations
 
@@ -57,7 +59,10 @@ def cmd_score(args):
     estimate = get_estimator(args.estimator)
     rows = []
     t0 = time.time()
-    for r in rs:
+    for i, r in enumerate(rs):
+        if i and i % 25 == 0:
+            done = time.time() - t0
+            print(f"{i}/{len(rs)} {done:.0f} s, about {done / i * (len(rs) - i):.0f} s to go", file=sys.stderr, flush=True)
         audio, truth = corpus.ensure(r)
         traj = estimate(audio, r["fs"])
         m = score.score(truth, traj, r["tags"])
@@ -79,14 +84,44 @@ def cmd_score(args):
     print(report(rows, args.by))
 
 
-def cmd_report(args):
-    rows = json.loads(_rows_path(args.estimator, args.set).read_text())
+def _load_rows(estimator, which, only=""):
+    rows = json.loads(_rows_path(estimator, which).read_text())
     rows = [{k: (np.nan if v is None else v) for k, v in r.items()} for r in rows]
-    if args.only:
-        rows = [r for r in rows if args.only in r["id"]]
+    return [r for r in rows if not only or only in r["id"]]
+
+
+def cmd_report(args):
+    rows = _load_rows(args.estimator, args.set, args.only)
     print(f"{len(rows)} vectors, {args.estimator}")
     print()
     print(report(rows, args.by))
+
+
+COMPARE_COLUMNS = ["raw_pitch_accuracy", "octave_error_rate", "fine_error_median", "jitter", "voicing_precision", "voicing_recall",
+                   "lock_latency", "revisions"]
+COMPARE_HEADS = ["rpa", "octave", "fine_med", "jitter", "voice_p", "voice_r", "lock_lat", "revis"]
+
+
+def cmd_compare(args):
+    """one table per value of an axis, the estimators as rows, over the vectors both have scored"""
+    names = args.estimators.split(",")
+    sets = {n: _load_rows(n, args.set, args.only) for n in names}
+    ids = set.intersection(*(set(r["id"] for r in rows) for rows in sets.values()))
+    for axis in args.by.split(","):
+        key = f"tag:{axis}"
+        values = sorted({r[key] for rows in sets.values() for r in rows if key in r and r["id"] in ids},
+                        key=lambda v: (0, float(v)) if isinstance(v, (int, float)) else (1, str(v)))
+        for value in values:
+            print(f"\n{axis} = {value}")
+            print(" " * 12 + " ".join(f"{h:>9s}" for h in COMPARE_HEADS) + "    n")
+            for n in names:
+                members = [r for r in sets[n] if r.get(key) == value and r["id"] in ids]
+                agg = score.aggregate(members, axis).get(value, {})
+                cells = []
+                for c in COMPARE_COLUMNS:
+                    v = agg.get(c, np.nan)
+                    cells.append(f"{v:9.3f}" if isinstance(v, float) and not np.isnan(v) else f"{'-':>9s}")
+                print(f"{n:12s}" + " ".join(cells) + f"  {agg.get('count', 0):3d}")
 
 
 def cmd_show(args):
@@ -124,6 +159,12 @@ def main():
     rp.add_argument("--only", default="")
     rp.add_argument("--by", default="")
     rp.set_defaults(fn=cmd_report)
+    cp = sub.add_parser("compare")
+    cp.add_argument("--estimators", default="yin,current_c,pyin,pesto")
+    cp.add_argument("--set", default="all")
+    cp.add_argument("--only", default="")
+    cp.add_argument("--by", default="set")
+    cp.set_defaults(fn=cmd_compare)
     w = sub.add_parser("show")
     w.add_argument("id")
     w.set_defaults(fn=cmd_show)
