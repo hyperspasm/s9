@@ -18,11 +18,12 @@ LOCK_CENTS = 5.0         # a lock latency ends at the first committed frame with
 
 @dataclass
 class Trajectory:
-    t: np.ndarray            # seconds, frame times
+    t: np.ndarray            # seconds: the instant each frame's values describe, a frame's centre
     lock_hz: np.ndarray      # 0 while unlocked
     lock_conf: np.ndarray
     f0_hz: np.ndarray        # the fundamental, 0 while undecided or unlocked
     committed: np.ndarray    # bool
+    latency_s: float = 0.0   # how long after the instant it describes a frame's value can first be shown
 
 
 def cents(a, b):
@@ -72,14 +73,15 @@ def score(truth, traj, tags=None):
     m["bias"] = float(np.mean(fine)) if fine.size else np.nan
     m["jitter"] = float(np.std(fine)) if fine.size > 1 else np.nan
 
-    # lock latency: from each onset to the first committed frame within LOCK_CENTS
+    # lock latency: from each onset to when the first committed frame within LOCK_CENTS can be shown
     latencies = []
     for onset in truth.onsets:
         after = (t >= onset) & voiced & valid & (f0 > 0)
         good = after & (np.abs(cents(np.where(traj.f0_hz > 0, traj.f0_hz, 1.0), np.where(f0 > 0, f0, 1.0))) <= LOCK_CENTS)
-        latencies.append(float(t[good][0] - onset) if np.any(good) else np.nan)
+        latencies.append(float(t[good][0] - onset + traj.latency_s) if np.any(good) else np.nan)
     m["lock_latency"] = float(np.nanmax(latencies)) if latencies and not np.all(np.isnan(latencies)) else np.nan
     m["lock_failures"] = int(np.sum(np.isnan(latencies))) if latencies else 0
+    m["latency"] = float(traj.latency_s)
 
     # revisions: octave jumps of the committed fundamental within a note
     rev = 0
@@ -112,8 +114,9 @@ def score(truth, traj, tags=None):
 
 
 def modulation_response(truth, traj, rate_hz):
-    """gain and lag of the tracked vibrato against the true one at the known rate:
-    a sinusoid at rate_hz fitted by least squares to each trajectory's cents about its mean"""
+    """gain and lag of the tracked vibrato against the true one at the known rate: a
+    sinusoid at rate_hz fitted by least squares to each trajectory's cents about its mean.
+    The lag is the estimator's own, in cycles; what a player sees lags by its latency too."""
     t = traj.t
     f0 = np.interp(t, truth.t, truth.f0)
     sel = (traj.f0_hz > 0) & (f0 > 0) & (t > 0.5)
@@ -128,9 +131,10 @@ def modulation_response(truth, traj, rate_hz):
     a_true, _, _, _ = np.linalg.lstsq(basis, y_true, rcond=None)
     a_est, _, _, _ = np.linalg.lstsq(basis, y_est, rcond=None)
     amp_true, amp_est = np.hypot(a_true[0], a_true[1]), np.hypot(a_est[0], a_est[1])
+    # y = a cos + b sin = A cos(wt - phi) with phi = atan2(b, a); a delay of tau adds w tau to phi
     phase = np.arctan2(a_est[1], a_est[0]) - np.arctan2(a_true[1], a_true[0])
     phase = (phase + np.pi) % (2.0 * np.pi) - np.pi
-    lag_cycles = -phase / (2.0 * np.pi)
+    lag_cycles = phase / (2.0 * np.pi)
     return float(amp_est / amp_true) if amp_true > 0 else np.nan, float(lag_cycles)
 
 
@@ -145,9 +149,9 @@ def aggregate(rows, axis):
     for value, members in groups.items():
         metrics = {}
         for name in members[0]:
-            if name.startswith("tag:"):
+            if name.startswith("tag:") or name == "id":
                 continue
-            vals = np.array([m[name] for m in members if m.get(name) is not None], dtype=float)
+            vals = np.array([m[name] for m in members if isinstance(m.get(name), (int, float))], dtype=float)
             metrics[name] = float(np.nanmean(vals)) if vals.size and not np.all(np.isnan(vals)) else np.nan
         metrics["count"] = len(members)
         out[value] = metrics
@@ -156,15 +160,21 @@ def aggregate(rows, axis):
 
 REPORT_COLUMNS = ["raw_pitch_accuracy", "gross_error_rate", "octave_error_rate", "fine_error_median", "fine_error_p90",
                   "jitter", "voicing_precision", "voicing_recall", "lock_latency", "revisions", "lock_coverage", "lock_ratio_changes"]
+COLUMN_HEADS = ["rpa", "gross", "octave", "fine_med", "fine_p90", "jitter", "voice_p", "voice_r", "lock_lat", "revis", "lock_cov", "ratio_chg"]
 
 
 def table(groups, title):
     """a text table of the aggregated metrics, one row per axis value"""
-    lines = [title, " " * 22 + " ".join(f"{c[:11]:>11s}" for c in REPORT_COLUMNS) + "   n"]
-    for value, m in sorted(groups.items(), key=lambda kv: str(kv[0])):
+    lines = [title, " " * 22 + " ".join(f"{h:>9s}" for h in COLUMN_HEADS) + "   n"]
+
+    def order(kv):
+        v = kv[0]
+        return (0, float(v)) if isinstance(v, (int, float)) else (1, str(v))
+
+    for value, m in sorted(groups.items(), key=order):
         cells = []
         for c in REPORT_COLUMNS:
             v = m.get(c, np.nan)
-            cells.append(f"{v:11.3f}" if isinstance(v, float) and not np.isnan(v) else f"{'-':>11s}")
-        lines.append(f"{str(value)[:22]:22s}" + " ".join(cells) + f"  {m['count']:2d}")
+            cells.append(f"{v:9.3f}" if isinstance(v, float) and not np.isnan(v) else f"{'-':>9s}")
+        lines.append(f"{str(value)[:22]:22s}" + " ".join(cells) + f"  {m['count']:3d}")
     return "\n".join(lines)

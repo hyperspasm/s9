@@ -2,7 +2,8 @@
 difference function per frame, the first dip under a threshold, refined by a
 parabola. No lock stage and no memory, so every frame answers alone: the baseline
 that shows what the corpus does to a stateless estimator. Each frame's value is
-stamped at the frame's end, when it could first be shown.
+stamped at the frame's centre, the instant it describes, with the half frame it
+takes to become available as the latency.
 """
 from __future__ import annotations
 
@@ -62,10 +63,10 @@ def estimate(audio, fs):
             shift = 0.5 * (a - c) / denom if abs(denom) > 1e-12 else 0.0
             f0 = fs / (tau + shift)
             conf = 1.0 - b
-        times.append((start + frame_len) / fs)   # when the frame's value could first be shown
+        times.append((start + frame_len / 2) / fs)   # the instant the frame describes
         f0s.append(f0)
         confs.append(conf)
     t = np.array(times)
     f0 = np.array(f0s)
     conf = np.array(confs)
-    return Trajectory(t, f0, conf, f0, f0 > 0)
+    return Trajectory(t, f0, conf, f0, f0 > 0, latency_s=frame_len / 2 / fs)   # shown once the frame has ended

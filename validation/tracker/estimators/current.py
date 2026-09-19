@@ -3,7 +3,8 @@
 and the conditioner at the defaults in src/fundamental.h. The C tracker matches the
 oracle to its goldens, so this is the baseline of what exists. It has no lock stage:
 the conditioned fundamental is reported as both. Each frame's value is stamped at the
-frame's end, when the tracker could first show it.
+frame's centre, the instant it describes, with the half frame it takes to become
+available as the latency; the conditioner's smoothing is lag of the tracker's own.
 """
 from __future__ import annotations
 
@@ -41,8 +42,8 @@ def estimate(audio, fs):
         est = hs.estimate(db, fs / n, reach, table, cfg)
         rms = float(np.sqrt(np.mean(frame * frame)))
         ok, f = c.update(est.f0, est.harmonicity, rms, HOP_S)
-        times.append((start + n) / fs)
+        times.append((start + n / 2) / fs)   # the instant the frame describes
         f0s.append(float(f) if ok and f else 0.0)
         valid.append(bool(ok))
     t, f0 = np.array(times), np.array(f0s)
-    return Trajectory(t, f0, np.ones_like(f0), f0, np.array(valid))
+    return Trajectory(t, f0, np.ones_like(f0), f0, np.array(valid), latency_s=n / 2 / fs)   # shown once the frame has ended

@@ -29,7 +29,7 @@ GRID_TIMBRES = {
     "absent1": {"kind": "absent", "missing": [1]},
     "absent12": {"kind": "absent", "missing": [1, 2]},
     "sub-12": {"kind": "sub", "sub_db": -12.0},
-    "stretched": {"kind": "stretched", "inharmonicity": 3e-4},
+    "stretched": {"kind": "stretched"},   # the inharmonicity is set per pitch, as a piano's rises with it
     "partials2": {"kind": "partials", "count": 2},
     "partials60": {"kind": "partials", "count": 60},
     "filtered": {"kind": "filtered", "cutoff_hz": 800.0, "depth_oct": 2.0, "rate_hz": 0.5, "q": 4.0},
@@ -41,6 +41,18 @@ GRID_NOISES = {
     "pink20": [{"kind": "noise", "color": "pink", "snr_db": 20.0}],
 }
 REALISM = {"jitter_cents": 0.5, "drift_cents_per_s": 0.0, "random_phase": True, "floor_db": -90.0}
+
+
+def inharmonicity(f0):
+    """a piano's, roughly: 2e-4 at middle C, rising with the pitch, within 3e-5 and 2e-3"""
+    return float(min(2e-3, max(3e-5, 2e-4 * f0 / 261.63)))
+
+
+def timbre_for(name, f0):
+    spec = dict(GRID_TIMBRES[name])
+    if spec["kind"] == "stretched":
+        spec["inharmonicity"] = inharmonicity(f0)
+    return spec
 
 
 def recipe(id, tags, **fields):
@@ -63,7 +75,7 @@ def grid():
             for nname, nspec in GRID_NOISES.items():
                 out.append(recipe(f"grid-{note}-{tname}-{nname}",
                                   {"set": "grid", "pitch": note, "timbre": tname, "noise": nname},
-                                  pitch={"kind": "static", "f0": NOTES[note]}, timbre=dict(tspec), nuisance=list(nspec)))
+                                  pitch={"kind": "static", "f0": NOTES[note]}, timbre=timbre_for(tname, NOTES[note]), nuisance=list(nspec)))
     return out
 
 
@@ -108,7 +120,7 @@ def random_set(count=100, seed=7):
         if rng.random() < 0.3:
             realism["bandwidth_hz"] = float(rng.uniform(4000, 12000))
         out.append(recipe(f"random-{i:03d}", {"set": "random", "pitch": note, "timbre": tname, "envelope": env, "pitch_kind": pk},
-                          pitch=pitch, timbre=dict(GRID_TIMBRES[tname]), amplitude=amplitude, nuisance=nuisance, realism=realism,
+                          pitch=pitch, timbre=timbre_for(tname, f0), amplitude=amplitude, nuisance=nuisance, realism=realism,
                           timing={"onset_s": 0.1, "offset_s": 2.9, "attack_ms": float(rng.uniform(1, 200))}))
     return out
 

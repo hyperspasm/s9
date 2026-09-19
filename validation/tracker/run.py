@@ -2,12 +2,14 @@
 
     venv/bin/python -m tracker.run generate [--set grid,random,named]
     venv/bin/python -m tracker.run score --estimator yin [--set ...] [--only substring] [--by axis,...]
+    venv/bin/python -m tracker.run report --estimator yin [--set ...] [--only substring] [--by axis,...]
     venv/bin/python -m tracker.run show ID
 
 generate renders every vector of the chosen sets into the cache. score runs an
-estimator over them, prints each vector's metrics with --verbose, and aggregates
-along the axes named by --by (default: every tag). show prints a recipe and a
-summary of its truth.
+estimator over them, prints each vector's metrics with --verbose, saves every
+vector's metrics beside the cache, and aggregates along the axes named by --by
+(default: every tag). report aggregates saved metrics again without running the
+estimator. show prints a recipe and a summary of its truth.
 """
 from __future__ import annotations
 
@@ -31,6 +33,25 @@ def cmd_generate(args):
             print(f"{i + 1}/{len(rs)} {time.time() - t0:.0f} s", flush=True)
 
 
+def _rows_path(estimator, which):
+    return corpus.CACHE / f"rows-{estimator}-{which.replace(',', '+')}.json"
+
+
+def report(rows, by=""):
+    """the aggregated tables and the vibrato responses, as text"""
+    out = []
+    axes = by.split(",") if by else sorted({k[4:] for r in rows for k in r if k.startswith("tag:")})
+    for axis in axes:
+        groups = score.aggregate(rows, axis)
+        if groups:
+            out.append(score.table(groups, f"by {axis}"))
+    vib = [r for r in rows if r.get("tag:case") == "vibrato"]
+    if vib:
+        out.append("vibrato response (gain; lag in cycles: the estimator's own, and as shown, with its latency):\n" + "\n".join(
+            f"  {r['id']:40s} gain {r['mod_gain']:.2f}  lag {r['mod_lag_cycles']:.2f}  shown {r['mod_lag_shown']:.2f}" for r in vib))
+    return "\n\n".join(out)
+
+
 def cmd_score(args):
     rs = [r for r in corpus.recipes(args.set) if not args.only or args.only in r["id"]]
     estimate = get_estimator(args.estimator)
@@ -43,23 +64,29 @@ def cmd_score(args):
         if r["tags"].get("case") == "vibrato":
             gain, lag = score.modulation_response(truth, traj, r["tags"]["rate_hz"])
             m["mod_gain"], m["mod_lag_cycles"] = gain, lag
+            m["mod_lag_shown"] = lag + traj.latency_s * r["tags"]["rate_hz"]
+        m["id"] = r["id"]
         rows.append(m)
         if args.verbose:
             print(f"{r['id']:40s} " + " ".join(f"{k}={v:.3f}" if isinstance(v, float) else f"{k}={v}"
-                                              for k, v in m.items() if not k.startswith("tag:")))
+                                              for k, v in m.items() if not k.startswith("tag:") and k != "id"))
     print(f"{len(rows)} vectors, {args.estimator}, {time.time() - t0:.0f} s")
-    axes = args.by.split(",") if args.by else sorted({k[4:] for r in rows for k in r if k.startswith("tag:")})
-    for axis in axes:
-        groups = score.aggregate(rows, axis)
-        if groups:
-            print()
-            print(score.table(groups, f"by {axis}"))
-    if any(r["tags"].get("case") == "vibrato" for r in rs):
-        print()
-        print("vibrato response (gain, lag in cycles):")
-        for r, m in zip(rs, rows):
-            if r["tags"].get("case") == "vibrato":
-                print(f"  {r['id']:40s} gain {m['mod_gain']:.2f}  lag {m['mod_lag_cycles']:.2f}")
+    if not args.only:
+        path = _rows_path(args.estimator, args.set)
+        path.write_text(json.dumps(rows, indent=0, default=lambda v: None if isinstance(v, float) and np.isnan(v) else float(v)))
+        print(f"rows saved to {path}")
+    print()
+    print(report(rows, args.by))
+
+
+def cmd_report(args):
+    rows = json.loads(_rows_path(args.estimator, args.set).read_text())
+    rows = [{k: (np.nan if v is None else v) for k, v in r.items()} for r in rows]
+    if args.only:
+        rows = [r for r in rows if args.only in r["id"]]
+    print(f"{len(rows)} vectors, {args.estimator}")
+    print()
+    print(report(rows, args.by))
 
 
 def cmd_show(args):
@@ -91,6 +118,12 @@ def main():
     s.add_argument("--by", default="")
     s.add_argument("--verbose", action="store_true")
     s.set_defaults(fn=cmd_score)
+    rp = sub.add_parser("report")
+    rp.add_argument("--estimator", default="yin")
+    rp.add_argument("--set", default="all")
+    rp.add_argument("--only", default="")
+    rp.add_argument("--by", default="")
+    rp.set_defaults(fn=cmd_report)
     w = sub.add_parser("show")
     w.add_argument("id")
     w.set_defaults(fn=cmd_show)
