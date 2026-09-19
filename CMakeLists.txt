@@ -143,6 +143,13 @@ add_executable(cq_bench tools/cq_bench.c src/constant_q.c src/fft.c src/window_f
 target_include_directories(cq_bench PRIVATE src)
 target_link_libraries(cq_bench PkgConfig::SDL2 pffft m)
 
+# The fundamental tracker over a file, for the tracker harness in validation/tracker
+add_executable(track_vectors tools/track_vectors.c
+    src/fundamental.c src/harmonic_series.c src/harmonic_readout.c src/conditioner.c
+    src/fft_analyzer.c src/fft.c src/window_function.c src/ring_buffer.c src/s9_dsp.c src/s9_log.c)
+target_include_directories(track_vectors PRIVATE src)
+target_link_libraries(track_vectors PkgConfig::SDL2 pffft m)
+
 add_subdirectory(test)
 
 # The package: the program, its documentation and its copyright notices,
