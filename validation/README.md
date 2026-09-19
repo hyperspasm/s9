@@ -22,6 +22,18 @@ The virtualenv lives at `validation/venv` and is gitignored. It installs numpy a
 - `harmonics.py` — per-harmonic readouts from a spectrum: the peak nearest each harmonic when it stands a prominence above the floor beside it, its level refined by a parabola less the window's bias, its phase relative to the fundamental, and the distortion the harmonics add up to.
 - `constant_q.py` — a constant-Q readout from one long transform: the level at each of a set of frequencies through a window sized for that frequency, every window centred on the middle of the same frame, defined as the windowed transform at exactly that frequency and computed as Brown and Puckette's sparse kernels over the frame's transform.
 
+## Tracker (`tracker/`)
+
+The fundamental tracker's objective, corpus and harness, separate from the oracle because it judges any estimator rather than mirroring one. [tracker/objective.md](tracker/objective.md) states what the tracker promises and how each promise is checked. `synth.py` is the generative engine: a recipe over the objective's axes, pitch trajectory, timbre, envelope, nuisances, realism, becomes audio and its truth. `corpus.py` holds the recipes in three sets, a grid over pitch, timbre and noise, a seeded random sample of every axis, and named cases for particular promises; vectors are generated on demand into `tracker/cache/`, which is not committed. `score.py` computes the metrics against a vector's truth and aggregates them along the axes. `estimators/` adapts estimators to the harness: `yin`, a plain stateless YIN, and `current`, the tracker s9 runs today through its oracle.
+
+```sh
+cd validation
+venv/bin/python -m pytest tracker                       # the engine's promises
+venv/bin/python -m tracker.run generate                 # every vector into the cache, once
+venv/bin/python -m tracker.run score --estimator yin    # metrics per axis; --set, --only, --by, --verbose narrow it
+venv/bin/python -m tracker.run show grid-C4-saw-clean   # a recipe and its truth
+```
+
 ## Scripts
 
 ```sh
