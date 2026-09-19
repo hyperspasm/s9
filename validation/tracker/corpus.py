@@ -133,12 +133,12 @@ def named():
                       timing={"onset_s": 0.1, "offset_s": 4.9, "attack_ms": 5.0},
                       pitch={"kind": "static", "f0": 110.0}, timbre={"kind": "absent", "missing": [1, 2]},
                       nuisance=[{"kind": "second_voice", "interval_semitones": 0.0, "mix_db": 0.0}]))
-    # glides over two octaves, both ways, at C2 and C5
+    # glides over two octaves, both ways, between C2 and C4 and between C5 and C7
     for note in ("C2", "C5"):
-        for direction, octs in (("up", 2.0), ("down", -2.0)):
+        for direction, start, stop in (("up", 0.0, 2.0), ("down", 2.0, 0.0)):
             out.append(recipe(f"named-glide-{note}-{direction}", {"set": "named", "case": "glide", "pitch": note}, seconds=4.0,
                               timing={"onset_s": 0.1, "offset_s": 3.9, "attack_ms": 5.0},
-                              pitch={"kind": "glide", "f0": NOTES[note], "f_end": NOTES[note] * 2.0 ** octs, "start_s": 1.0, "duration_s": 2.0}, timbre=saw))
+                              pitch={"kind": "glide", "f0": NOTES[note] * 2.0 ** start, "f_end": NOTES[note] * 2.0 ** stop, "start_s": 1.0, "duration_s": 2.0}, timbre=saw))
     # sweeps at rising slew until the lock breaks
     for note in ("C2", "C4"):
         for slew in (0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0):
