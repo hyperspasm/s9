@@ -923,6 +923,8 @@ uint32_t tracker_feed(tracker_t *t, const float *samples, uint32_t count) {
 
 tracker_state_t tracker_state(const tracker_t *t) { return t->state; }
 
+uint32_t tracker_hop(const tracker_t *t) { return t->hop; }
+
 void tracker_lock_internals(const tracker_t *t, double *period, double *rate, double *slew, uint32_t *window) {
 	*period = t->lock.period;
 	*rate = t->lock.rate;

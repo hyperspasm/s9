@@ -23,6 +23,10 @@ struct s9_pn {
 	bool fundamental_valid;
 	float fundamental_frequency;
 	float fundamental_midi;
+	float fundamental_harmonicity;
+	bool lock_locked;
+	float lock_frequency;
+	float lock_confidence;
 
 	// the spectrogram's time resolution last pushed, and its top while it follows the material
 	spectrogram_t *spectrogram;
@@ -146,8 +150,15 @@ void s9_pn_free(s9_pn_t **pn) {
 	}
 }
 
-// The tracked fundamental changes on its own, so its parameters are pushed
-// whenever their values move.
+// whether a frequency has moved from the one last pushed: by a twentieth of a cent, or into or out of being
+static bool frequency_moved(float now, float last) {
+	if ((now > 0.0f) != (last > 0.0f)) return true;
+	return now > 0.0f && fabs(1200.0 * log2((double)now / (double)last)) >= 0.05;
+}
+
+// The tracked fundamental and the lock change on their own, every hop, so
+// their parameters are pushed whenever their values move by more than a
+// listener could see.
 static void notify_fundamental(s9_pn_t *pn) {
 	bool valid = periodic_valid(pn->periodic);
 	float frequency = periodic_frequency(pn->periodic);
@@ -155,15 +166,31 @@ static void notify_fundamental(s9_pn_t *pn) {
 		pn->fundamental_valid = valid;
 		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_VALID]);
 	}
-	if (frequency != pn->fundamental_frequency) {
+	if (frequency_moved(frequency, pn->fundamental_frequency)) {
 		pn->fundamental_frequency = frequency;
 		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_FREQUENCY]);
-	}
-	note_t note;
-	float midi = periodic_note(pn->periodic, &note) ? note_midi(&note) : 0.0f;
-	if (midi != pn->fundamental_midi) {
-		pn->fundamental_midi = midi;
+		note_t note;
+		pn->fundamental_midi = periodic_note(pn->periodic, &note) ? note_midi(&note) : 0.0f;
 		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_MIDI]);
+	}
+	float harmonicity = periodic_harmonicity(pn->periodic);
+	if (fabsf(harmonicity - pn->fundamental_harmonicity) >= 0.01f) {
+		pn->fundamental_harmonicity = harmonicity;
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_HARMONICITY]);
+	}
+	float lock_frequency, lock_confidence;
+	bool locked = periodic_lock(pn->periodic, &lock_frequency, &lock_confidence);
+	if (locked != pn->lock_locked) {
+		pn->lock_locked = locked;
+		pn_param_notify(&pn->params.periodic_lock_params[S9_LOCK_LOCKED]);
+	}
+	if (frequency_moved(lock_frequency, pn->lock_frequency)) {
+		pn->lock_frequency = lock_frequency;
+		pn_param_notify(&pn->params.periodic_lock_params[S9_LOCK_FREQUENCY]);
+	}
+	if (fabsf(lock_confidence - pn->lock_confidence) >= 0.01f) {
+		pn->lock_confidence = lock_confidence;
+		pn_param_notify(&pn->params.periodic_lock_params[S9_LOCK_CONFIDENCE]);
 	}
 }
 

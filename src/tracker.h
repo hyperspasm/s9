@@ -150,6 +150,9 @@ uint32_t tracker_feed(tracker_t *t, const float *samples, uint32_t count);
 // the state as of the last hop analyzed
 tracker_state_t tracker_state(const tracker_t *t);
 
+// the hop, in samples
+uint32_t tracker_hop(const tracker_t *t);
+
 // the lock's workings as of the last hop, for tools that trace it: its period in
 // samples, its rate of change per hop, that rate's magnitude smoothed, and the
 // tracking window in samples

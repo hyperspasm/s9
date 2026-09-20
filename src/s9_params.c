@@ -71,6 +71,10 @@ SPECTRUM_INT(spectrum_max_db, graph_config.max_db, int32_t)
 static float get_fundamental_frequency(void *ctx) { return periodic_frequency(ctx); }
 static bool get_fundamental_valid(void *ctx) { return periodic_valid(ctx); }
 static float get_fundamental_midi(void *ctx) { note_t note; return periodic_note(ctx, &note) ? note_midi(&note) : 0.0f; }
+static float get_fundamental_harmonicity(void *ctx) { return periodic_harmonicity(ctx); }
+static float get_lock_frequency(void *ctx) { float f, c; periodic_lock(ctx, &f, &c); return f; }
+static bool get_lock_locked(void *ctx) { float f, c; return periodic_lock(ctx, &f, &c); }
+static float get_lock_confidence(void *ctx) { float f, c; periodic_lock(ctx, &f, &c); return c; }
 
 #define PERIODIC_FLOAT(param, field) \
 	static void set_##param(void *ctx, float val) { periodic_config_t c = *periodic_config(ctx); c.field = val; periodic_set_config(ctx, &c); } \
@@ -80,18 +84,10 @@ static float get_fundamental_midi(void *ctx) { note_t note; return periodic_note
 	static void set_##param(void *ctx, int32_t val) { periodic_config_t c = *periodic_config(ctx); c.field = (uint32_t)val; periodic_set_config(ctx, &c); } \
 	static int32_t get_##param(void *ctx) { return (int32_t)periodic_config(ctx)->field; }
 
-PERIODIC_FLOAT(fundamental_window, tracker.window_s)
-PERIODIC_FLOAT(fundamental_averaging, tracker.averaging_s)
-PERIODIC_FLOAT(fundamental_f_min, tracker.series.f_min)
-PERIODIC_FLOAT(fundamental_f_max, tracker.series.f_max)
-PERIODIC_FLOAT(fundamental_gate_rms, tracker.conditioner.gate_rms)
-PERIODIC_FLOAT(fundamental_harmonicity_on, tracker.conditioner.harmonicity_on)
-PERIODIC_FLOAT(fundamental_harmonicity_off, tracker.conditioner.harmonicity_off)
-PERIODIC_FLOAT(fundamental_hold, tracker.conditioner.hold_s)
-PERIODIC_FLOAT(fundamental_octave_tolerance, tracker.conditioner.octave_tolerance_cents)
-PERIODIC_FLOAT(fundamental_smoothing, tracker.conditioner.smoothing_s)
-PERIODIC_FLOAT(fundamental_deadband, tracker.conditioner.deadband_cents)
-PERIODIC_FLOAT(fundamental_snap, tracker.conditioner.snap_cents)
+PERIODIC_FLOAT(fundamental_f_min, tracker.f_min)
+PERIODIC_FLOAT(fundamental_f_max, tracker.f_max)
+PERIODIC_FLOAT(harm_window, spectrum.window_s)
+PERIODIC_FLOAT(harm_averaging, spectrum.averaging_s)
 PERIODIC_INT(harm_harmonics, harmonics.reader.harmonics)
 PERIODIC_FLOAT(harm_prominence, harmonics.reader.prominence_db)
 PERIODIC_FLOAT(harm_hysteresis, harmonics.reader.hysteresis_db)
@@ -106,8 +102,8 @@ static void set_periodic_channel(void *ctx, int32_t val) { periodic_config_t c =
 static int32_t get_periodic_channel(void *ctx) { return channel_to_param(periodic_config(ctx)->channel); }
 static void set_periodic_view(void *ctx, uint32_t val) { periodic_config_t c = *periodic_config(ctx); c.view = (periodic_view_t)val; periodic_set_config(ctx, &c); }
 static uint32_t get_periodic_view(void *ctx) { return (uint32_t)periodic_config(ctx)->view; }
-static void set_fundamental_window_function(void *ctx, uint32_t val) { periodic_config_t c = *periodic_config(ctx); c.tracker.window_function = (window_function_t)val; periodic_set_config(ctx, &c); }
-static uint32_t get_fundamental_window_function(void *ctx) { return (uint32_t)periodic_config(ctx)->tracker.window_function; }
+static void set_harm_window_function(void *ctx, uint32_t val) { periodic_config_t c = *periodic_config(ctx); c.spectrum.window_function = (window_function_t)val; periodic_set_config(ctx, &c); }
+static uint32_t get_harm_window_function(void *ctx) { return (uint32_t)periodic_config(ctx)->spectrum.window_function; }
 
 // -- spectrogram callbacks: what its settings give, read only, and the fields of its configuration a
 // listener sets; the resolution in cents, the range in whole dB
@@ -169,28 +165,26 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	spectrum_p[5] = pn_unit(pn_int("max_db",     spectrum, PN_FN(set_spectrum_max_db),     PN_FN(get_spectrum_max_db),     -100, 40, 1), "dB");
 
 	pn_param_t *fundamental = p->periodic_fundamental_params;
-	fundamental[S9_FUNDAMENTAL_FREQUENCY] = pn_readonly(pn_unit(pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0), "Hz"));
-	fundamental[S9_FUNDAMENTAL_VALID]     = pn_readonly(pn_bool("valid",      periodic, NULL, PN_FN(get_fundamental_valid)));
-	fundamental[S9_FUNDAMENTAL_MIDI]      = pn_readonly(pn_float("midi",      periodic, NULL, PN_FN(get_fundamental_midi), 0.0f, 160.0f, 0));
-	fundamental[3]  = pn_unit(pn_float("window",          periodic, PN_FN(set_fundamental_window),           PN_FN(get_fundamental_window),           0.05f, 2.0f, 0), "s");
-	fundamental[4]  = pn_enum("window_function",  periodic, PN_FN(set_fundamental_window_function),  PN_FN(get_fundamental_window_function),  window_function_names, WINDOW_FUNCTION_COUNT);
-	fundamental[5]  = pn_unit(pn_float("averaging",       periodic, PN_FN(set_fundamental_averaging),        PN_FN(get_fundamental_averaging),        0.0f, 10.0f, 0), "s");
-	fundamental[6]  = pn_unit(pn_float("f_min",           periodic, PN_FN(set_fundamental_f_min),            PN_FN(get_fundamental_f_min),            10.0f, 1000.0f, 0), "Hz");
-	fundamental[7]  = pn_unit(pn_float("f_max",           periodic, PN_FN(set_fundamental_f_max),            PN_FN(get_fundamental_f_max),            100.0f, 10000.0f, 0), "Hz");
-	fundamental[8]  = pn_float("gate_rms",        periodic, PN_FN(set_fundamental_gate_rms),         PN_FN(get_fundamental_gate_rms),         0.0f, 1.0f, 0);
-	fundamental[9]  = pn_float("harmonicity_on", periodic, PN_FN(set_fundamental_harmonicity_on), PN_FN(get_fundamental_harmonicity_on),       0.0f, 1.0f, 0);
-	fundamental[10]  = pn_float("harmonicity_off", periodic, PN_FN(set_fundamental_harmonicity_off), PN_FN(get_fundamental_harmonicity_off),      0.0f, 1.0f, 0);
-	fundamental[11] = pn_unit(pn_float("hold",            periodic, PN_FN(set_fundamental_hold),             PN_FN(get_fundamental_hold),             0.0f, 2.0f, 0), "s");
-	fundamental[12] = pn_unit(pn_float("octave_tolerance", periodic, PN_FN(set_fundamental_octave_tolerance), PN_FN(get_fundamental_octave_tolerance), 0.0f, 200.0f, 0), "cents");
-	fundamental[13] = pn_unit(pn_float("smoothing",       periodic, PN_FN(set_fundamental_smoothing),        PN_FN(get_fundamental_smoothing),        0.0f, 5.0f, 0), "s");
-	fundamental[14] = pn_unit(pn_float("deadband",        periodic, PN_FN(set_fundamental_deadband),         PN_FN(get_fundamental_deadband),         0.0f, 100.0f, 0), "cents");
-	fundamental[15] = pn_unit(pn_float("snap",            periodic, PN_FN(set_fundamental_snap),             PN_FN(get_fundamental_snap),             0.0f, 1200.0f, 0), "cents");
+	fundamental[S9_FUNDAMENTAL_FREQUENCY]   = pn_readonly(pn_unit(pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0), "Hz"));
+	fundamental[S9_FUNDAMENTAL_VALID]       = pn_readonly(pn_bool("valid",      periodic, NULL, PN_FN(get_fundamental_valid)));
+	fundamental[S9_FUNDAMENTAL_MIDI]        = pn_readonly(pn_float("midi",      periodic, NULL, PN_FN(get_fundamental_midi), 0.0f, 160.0f, 0));
+	fundamental[S9_FUNDAMENTAL_HARMONICITY] = pn_readonly(pn_float("harmonicity", periodic, NULL, PN_FN(get_fundamental_harmonicity), 0.0f, 1.0f, 0));
+	fundamental[4] = pn_unit(pn_float("f_min", periodic, PN_FN(set_fundamental_f_min), PN_FN(get_fundamental_f_min), 10.0f, 1000.0f, 0), "Hz");
+	fundamental[5] = pn_unit(pn_float("f_max", periodic, PN_FN(set_fundamental_f_max), PN_FN(get_fundamental_f_max), 100.0f, 10000.0f, 0), "Hz");
+
+	pn_param_t *lock = p->periodic_lock_params;
+	lock[S9_LOCK_FREQUENCY]  = pn_readonly(pn_unit(pn_float("frequency", periodic, NULL, PN_FN(get_lock_frequency), 0.0f, 24000.0f, 0), "Hz"));
+	lock[S9_LOCK_LOCKED]     = pn_readonly(pn_bool("locked",     periodic, NULL, PN_FN(get_lock_locked)));
+	lock[S9_LOCK_CONFIDENCE] = pn_readonly(pn_float("confidence", periodic, NULL, PN_FN(get_lock_confidence), 0.0f, 1.0f, 0));
 
 	pn_param_t *harm = p->periodic_harmonics_params;
 	harm[0] = pn_int("harmonics",        periodic, PN_FN(set_harm_harmonics),    PN_FN(get_harm_harmonics),    1, HARMONIC_MAX, 1);
 	harm[1] = pn_unit(pn_float("prominence",     periodic, PN_FN(set_harm_prominence),   PN_FN(get_harm_prominence),   0.0f, 60.0f, 0), "dB");
 	harm[2] = pn_unit(pn_float("hysteresis",     periodic, PN_FN(set_harm_hysteresis),   PN_FN(get_harm_hysteresis),   0.0f, 30.0f, 0), "dB");
 	harm[3] = pn_unit(pn_float("readout_hold",   periodic, PN_FN(set_harm_readout_hold), PN_FN(get_harm_readout_hold), 0.0f, 5.0f, 0), "s");
+	harm[4] = pn_unit(pn_float("window",         periodic, PN_FN(set_harm_window),       PN_FN(get_harm_window),       0.05f, 2.0f, 0), "s");
+	harm[5] = pn_enum("window_function", periodic, PN_FN(set_harm_window_function), PN_FN(get_harm_window_function), window_function_names, WINDOW_FUNCTION_COUNT);
+	harm[6] = pn_unit(pn_float("averaging",      periodic, PN_FN(set_harm_averaging),    PN_FN(get_harm_averaging),    0.0f, 10.0f, 0), "s");
 
 	pn_param_t *wave = p->periodic_waveform_params;
 	wave[0] = pn_int("cycles",         periodic, PN_FN(set_waveform_cycles),      PN_FN(get_waveform_cycles),      1, 8, 1);
@@ -204,9 +198,10 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	p->periodic_params[0] = pn_int("channel", periodic, PN_FN(set_periodic_channel), PN_FN(get_periodic_channel), -1, 31, 1);
 	p->periodic_params[1] = pn_enum("view",   periodic, PN_FN(set_periodic_view),    PN_FN(get_periodic_view),    periodic_view_names, PERIODIC_VIEW_COUNT);
 	p->periodic_params[2] = pn_group("fundamental", fundamental, S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS);
-	p->periodic_params[3] = pn_group("harmonics", harm, S9_PERIODIC_HARMONICS_NUM_PARAMS);
-	p->periodic_params[4] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
-	p->periodic_params[5] = pn_group("note", note, S9_PERIODIC_NOTE_NUM_PARAMS);
+	p->periodic_params[3] = pn_group("lock", lock, S9_PERIODIC_LOCK_NUM_PARAMS);
+	p->periodic_params[4] = pn_group("harmonics", harm, S9_PERIODIC_HARMONICS_NUM_PARAMS);
+	p->periodic_params[5] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
+	p->periodic_params[6] = pn_group("note", note, S9_PERIODIC_NOTE_NUM_PARAMS);
 
 	pn_param_t *spec = p->spectrogram_params;
 	spec[S9_SPECTROGRAM_TIME_RESOLUTION] = pn_readonly(pn_unit(pn_float("time_resolution", spectrogram, NULL, PN_FN(get_spectrogram_time_resolution), 0.0f, 60.0f, 0), "s"));

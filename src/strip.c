@@ -33,6 +33,7 @@ const strip_config_t *strip_config(const strip_t *s) {
 void strip_set_config(strip_t *s, const strip_config_t *config) {
 	s->config = config ? *config : default_strip_config;
 	if (!(s->config.marker_width >= 1.0f)) s->config.marker_width = default_strip_config.marker_width;
+	if (!(s->config.dim_marker_width >= 1.0f)) s->config.dim_marker_width = default_strip_config.dim_marker_width;
 }
 
 static void free_drawing(strip_t *s) {
@@ -71,7 +72,7 @@ static void prepare_to_draw(strip_t *s, SDL_Renderer *renderer) {
 }
 
 void strip_render(strip_t *s, SDL_Renderer *renderer, const char *text, const strip_tick_t *ticks, uint32_t count,
-                  float marker, bool valid) {
+                  float marker, bool valid, float dim) {
 	prepare_to_draw(s, renderer);
 	if (!s->font) return;
 	const strip_config_t *c = &s->config;
@@ -106,9 +107,16 @@ void strip_render(strip_t *s, SDL_Renderer *renderer, const char *text, const st
 		label_blit(&s->labels[i], renderer, lx, y + MAJOR_TICK + LABEL_GAP, ANCHOR_TOP_MIDDLE);
 	}
 
-	// the text in its column, and the marker on the scale
+	// the text in its column, and the markers on the scale, the dim one under the other
 	label_set(&s->text, renderer, s->font, valid ? c->readout_color : c->held_color, text ? text : "");
 	label_blit(&s->text, renderer, (float)MARGIN, y, ANCHOR_MIDDLE_LEFT);
+	if (dim >= 0.0f) {
+		if (dim > 1.0f) dim = 1.0f;
+		SDL_SET_RENDER_DRAW_COLOR(renderer, &c->dim_marker_color);
+		float x = x0 + dim * (x1 - x0);
+		SDL_FRect rect = { x - c->dim_marker_width / 2.0f, y - MARKER_HEIGHT / 2.0f, c->dim_marker_width, MARKER_HEIGHT };
+		SDL_RenderFillRectF(renderer, &rect);
+	}
 	if (marker >= 0.0f) {
 		if (marker > 1.0f) marker = 1.0f;
 		SDL_Color color = valid ? c->marker_color : c->held_color;
