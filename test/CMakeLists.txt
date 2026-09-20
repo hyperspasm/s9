@@ -141,6 +141,14 @@ target_include_directories(test_fft PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_fft PkgConfig::SDL2 pffft m)
 add_test(NAME fft COMMAND test_fft)
 
+add_executable(test_frequency_counter test_frequency_counter.c
+    ${CMAKE_SOURCE_DIR}/src/frequency_counter.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_frequency_counter PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_frequency_counter PkgConfig::SDL2 m)
+add_test(NAME frequency_counter COMMAND test_frequency_counter)
+
 add_executable(test_harmonic_reader test_harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
@@ -169,6 +177,7 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/note_strip.c
     ${CMAKE_SOURCE_DIR}/src/tuner_strip.c
     ${CMAKE_SOURCE_DIR}/src/tracker.c
+    ${CMAKE_SOURCE_DIR}/src/frequency_counter.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c

@@ -28,6 +28,8 @@ struct s9_pn {
 	bool lock_locked;
 	float lock_frequency;
 	float lock_confidence;
+	bool counter_valid;
+	float counter_frequency;
 
 	// the spectrogram's time resolution last pushed, and its top while it follows the material
 	spectrogram_t *spectrogram;
@@ -200,6 +202,18 @@ static void notify_fundamental(s9_pn_t *pn) {
 	if (fabsf(lock_confidence - pn->lock_confidence) >= 0.01f) {
 		pn->lock_confidence = lock_confidence;
 		pn_param_notify(&pn->params.periodic_lock_params[S9_LOCK_CONFIDENCE]);
+	}
+	// the counter, a reference, is pushed to a thousandth of a cent
+	float counter_frequency;
+	bool counter_valid = periodic_counter(pn->periodic, &counter_frequency);
+	if (counter_valid != pn->counter_valid) {
+		pn->counter_valid = counter_valid;
+		pn_param_notify(&pn->params.periodic_counter_params[S9_COUNTER_VALID]);
+	}
+	if ((counter_frequency > 0.0f) != (pn->counter_frequency > 0.0f)
+	    || (counter_frequency > 0.0f && fabs(1200.0 * log2((double)counter_frequency / (double)pn->counter_frequency)) >= 0.001)) {
+		pn->counter_frequency = counter_frequency;
+		pn_param_notify(&pn->params.periodic_counter_params[S9_COUNTER_FREQUENCY]);
 	}
 }
 

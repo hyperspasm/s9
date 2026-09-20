@@ -9,9 +9,10 @@
 
 #define S9_OSC_NUM_PARAMS                7
 #define S9_SPECTRUM_NUM_PARAMS           6
-#define S9_PERIODIC_NUM_PARAMS             7   // channel, view, and the fundamental, lock, harmonics, waveform, and note groups
+#define S9_PERIODIC_NUM_PARAMS             8   // channel, view, and the fundamental, lock, counter, harmonics, waveform, and note groups
 #define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 8
 #define S9_PERIODIC_LOCK_NUM_PARAMS        3
+#define S9_PERIODIC_COUNTER_NUM_PARAMS     2
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   7
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
 #define S9_PERIODIC_NOTE_NUM_PARAMS        1
@@ -45,6 +46,12 @@ typedef enum {
 	S9_LOCK_CONFIDENCE,
 } s9_lock_param_t;
 
+// The periodic analyzer's "counter" group's children, all pushed, in declared order
+typedef enum {
+	S9_COUNTER_FREQUENCY,
+	S9_COUNTER_VALID,
+} s9_counter_param_t;
+
 // The spectrogram group's children, in declared order
 typedef enum {
 	S9_SPECTROGRAM_TIME_RESOLUTION,
@@ -67,6 +74,7 @@ typedef struct {
 	pn_param_t spectrum_params[S9_SPECTRUM_NUM_PARAMS];
 	pn_param_t periodic_fundamental_params[S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS];   // indexed by s9_fundamental_param_t
 	pn_param_t periodic_lock_params[S9_PERIODIC_LOCK_NUM_PARAMS];                 // indexed by s9_lock_param_t
+	pn_param_t periodic_counter_params[S9_PERIODIC_COUNTER_NUM_PARAMS];           // indexed by s9_counter_param_t
 	pn_param_t periodic_harmonics_params[S9_PERIODIC_HARMONICS_NUM_PARAMS];
 	pn_param_t periodic_waveform_params[S9_PERIODIC_WAVEFORM_NUM_PARAMS];
 	pn_param_t periodic_note_params[S9_PERIODIC_NOTE_NUM_PARAMS];

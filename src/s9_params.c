@@ -84,6 +84,8 @@ static float get_fundamental_harmonicity(void *ctx) { return periodic_harmonicit
 static float get_lock_frequency(void *ctx) { float f, c; periodic_lock(ctx, &f, &c); return f; }
 static bool get_lock_locked(void *ctx) { float f, c; return periodic_lock(ctx, &f, &c); }
 static float get_lock_confidence(void *ctx) { float f, c; periodic_lock(ctx, &f, &c); return c; }
+static float get_counter_frequency(void *ctx) { float f; periodic_counter(ctx, &f); return f; }
+static bool get_counter_valid(void *ctx) { float f; return periodic_counter(ctx, &f); }
 
 #define PERIODIC_FLOAT(param, field) \
 	static void set_##param(void *ctx, float val) { periodic_config_t c = *periodic_config(ctx); c.field = val; periodic_set_config(ctx, &c); } \
@@ -188,6 +190,10 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	lock[S9_LOCK_LOCKED]     = pn_readonly(pn_bool("locked",     periodic, NULL, PN_FN(get_lock_locked)));
 	lock[S9_LOCK_CONFIDENCE] = pn_readonly(pn_float("confidence", periodic, NULL, PN_FN(get_lock_confidence), 0.0f, 1.0f, 0));
 
+	pn_param_t *counter = p->periodic_counter_params;
+	counter[S9_COUNTER_FREQUENCY] = pn_readonly(pn_unit(pn_float("frequency", periodic, NULL, PN_FN(get_counter_frequency), 0.0f, 24000.0f, 0), "Hz"));
+	counter[S9_COUNTER_VALID]     = pn_readonly(pn_bool("valid",      periodic, NULL, PN_FN(get_counter_valid)));
+
 	pn_param_t *harm = p->periodic_harmonics_params;
 	harm[0] = pn_int("harmonics",        periodic, PN_FN(set_harm_harmonics),    PN_FN(get_harm_harmonics),    1, HARMONIC_MAX, 1);
 	harm[1] = pn_unit(pn_float("prominence",     periodic, PN_FN(set_harm_prominence),   PN_FN(get_harm_prominence),   0.0f, 60.0f, 0), "dB");
@@ -210,9 +216,10 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	p->periodic_params[1] = pn_enum("view",   periodic, PN_FN(set_periodic_view),    PN_FN(get_periodic_view),    periodic_view_names, PERIODIC_VIEW_COUNT);
 	p->periodic_params[2] = pn_group("fundamental", fundamental, S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS);
 	p->periodic_params[3] = pn_group("lock", lock, S9_PERIODIC_LOCK_NUM_PARAMS);
-	p->periodic_params[4] = pn_group("harmonics", harm, S9_PERIODIC_HARMONICS_NUM_PARAMS);
-	p->periodic_params[5] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
-	p->periodic_params[6] = pn_group("note", note, S9_PERIODIC_NOTE_NUM_PARAMS);
+	p->periodic_params[4] = pn_group("counter", counter, S9_PERIODIC_COUNTER_NUM_PARAMS);
+	p->periodic_params[5] = pn_group("harmonics", harm, S9_PERIODIC_HARMONICS_NUM_PARAMS);
+	p->periodic_params[6] = pn_group("waveform", wave, S9_PERIODIC_WAVEFORM_NUM_PARAMS);
+	p->periodic_params[7] = pn_group("note", note, S9_PERIODIC_NOTE_NUM_PARAMS);
 
 	pn_param_t *spec = p->spectrogram_params;
 	spec[S9_SPECTROGRAM_TIME_RESOLUTION] = pn_readonly(pn_unit(pn_float("time_resolution", spectrogram, NULL, PN_FN(get_spectrogram_time_resolution), 0.0f, 60.0f, 0), "s"));

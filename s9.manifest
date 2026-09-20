@@ -1,4 +1,4 @@
-# pn manifest v1 s9 fnv1a32=e213b72c
+# pn manifest v1 s9 fnv1a32=a8ce17be
 s9/mode enum full|scope|spectrum|periodic|spectrogram
 s9/osc/time_per_div float:s 0x3727c5ac 0x3f800000 0x00000000
 s9/osc/amp_per_div float 0x3a83126f 0x41200000 0x00000000
@@ -26,6 +26,8 @@ s9/periodic/fundamental/f_max float:Hz 0x42c80000 0x461c4000 0x00000000
 s9/periodic/lock/frequency float:Hz 0x00000000 0x46bb8000 0x00000000 ro
 s9/periodic/lock/locked bool ro
 s9/periodic/lock/confidence float 0x00000000 0x3f800000 0x00000000 ro
+s9/periodic/counter/frequency float:Hz 0x00000000 0x46bb8000 0x00000000 ro
+s9/periodic/counter/valid bool ro
 s9/periodic/harmonics/harmonics int 1 64 1
 s9/periodic/harmonics/prominence float:dB 0x00000000 0x42700000 0x00000000
 s9/periodic/harmonics/hysteresis float:dB 0x00000000 0x41f00000 0x00000000

@@ -3,6 +3,7 @@
 
 #include "s9_dsp.h"
 #include "tracker.h"
+#include "frequency_counter.h"
 #include "fft_analyzer.h"
 #include "harmonics.h"
 #include "oscilloscope.h"
@@ -20,7 +21,9 @@
 // the range it tracks, with the lock as a dim marker beside it, and its
 // cents on a tuner's scale; under them, one view of the signal at a time:
 // its harmonics, read from a transform of its own, or its waveform with the
-// sweep locked to whole cycles of the fundamental. The tracker, the
+// sweep locked to whole cycles of the fundamental. Beside the tracker a
+// frequency counter reads the same audio by its zero crossings, a reference
+// for waveforms that cross once per cycle. The tracker, the counter, the
 // transform, the strips, and the views are its own, and all of them analyze
 // the one channel it is set to.
 
@@ -44,6 +47,7 @@ typedef struct {
 	periodic_view_t view;
 	float initial_f0;                 // the fundamental assumed before one has been decided, Hz
 	tracker_config_t tracker;         // the tracker's; a change remakes the tracker, which starts over
+	frequency_counter_config_t counter;   // the frequency counter's; a change likewise remakes it
 	struct {
 		float window_s;               // the audio the harmonics view's transform spans, seconds: the transform
 		                              // is the longest power of two of samples within it. Longer resolves the
@@ -103,6 +107,10 @@ float periodic_harmonicity(const periodic_t *p);
 // The lock: whether there is one now; its frequency in Hz, 0 without one;
 // and its confidence, the last hop's correlation, 0 while coasting.
 bool periodic_lock(const periodic_t *p, float *frequency, float *confidence);
+
+// The frequency counter's reading of the same audio, as frequency_counter.h
+// has it: whether it is valid, and the frequency in Hz, 0 when it is not.
+bool periodic_counter(const periodic_t *p, float *frequency);
 
 // The tracked fundamental as a note at the configured reference. Returns
 // false before the first valid frame; the note holds while the fundamental

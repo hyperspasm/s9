@@ -13,6 +13,8 @@ struct periodic {
 	fft_analyzer_t *feed;            // the tracker's audio: the channel mixed, a hop at a time, untransformed
 	tracker_t *tracker;              // made at the stream's rate; NULL before streaming
 	tracker_config_t tracker_made;   // the configuration it was made with
+	frequency_counter_t *counter;    // likewise
+	frequency_counter_config_t counter_made;
 	fft_analyzer_t *spectrum;        // the harmonics view's transform
 	harmonics_t *harmonics;
 	oscilloscope_t *waveform;
@@ -32,6 +34,7 @@ periodic_config_t periodic_default_config(void) {
 		.view = PERIODIC_VIEW_HARMONICS,
 		.initial_f0 = 1000.0f,
 		.tracker = default_tracker_config,
+		.counter = default_frequency_counter_config,
 		.spectrum = { .window_s = 0.75f, .window_function = WINDOW_FUNCTION_BLACKMAN_HARRIS, .averaging_s = 1.0f },
 		.harmonics = default_harmonics_config,
 		.waveform = { .display = default_oscilloscope_config, .cycles = 1, .amp_per_div = 0.2f, .lock_cycles = 2, .lock_time = 0.3f },
@@ -134,12 +137,23 @@ static void make_tracker(periodic_t *p) {
 	p->valid = false;
 }
 
-// hand a changed configuration to the tracker, the transforms and the views
+// a counter at the stream's rate from the configuration, in place of any before
+static void make_counter(periodic_t *p) {
+	frequency_counter_free(&p->counter);
+	if (!p->sample_rate) return;
+	p->counter = frequency_counter_new(&p->config.counter, p->sample_rate);
+	CHECK_ALLOC(p->counter, return);
+	p->counter_made = p->config.counter;
+}
+
+// hand a changed configuration to the tracker, the counter, the transforms and the views
 static void apply_config(periodic_t *p) {
 	if (!p->config_changed) return;
 	p->config_changed = 0;
 	if (p->sample_rate && (!p->tracker || memcmp(&p->tracker_made, &p->config.tracker, sizeof p->config.tracker) != 0))
 		make_tracker(p);
+	if (p->sample_rate && (!p->counter || memcmp(&p->counter_made, &p->config.counter, sizeof p->config.counter) != 0))
+		make_counter(p);
 	fft_analyzer_config_t fc = feed_config(p);
 	fft_analyzer_set_config(p->feed, &fc);
 	fft_analyzer_config_t sc = spectrum_config(p);
@@ -187,6 +201,7 @@ void periodic_free(periodic_t **p) {
 		oscilloscope_free(&(*p)->waveform);
 		harmonics_free(&(*p)->harmonics);
 		fft_analyzer_free(&(*p)->spectrum);
+		frequency_counter_free(&(*p)->counter);
 		tracker_free(&(*p)->tracker);
 		fft_analyzer_free(&(*p)->feed);
 		free(*p);
@@ -202,6 +217,11 @@ bool periodic_lock(const periodic_t *p, float *frequency, float *confidence) {
 	*frequency = p->state.locked ? p->state.lock_hz : 0.0f;
 	*confidence = p->state.locked ? p->state.lock_confidence : 0.0f;
 	return p->state.locked;
+}
+
+bool periodic_counter(const periodic_t *p, float *frequency) {
+	if (!p->counter) { *frequency = 0.0f; return false; }
+	return frequency_counter_read(p->counter, frequency);
 }
 
 bool periodic_note(const periodic_t *p, note_t *note) {
@@ -229,6 +249,7 @@ void periodic_prepare_to_stream(periodic_t *p, const s9_audio_stream_config_t *s
 	fft_analyzer_set_config(p->spectrum, &sc);
 	fft_analyzer_prepare_to_stream(p->spectrum, stream_config);
 	make_tracker(p);
+	make_counter(p);
 	p->fundamental = 0.0f;
 	harmonics_prepare_to_stream(p->harmonics, stream_config);
 	oscilloscope_prepare_to_stream(p->waveform, stream_config);
@@ -249,7 +270,7 @@ void periodic_enqueue_audio_data(periodic_t *p, const void *data, uint32_t size)
 
 // -- the frame
 
-// every hop queued into the tracker, and the transform's update
+// every hop queued into the tracker and the counter, and the transform's update
 static void track(periodic_t *p) {
 	if (!p->tracker) return;
 	uint32_t hop = tracker_hop(p->tracker);
@@ -258,6 +279,7 @@ static void track(periodic_t *p) {
 		uint32_t len = fft_analyzer_fft_len(p->feed);
 		if (!frame || len < hop) break;
 		tracker_feed(p->tracker, frame + (len - hop), hop);
+		if (p->counter) frequency_counter_feed(p->counter, frame + (len - hop), hop);
 	}
 	p->state = tracker_state(p->tracker);
 	p->valid = p->state.committed;
