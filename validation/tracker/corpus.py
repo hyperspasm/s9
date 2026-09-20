@@ -139,6 +139,12 @@ def named():
             out.append(recipe(f"named-glide-{note}-{direction}", {"set": "named", "case": "glide", "pitch": note}, seconds=4.0,
                               timing={"onset_s": 0.1, "offset_s": 3.9, "attack_ms": 5.0},
                               pitch={"kind": "glide", "f0": NOTES[note] * 2.0 ** start, "f_end": NOTES[note] * 2.0 ** stop, "start_s": 1.0, "duration_s": 2.0}, timbre=saw))
+    # a sine after another sine: a twelfth below, a fifth below, an octave above; the lock left on the
+    # first note must not be read as a multiple or a fraction of the second
+    for label, prev in (("twelfth-below", 55.0), ("fifth-below", 110.0), ("octave-above", 329.6)):
+        out.append(recipe(f"named-after-{label}", {"set": "named", "case": "after-note", "previous": label},
+                          pitch={"kind": "steps", "notes": [(prev, 1.0), (164.76, 2.0)]}, timbre={"kind": "sine"},
+                          amplitude={"level_db": -12.0, "envelope": "sustain"}, timing={"onset_s": 0.1, "offset_s": 2.9, "attack_ms": 50.0}))
     # sweeps at rising slew until the lock breaks
     for note in ("C2", "C4"):
         for slew in (0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0):

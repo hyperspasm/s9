@@ -94,7 +94,7 @@ class Config:
                                         # of recent evaluations, leakily counted...
     persistence_leak: float = 0.15      # ...with this step per evaluation
     pending: float = 0.3                # while such evidence has built past this, the lock's own comb waits
-    lift_min_peaks: int = 2             # a lift rests on at least this many evident peaks: one's number is no series
+    lift_slack: float = 0.1             # a lift's shorter period may repeat this much less well than the lock's own
     voices: tuple = (2, 3, 4, 5, 6)     # multiples tried as two voices sharing a comb
     harmonicity_on: float = 0.6         # the comb's share of the evident peaks' power, to commit: two unrelated
                                         # tones share it equally and must not
@@ -293,10 +293,9 @@ class Lock:
         self.centre = (n + period) / 2.0
         self.coast_s = 0.0
 
-    def retune(self, x, end, divisor):
-        """move the lock down to a divisor of its period, where the fundamental stage has
-        found the series to be, if the waveform correlates there too: True when moved"""
-        cfg = self.cfg
+    def repeats_at(self, x, end, divisor):
+        """whether the waveform repeats at a divisor of the lock's period nearly as well as
+        at the period itself, and well enough to be tracked there"""
         n = self.window_len()
         lag = int(round(self.period / divisor))
         if lag < self.tau_min or end < n + lag:
@@ -304,7 +303,12 @@ class Lock:
         ref = x[end - n:end]
         lagged = x[end - n - lag:end - lag]
         r = float(np.dot(ref, lagged) / math.sqrt(max(np.dot(ref, ref) * np.dot(lagged, lagged), 1e-30)))
-        if r < cfg.track_min_corr:
+        return r >= max(self.cfg.track_min_corr, self.corr - self.cfg.lift_slack)
+
+    def retune(self, x, end, divisor):
+        """move the lock down to a divisor of its period, where the fundamental stage has
+        found the series to be, if the waveform repeats there too: True when moved"""
+        if not self.repeats_at(x, end, divisor):
             return False
         self.period /= divisor
         self.rate, self.slew = 0.0, 0.0
@@ -497,7 +501,9 @@ class Fundamental:
                     best, best_power = louder, power
         return best
 
-    def evaluate(self, x, end, f_lock, history):
+    def evaluate(self, x, end, f_lock, history, repeats_at):
+        """one evaluation; repeats_at(divisor) says whether the waveform repeats at that
+        divisor of the lock's period"""
         cfg = self.cfg
         frame, f_ref = self._frame(x, end, f_lock, history)
         if frame is None:
@@ -517,9 +523,12 @@ class Fundamental:
         f1 = self._refined(freqs, powers, f_ref, bin_hz, f_cap)
         on1, k1 = self._on_comb(freqs, f1, bin_hz, f_cap)
         explained1 = float(np.sum(powers[on1]))
-        g = int(np.gcd.reduce(k1[on1 & evident].astype(int))) if np.sum(on1 & evident) >= cfg.lift_min_peaks else 1
+        g = int(np.gcd.reduce(k1[on1 & evident].astype(int))) if np.any(on1 & evident) else 1
         g = max(g, 1)
-        # a lift, like a sub-multiple, must persist
+        # A lift, like a sub-multiple, must persist: the first frames of a note show its strongest
+        # partial alone. And the waveform must repeat at the shorter period the lift claims: a lone
+        # partial's number is otherwise no series, while a lock sitting on a multiple of a sine's
+        # period is lifted by that one partial.
         building = False
         for d in set(self.lift_seen) | ({g} if g > 1 else set()):
             seen = self.lift_seen.get(d, 0.0)
@@ -527,6 +536,8 @@ class Fundamental:
             self.lift_seen[d] = seen
         if g > 1 and self.lift_seen[g] < cfg.persistence:
             building = self.lift_seen[g] >= cfg.pending
+            g = 1
+        elif g > 1 and not repeats_at(g):
             g = 1
         best = (g, 1, f1 * g)
         best_explained = explained1
@@ -678,7 +689,8 @@ def estimate(audio, fs, cfg=None):
             fund.reset()
             since = i
         if lock.locked and lock.corr > 0.0:
-            fund.evaluate(x, end, lock.frequency, (centres[:i + 1], periods[:i + 1], lock.rate))
+            fund.evaluate(x, end, lock.frequency, (centres[:i + 1], periods[:i + 1], lock.rate),
+                          lambda divisor: lock.repeats_at(x, end, divisor))
             g, m = fund.decision if fund.committed else (1, 1)
             if g > 1 and lock.retune(x, end, g):
                 # the lock moves down to the fundamental's series; its history and the decision follow

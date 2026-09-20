@@ -1,7 +1,8 @@
 // The two-stage tracker, held to the promises of validation/tracker/objective.md
 // on a few signals: a sawtooth locks and commits within the lock latency and reads
-// within a few cents, a sub-oscillator's series is read at the sub, silence ends
-// the lock after the hold, and noise never commits.
+// within a few cents, a sub-oscillator's series is read at the sub, a sine after a
+// sine a twelfth below is read as itself, silence ends the lock after the hold, and
+// noise never commits.
 #include "greatest.h"
 #include "tracker.h"
 #include "test_signals.h"
@@ -65,6 +66,28 @@ TEST a_sub_oscillator_is_the_fundamental(void) {
 	PASS();
 }
 
+// A sine after a sine a twelfth below it: the lock left on the first note sits on three
+// periods of the second, which the lone partial lifts and the waveform confirms, so the
+// second note is read as itself.
+TEST a_sine_after_a_twelfth_below_is_read_as_itself(void) {
+	uint32_t n = 3 * FS;
+	float *x = calloc(n, sizeof(float));
+	test_signal_t low = { SIGNAL_SINE, 55.0, 0.0, 0.25, 0.0, 0, 1, 0.0 };
+	test_signal_t high = { SIGNAL_SINE, 164.76, 0.0, 0.25, 0.0, 0, 1, 0.0 };
+	test_signal_generate(&low, x, FS, FS);
+	test_signal_generate(&high, x + FS, n - FS, FS);
+	tracker_t *t = tracker_new(NULL, FS);
+	ASSERT(t);
+	tracker_feed(t, x, FS);
+	ASSERT_IN_RANGE(0.0, cents_from(tracker_state(t).fundamental_hz, 55.0), 5.0);
+	double at = time_to_read(t, x + FS, n - FS, 164.76, 5.0);
+	ASSERT(at > 0.0);
+	ASSERT(at <= 0.5);
+	tracker_free(&t);
+	free(x);
+	PASS();
+}
+
 TEST silence_ends_the_lock_after_the_hold(void) {
 	uint32_t n = 2 * FS;
 	float *x = calloc(n, sizeof(float));
@@ -110,6 +133,7 @@ int main(int argc, char **argv) {
 	GREATEST_MAIN_BEGIN();
 	RUN_TEST(a_sawtooth_locks_and_reads_within_the_promise);
 	RUN_TEST(a_sub_oscillator_is_the_fundamental);
+	RUN_TEST(a_sine_after_a_twelfth_below_is_read_as_itself);
 	RUN_TEST(silence_ends_the_lock_after_the_hold);
 	RUN_TEST(noise_never_commits);
 	GREATEST_MAIN_END();

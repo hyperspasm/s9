@@ -16,8 +16,9 @@
 // a small rational, decided from a spectral frame warped by the lock's own
 // history so its partials stay sharp through motion: the lock's comb, an octave
 // sub-multiple whose own slots hold persistent evidence, a multiple the
-// evident harmonic numbers' greatest common divisor points to, or the louder
-// of two voices sharing the comb; committed once the comb holds most of the
+// evident harmonic numbers' greatest common divisor points to and the waveform
+// confirms by repeating at that shorter period, or the louder of two voices
+// sharing the comb; committed once the comb holds most of the
 // evident power for a few evaluations, revised when another decision has held
 // for longer, lapsing only after a while without evidence. Its value is the
 // lock over the decision's ratio, corrected slowly toward a least-squares fit
@@ -64,7 +65,7 @@ typedef struct {
 	float persistence;             // a sub-multiple's evidence, or a lift's, counts once present in this fraction of
 	float persistence_leak;        // recent evaluations, leakily counted with this step per evaluation...
 	float pending;                 // ...and while it has built past this, the lock's own comb waits
-	uint32_t lift_min_peaks;       // a lift rests on at least this many evident peaks
+	float lift_slack;              // a lift's shorter period may repeat this much less well than the lock's own
 	float harmonicity_on;          // the comb's share of the evident peaks' power, to commit
 	float harmonicity_off;         // and to stay committed
 	float lapse_s;                 // a committed decision lapses after this long below harmonicity_off
@@ -116,7 +117,7 @@ static const tracker_config_t default_tracker_config = {
 	.persistence = 0.6f,
 	.persistence_leak = 0.15f,
 	.pending = 0.3f,
-	.lift_min_peaks = 2,
+	.lift_slack = 0.1f,
 	.harmonicity_on = 0.6f,
 	.harmonicity_off = 0.3f,
 	.lapse_s = 1.0f,

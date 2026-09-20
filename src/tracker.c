@@ -326,9 +326,9 @@ static void lock_track(tracker_t *t, int64_t end) {
 	t->lock.coast_s = 0.0;
 }
 
-// move the lock down to a divisor of its period, where the fundamental stage has found the
-// series to be, if the waveform correlates there too
-static int lock_retune(tracker_t *t, int64_t end, uint32_t divisor) {
+// whether the waveform repeats at a divisor of the lock's period nearly as well as at the
+// period itself, and well enough to be tracked there
+static int lock_repeats_at(tracker_t *t, int64_t end, uint32_t divisor) {
 	uint32_t n = window_len(t);
 	uint32_t lag = (uint32_t)lrint(t->lock.period / divisor);
 	if (lag < t->lock.tau_min || (int64_t)(n + lag) > end) return 0;
@@ -341,7 +341,16 @@ static int lock_retune(tracker_t *t, int64_t end, uint32_t divisor) {
 		el += (double)lagged[i] * lagged[i];
 	}
 	double denom = ee * el;
-	if (rr / sqrt(denom > 1e-30 ? denom : 1e-30) < t->cfg.track_min_corr) return 0;
+	double r = rr / sqrt(denom > 1e-30 ? denom : 1e-30);
+	double needed = t->lock.corr - t->cfg.lift_slack;
+	if (needed < t->cfg.track_min_corr) needed = t->cfg.track_min_corr;
+	return r >= needed;
+}
+
+// move the lock down to a divisor of its period, where the fundamental stage has found the
+// series to be, if the waveform repeats there too
+static int lock_retune(tracker_t *t, int64_t end, uint32_t divisor) {
+	if (!lock_repeats_at(t, end, divisor)) return 0;
 	t->lock.period /= divisor;
 	t->lock.rate = t->lock.slew = 0.0;
 	t->lock.smooth = log2(lock_frequency(t));
@@ -693,6 +702,8 @@ static void observe(tracker_t *t, int has_decision, int g, int m) {
 	}
 }
 
+static int lock_repeats_at(tracker_t *t, int64_t end, uint32_t divisor);
+
 static void evaluate(tracker_t *t, int64_t end, double f_lock) {
 	const tracker_config_t *cfg = &t->cfg;
 	double f_ref, bin_hz;
@@ -721,15 +732,18 @@ static void evaluate(tracker_t *t, int64_t end, double f_lock) {
 		explained1 += t->pk_power[i];
 		if (t->evident[i]) { evident_on++; g = gcd(g, (uint32_t)t->k1[i]); }
 	}
-	if (evident_on < cfg->lift_min_peaks || g < 1) g = 1;
-	if (g >= LIFTS) g = 1;
-	// a lift, like a sub-multiple, must persist: the first frames of a note show its strongest
-	// partial alone
+	if (evident_on == 0 || g < 1 || g >= LIFTS) g = 1;
+	// A lift, like a sub-multiple, must persist: the first frames of a note show its strongest
+	// partial alone. And the waveform must repeat at the shorter period the lift claims: a lone
+	// partial's number is otherwise no series, while a lock sitting on a multiple of a sine's period
+	// is lifted by that one partial.
 	int building = 0;
 	for (uint32_t d = 2; d < LIFTS; d++)
 		t->fund.lift_seen[d] += cfg->persistence_leak * ((d == g ? 1.0 : 0.0) - t->fund.lift_seen[d]);
 	if (g > 1 && t->fund.lift_seen[g] < cfg->persistence) {
 		building = t->fund.lift_seen[g] >= cfg->pending;
+		g = 1;
+	} else if (g > 1 && !lock_repeats_at(t, end, g)) {
 		g = 1;
 	}
 	uint32_t best_g = g, best_m = 1;
