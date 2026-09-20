@@ -3,14 +3,15 @@
 
 #include <stdint.h>
 
-// Forward transforms of real and complex frames, through PFFFT
-// (extern/pffft). A transform is made for one length, which must be a
-// fast length: a multiple of FFT_MIN_LENGTH with no prime factor above 5,
-// the lengths PFFFT handles. The bins come out in the usual order as
-// (re, im) pairs, unscaled, with the usual sign of the phase: a real frame
-// of n samples gives n/2 + 1 bins, the first and the last with no
-// imaginary part; a complex frame of n pairs gives n bins. Input and
-// output buffers may have any alignment.
+// Transforms of real and complex frames, through PFFFT (extern/pffft). A
+// transform is made for one length, which must be a fast length: a
+// multiple of FFT_MIN_LENGTH with no prime factor above 5, the lengths
+// PFFFT handles. The bins come out in the usual order as (re, im) pairs,
+// unscaled, with the usual sign of the phase: a real frame of n samples
+// gives n/2 + 1 bins, the first and the last with no imaginary part; a
+// complex frame of n pairs gives n bins. The inverse of a real transform
+// takes the same bins back to n samples, scaled by n. Input and output
+// buffers may have any alignment.
 
 #define FFT_MIN_LENGTH 32
 
@@ -32,5 +33,8 @@ void fft_forward_real(fft_t *fft, const float *in, float *bins);
 
 // n complex samples to n bins
 void fft_forward_complex(fft_t *fft, const float *in, float *bins);
+
+// n/2 + 1 bins to n real samples, n times the frame that gave them
+void fft_inverse_real(fft_t *fft, const float *bins, float *out);
 
 #endif /* fft_h */

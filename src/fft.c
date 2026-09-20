@@ -79,3 +79,13 @@ void fft_forward_complex(fft_t *fft, const float *in, float *bins) {
 	pffft_transform_ordered(fft->setup, fft->in, fft->out, fft->work, PFFFT_FORWARD);
 	memcpy(bins, fft->out, sizeof(float) * 2 * fft->n);
 }
+
+void fft_inverse_real(fft_t *fft, const float *bins, float *out) {
+	S9_ASSERT(fft->kind == FFT_REAL);
+	uint32_t n = fft->n;
+	fft->in[0] = bins[0];
+	fft->in[1] = bins[n];
+	memcpy(fft->in + 2, bins + 2, sizeof(float) * (n - 2));
+	pffft_transform_ordered(fft->setup, fft->in, fft->out, fft->work, PFFFT_BACKWARD);
+	memcpy(out, fft->out, sizeof(float) * n);
+}

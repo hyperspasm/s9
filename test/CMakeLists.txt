@@ -157,6 +157,14 @@ target_include_directories(test_fundamental PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_fundamental PkgConfig::SDL2 pffft m)
 add_test(NAME fundamental COMMAND test_fundamental)
 
+add_executable(test_fft test_fft.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_fft PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_fft PkgConfig::SDL2 pffft m)
+add_test(NAME fft COMMAND test_fft)
+
 add_executable(test_harmonic_reader test_harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
