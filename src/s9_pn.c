@@ -23,6 +23,7 @@ struct s9_pn {
 	bool fundamental_valid;
 	float fundamental_frequency;
 	float fundamental_midi;
+	int fundamental_number;   // the note last pushed, for its name
 	float fundamental_harmonicity;
 	bool lock_locked;
 	float lock_frequency;
@@ -86,6 +87,7 @@ s9_pn_t *s9_pn_new(const s9_pn_config_t *config) {
 	s9_pn_t *pn = malloc(sizeof(s9_pn_t));
 	CHECK_ALLOC(pn, return NULL);
 	memset(pn, 0, sizeof(*pn));
+	pn->fundamental_number = -1;   // no note pushed yet
 
 	pn->config = *config;
 	void *osc = s9_components_get(pn->config.components, COMP_OSCILLOSCOPE)->instance;
@@ -170,8 +172,15 @@ static void notify_fundamental(s9_pn_t *pn) {
 		pn->fundamental_frequency = frequency;
 		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_FREQUENCY]);
 		note_t note;
-		pn->fundamental_midi = periodic_note(pn->periodic, &note) ? note_midi(&note) : 0.0f;
+		bool have_note = periodic_note(pn->periodic, &note);
+		pn->fundamental_midi = have_note ? note_midi(&note) : 0.0f;
 		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_MIDI]);
+		pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_CENTS]);
+		int number = have_note ? note.number : -1;
+		if (number != pn->fundamental_number) {   // the name changes only with the note
+			pn->fundamental_number = number;
+			pn_param_notify(&pn->params.periodic_fundamental_params[S9_FUNDAMENTAL_NAME]);
+		}
 	}
 	float harmonicity = periodic_harmonicity(pn->periodic);
 	if (fabsf(harmonicity - pn->fundamental_harmonicity) >= 0.01f) {

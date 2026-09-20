@@ -71,6 +71,15 @@ SPECTRUM_INT(spectrum_max_db, graph_config.max_db, int32_t)
 static float get_fundamental_frequency(void *ctx) { return periodic_frequency(ctx); }
 static bool get_fundamental_valid(void *ctx) { return periodic_valid(ctx); }
 static float get_fundamental_midi(void *ctx) { note_t note; return periodic_note(ctx, &note) ? note_midi(&note) : 0.0f; }
+// the note's name, as the tuner shows it, empty without a note; and its cents from the note
+static const char *get_fundamental_name(void *ctx) {
+	static char name[8];
+	note_t note;
+	if (periodic_note(ctx, &note)) note_name(note.number, name, sizeof name);
+	else name[0] = '\0';
+	return name;
+}
+static float get_fundamental_cents(void *ctx) { note_t note; return periodic_note(ctx, &note) ? note.cents : 0.0f; }
 static float get_fundamental_harmonicity(void *ctx) { return periodic_harmonicity(ctx); }
 static float get_lock_frequency(void *ctx) { float f, c; periodic_lock(ctx, &f, &c); return f; }
 static bool get_lock_locked(void *ctx) { float f, c; return periodic_lock(ctx, &f, &c); }
@@ -168,9 +177,11 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	fundamental[S9_FUNDAMENTAL_FREQUENCY]   = pn_readonly(pn_unit(pn_float("frequency", periodic, NULL, PN_FN(get_fundamental_frequency), 0.0f, 24000.0f, 0), "Hz"));
 	fundamental[S9_FUNDAMENTAL_VALID]       = pn_readonly(pn_bool("valid",      periodic, NULL, PN_FN(get_fundamental_valid)));
 	fundamental[S9_FUNDAMENTAL_MIDI]        = pn_readonly(pn_float("midi",      periodic, NULL, PN_FN(get_fundamental_midi), 0.0f, 160.0f, 0));
+	fundamental[S9_FUNDAMENTAL_NAME]        = pn_readonly(pn_string("name",     periodic, NULL, PN_FN(get_fundamental_name), 8));
+	fundamental[S9_FUNDAMENTAL_CENTS]       = pn_readonly(pn_unit(pn_float("cents", periodic, NULL, PN_FN(get_fundamental_cents), -50.0f, 50.0f, 0), "cents"));
 	fundamental[S9_FUNDAMENTAL_HARMONICITY] = pn_readonly(pn_float("harmonicity", periodic, NULL, PN_FN(get_fundamental_harmonicity), 0.0f, 1.0f, 0));
-	fundamental[4] = pn_unit(pn_float("f_min", periodic, PN_FN(set_fundamental_f_min), PN_FN(get_fundamental_f_min), 10.0f, 1000.0f, 0), "Hz");
-	fundamental[5] = pn_unit(pn_float("f_max", periodic, PN_FN(set_fundamental_f_max), PN_FN(get_fundamental_f_max), 100.0f, 10000.0f, 0), "Hz");
+	fundamental[6] = pn_unit(pn_float("f_min", periodic, PN_FN(set_fundamental_f_min), PN_FN(get_fundamental_f_min), 10.0f, 1000.0f, 0), "Hz");
+	fundamental[7] = pn_unit(pn_float("f_max", periodic, PN_FN(set_fundamental_f_max), PN_FN(get_fundamental_f_max), 100.0f, 10000.0f, 0), "Hz");
 
 	pn_param_t *lock = p->periodic_lock_params;
 	lock[S9_LOCK_FREQUENCY]  = pn_readonly(pn_unit(pn_float("frequency", periodic, NULL, PN_FN(get_lock_frequency), 0.0f, 24000.0f, 0), "Hz"));

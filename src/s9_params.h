@@ -10,7 +10,7 @@
 #define S9_OSC_NUM_PARAMS                7
 #define S9_SPECTRUM_NUM_PARAMS           6
 #define S9_PERIODIC_NUM_PARAMS             7   // channel, view, and the fundamental, lock, harmonics, waveform, and note groups
-#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 6
+#define S9_PERIODIC_FUNDAMENTAL_NUM_PARAMS 8
 #define S9_PERIODIC_LOCK_NUM_PARAMS        3
 #define S9_PERIODIC_HARMONICS_NUM_PARAMS   7
 #define S9_PERIODIC_WAVEFORM_NUM_PARAMS    4
@@ -33,6 +33,8 @@ typedef enum {
 	S9_FUNDAMENTAL_FREQUENCY,
 	S9_FUNDAMENTAL_VALID,
 	S9_FUNDAMENTAL_MIDI,
+	S9_FUNDAMENTAL_NAME,
+	S9_FUNDAMENTAL_CENTS,
 	S9_FUNDAMENTAL_HARMONICITY,
 } s9_fundamental_param_t;
 
