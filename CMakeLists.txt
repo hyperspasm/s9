@@ -150,6 +150,12 @@ add_executable(track_vectors tools/track_vectors.c
 target_include_directories(track_vectors PRIVATE src)
 target_link_libraries(track_vectors PkgConfig::SDL2 pffft m)
 
+# The two-stage tracker over a file, for the same harness
+add_executable(tracker_vectors tools/tracker_vectors.c
+    src/tracker.c src/harmonic_readout.c src/fft.c src/window_function.c src/s9_log.c)
+target_include_directories(tracker_vectors PRIVATE src)
+target_link_libraries(tracker_vectors PkgConfig::SDL2 pffft m)
+
 add_subdirectory(test)
 
 # The package: the program, its documentation and its copyright notices,

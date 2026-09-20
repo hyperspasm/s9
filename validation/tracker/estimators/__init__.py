@@ -15,6 +15,7 @@ NAMES = {
     "crepe_tiny": "tracker.estimators.crepe:estimate_tiny",    # the tiny model
     "pesto": "tracker.estimators.pesto_pitch",                 # pesto-pitch
     "two_stage": "tracker.estimators.two_stage",               # the objective's design, prototyped
+    "tracker_c": "tracker.estimators.tracker_c",               # the same in C, src/tracker.c, through build/tracker_vectors
 }
 
 

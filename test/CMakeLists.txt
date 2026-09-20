@@ -157,6 +157,17 @@ target_include_directories(test_fundamental PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_fundamental PkgConfig::SDL2 pffft m)
 add_test(NAME fundamental COMMAND test_fundamental)
 
+add_executable(test_tracker test_tracker.c
+    ${CMAKE_SOURCE_DIR}/src/tracker.c
+    ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
+    ${CMAKE_SOURCE_DIR}/src/window_function.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_tracker PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_tracker PkgConfig::SDL2 pffft m)
+add_test(NAME tracker COMMAND test_tracker)
+
 add_executable(test_fft test_fft.c
     ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
