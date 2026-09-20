@@ -84,7 +84,7 @@ Every metric is reported per vector and aggregated along each axis, so a report 
 
 ## Baselines
 
-The harness runs any estimator, a function from audio to a trajectory of lock frequency, fundamental, states and confidences. The first ones through it: the current tracker, pYIN, SWIPE, and the learned estimators CREPE and PESTO. They are not references; they calibrate the promises against what is achievable, and their per-axis maps say where the corpus is hard. A learned stage remains a candidate for the fundamental decision if the classical one fails on something that matters and the model fits the target.
+The harness runs any estimator, a function from audio to a trajectory of lock frequency, fundamental, states and confidences. The first ones through it were the tracker s9 ran before this design, a spectral harmonic-series estimator behind a conditioner, along with pYIN and the learned estimators CREPE and PESTO. They are not references; they calibrated the promises against what is achievable, and their per-axis maps said where the corpus is hard. The tracker built to this objective replaced the earlier one once it scored above every baseline on the corpus. A learned stage remains a candidate for the fundamental decision if the classical one fails on something that matters and the model fits the target.
 
 ## Open questions
 

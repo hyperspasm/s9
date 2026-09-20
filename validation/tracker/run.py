@@ -3,7 +3,7 @@
     venv/bin/python -m tracker.run generate [--set grid,random,named]
     venv/bin/python -m tracker.run score --estimator yin [--set ...] [--only substring] [--by axis,...]
     venv/bin/python -m tracker.run report --estimator yin [--set ...] [--only substring] [--by axis,...]
-    venv/bin/python -m tracker.run compare --estimators yin,current_c,pyin,pesto [--set ...] [--by axis,...]
+    venv/bin/python -m tracker.run compare --estimators tracker_c,two_stage,yin,pyin [--set ...] [--by axis,...]
     venv/bin/python -m tracker.run show ID
 
 generate renders every vector of the chosen sets into the cache. score runs an
@@ -166,7 +166,7 @@ def main():
     rp.add_argument("--by", default="")
     rp.set_defaults(fn=cmd_report)
     cp = sub.add_parser("compare")
-    cp.add_argument("--estimators", default="yin,current_c,pyin,pesto")
+    cp.add_argument("--estimators", default="tracker_c,two_stage,yin,pyin")
     cp.add_argument("--set", default="all")
     cp.add_argument("--only", default="")
     cp.add_argument("--by", default="set")

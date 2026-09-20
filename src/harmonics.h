@@ -25,7 +25,7 @@ typedef struct harmonics harmonics_t;
 typedef struct {
 	// reading the harmonics
 	harmonic_reader_config_t reader;  // its harmonics are the markers across the graph. Noise reaches a
-	                                  // prominence of about 10 dB after a second of the tracker's
+	                                  // prominence of about 10 dB after a second of the analyzer's
 	                                  // averaging, 15 dB with none
 
 	// display
@@ -80,8 +80,8 @@ void harmonics_render(harmonics_t *h, SDL_Renderer *renderer, float fundamental_
 const harmonics_config_t *harmonics_config(const harmonics_t *h);
 void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config);
 
-// the last frame's readings of harmonics 1..*count, none unless the tracker
-// is locked; valid until the next frame
+// the last frame's readings of harmonics 1..*count, none unless the fundamental
+// is valid; good until the next frame
 const harmonic_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count);
 
 // The last frame's total harmonic distortion as a ratio. Returns 0, or -1
