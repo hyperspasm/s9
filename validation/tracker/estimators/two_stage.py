@@ -229,6 +229,8 @@ class Lock:
         acf = np.fft.irfft(np.conj(spec_w) * spec, size)[:tau_max + 1]   # sum x[i] x[i+tau] over i < w
         energy = np.concatenate([[0.0], np.cumsum(frame * frame)])
         e0 = energy[w]
+        if e0 <= 1e-6 * energy[n]:
+            return None   # the part compared is silent while the frame is not: an onset, no period yet
         e_tau = energy[w + np.arange(tau_max + 1)] - energy[np.arange(tau_max + 1)]
         d = e0 + e_tau - 2.0 * acf
         cmndf = np.ones_like(d)
@@ -243,8 +245,8 @@ class Lock:
                 found = tau
                 break
             tau += 1
-        if found is None:
-            return None
+        if found is None or cmndf[found - 1] < cmndf[found]:
+            return None   # no dip, or the flank of one at a shorter lag than the range
         shift, value = _parabola(cmndf[found - 1], cmndf[found], cmndf[found + 1])
         period = found + shift
         return period, value, n - (w + period) / 2.0
