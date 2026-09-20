@@ -42,6 +42,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from s9 import harmonics as oracle   # the readout's model of a window's peak, for refining peaks
 from ..score import Trajectory
 
 
@@ -396,9 +397,12 @@ class Fundamental:
         self.sub_seen, self.lift_seen = {}, {}
 
     def _window(self, n):
+        """the window for a frame length, summing to the length, and the bias of a parabola
+        through the peak of its transform, as the readout oracle tabulates it"""
         if n not in self._windows:
             w = _blackman_harris(n)
-            self._windows[n] = w * (n / np.sum(w))
+            w = w * (n / np.sum(w))
+            self._windows[n] = (w, oracle.correction_table(w))
         return self._windows[n]
 
     def _frame(self, x, end, f_lock, history):
@@ -437,9 +441,12 @@ class Fundamental:
         return frame, f_ref
 
     def _peaks(self, frame):
+        """the prominent peaks of the frame: frequency, power, prominence; each refined by a
+        parabola through its neighbours less the window's bias in it"""
         cfg = self.cfg
         n = frame.shape[0]
-        spec = np.abs(np.fft.rfft(frame * self._window(n))) * 2.0 / n
+        window, table = self._window(n)
+        spec = np.abs(np.fft.rfft(frame * window)) * 2.0 / n
         db = 20.0 * np.log10(spec + 1e-12)
         bin_hz = self.fs / n
         strongest = np.max(db[1:])
@@ -448,7 +455,7 @@ class Fundamental:
                         & (db[1:-1] - floors[1:-1] >= cfg.prominence_db))[0] + 1
         freqs, powers, proms = [], [], []
         for p in cand:
-            shift, level = _parabola(db[p - 1], db[p], db[p + 1])
+            shift, level = oracle.corrected(*_parabola(db[p - 1], db[p], db[p + 1]), table)
             f = (p + shift) * bin_hz
             if f < cfg.f_min * 0.5 or f > self.fs * 0.45:
                 continue

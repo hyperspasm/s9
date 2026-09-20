@@ -39,8 +39,8 @@ struct tracker {
 	uint32_t pending;          // fed since the last hop
 	float *seg;                // a linear copy of recent samples
 	float *frame;              // the spectral frame, warped
-	float *window;
-	uint32_t window_len;
+	float *windows[MAX_LOG2 + 1];          // a window per frame length, made when first needed...
+	harmonic_window_t models[MAX_LOG2 + 1];   // ...with the readout's model of it, for refining peaks
 	float *bins, *bins2;       // (re, im) pairs
 	float *time_a, *time_b;    // transform inputs and outputs
 	double *corr;              // a correlation, or YIN's difference
@@ -499,18 +499,31 @@ static uint32_t warped_frame(tracker_t *t, int64_t end, double f_lock, double *f
 	return n;
 }
 
-// the prominent peaks of the frame: frequency, power, prominence
+// the window for a frame length, summing to the length, and the readout's model of it
+static const float *window_for(tracker_t *t, uint32_t n) {
+	int l = log2_of(n);
+	if (!t->windows[l]) {
+		float *w = malloc(sizeof(float) * n);
+		CHECK_ALLOC(w, return NULL);
+		create_window_function(WINDOW_FUNCTION_BLACKMAN_HARRIS, n, 0, 0.0f, w);
+		double sum = 0.0;
+		for (uint32_t i = 0; i < n; i++) sum += w[i];
+		for (uint32_t i = 0; i < n; i++) w[i] = (float)((double)w[i] * n / sum);
+		harmonic_window_compute(&t->models[l], w, n);
+		t->windows[l] = w;
+	}
+	return t->windows[l];
+}
+
+// the prominent peaks of the frame: frequency, power, prominence; each refined by a parabola
+// through its neighbours less the window's bias in it
 static void read_peaks(tracker_t *t, uint32_t n, double *bin_hz) {
 	const tracker_config_t *cfg = &t->cfg;
 	uint32_t bins = n / 2 + 1;
-	if (t->window_len != n) {
-		create_window_function(WINDOW_FUNCTION_BLACKMAN_HARRIS, n, 0, 0.0f, t->window);
-		double sum = 0.0;
-		for (uint32_t i = 0; i < n; i++) sum += t->window[i];
-		for (uint32_t i = 0; i < n; i++) t->window[i] = (float)((double)t->window[i] * n / sum);   // summing to n
-		t->window_len = n;
-	}
-	for (uint32_t i = 0; i < n; i++) t->time_a[i] = t->frame[i] * t->window[i];
+	const float *window = window_for(t, n);
+	const harmonic_window_t *model = &t->models[log2_of(n)];
+	if (!window) { t->n_peaks = 0; *bin_hz = t->fs / n; return; }
+	for (uint32_t i = 0; i < n; i++) t->time_a[i] = t->frame[i] * window[i];
 	fft_forward_real(transform(t, n), t->time_a, t->bins);
 	harmonic_magnitude_db(t->bins, bins, n, t->db);
 	*bin_hz = t->fs / n;
@@ -522,9 +535,8 @@ static void read_peaks(tracker_t *t, uint32_t n, double *bin_hz) {
 		double floor = floor_db(t->db, bins, (long)p, cfg->lobe_reach, cfg->shoulder);
 		double prom = t->db[p] - floor;
 		if (!(prom >= cfg->prominence_db)) continue;
-		double shift, level;
-		parabola(t->db[p - 1], t->db[p], t->db[p + 1], &shift, &level);
-		double f = (p + shift) * *bin_hz;
+		double f, level;
+		harmonic_refine(t->db, (long)p, *bin_hz, model, &f, &level);
 		if (f < cfg->f_min * 0.5 || f > t->fs * 0.45) continue;
 		t->pk_f[t->n_peaks] = f;
 		t->pk_power[t->n_peaks] = pow(10.0, level / 10.0);
@@ -819,7 +831,6 @@ tracker_t *tracker_new(const tracker_config_t *config, uint32_t sample_rate) {
 	t->hist = calloc(HISTORY, sizeof(float));
 	t->seg = calloc(HISTORY, sizeof(float));
 	t->frame = calloc(MAX_POINTS, sizeof(float));
-	t->window = calloc(MAX_POINTS, sizeof(float));
 	t->bins = calloc(2 * bins, sizeof(float));
 	t->bins2 = calloc(2 * bins, sizeof(float));
 	t->time_a = calloc(MAX_POINTS, sizeof(float));
@@ -837,7 +848,7 @@ tracker_t *tracker_new(const tracker_config_t *config, uint32_t sample_rate) {
 	t->own = calloc(MAX_PEAKS, 1);
 	t->k1 = calloc(MAX_PEAKS, sizeof(int32_t));
 	t->k = calloc(MAX_PEAKS, sizeof(int32_t));
-	if (!t->hist || !t->seg || !t->frame || !t->window || !t->bins || !t->bins2 || !t->time_a || !t->time_b || !t->corr
+	if (!t->hist || !t->seg || !t->frame || !t->bins || !t->bins2 || !t->time_a || !t->time_b || !t->corr
 	    || !t->energy || !t->db || !t->phase || !t->pk_f || !t->pk_power || !t->pk_prom || !t->evident || !t->on1 || !t->on
 	    || !t->own || !t->k1 || !t->k) {
 		S9_LOG_ERROR("tracker: allocation failed");
@@ -851,8 +862,8 @@ tracker_t *tracker_new(const tracker_config_t *config, uint32_t sample_rate) {
 void tracker_free(tracker_t **tp) {
 	if (!tp || !*tp) return;
 	tracker_t *t = *tp;
-	for (int l = 0; l <= MAX_LOG2; l++) fft_free(&t->ffts[l]);
-	free(t->hist); free(t->seg); free(t->frame); free(t->window); free(t->bins); free(t->bins2);
+	for (int l = 0; l <= MAX_LOG2; l++) { fft_free(&t->ffts[l]); free(t->windows[l]); }
+	free(t->hist); free(t->seg); free(t->frame); free(t->bins); free(t->bins2);
 	free(t->time_a); free(t->time_b); free(t->corr); free(t->energy); free(t->db); free(t->phase);
 	free(t->pk_f); free(t->pk_power); free(t->pk_prom); free(t->evident); free(t->on1); free(t->on); free(t->own);
 	free(t->k1); free(t->k);
