@@ -40,6 +40,7 @@ static void frame(periodic_t *p, const test_signal_t *s, unsigned *offset) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	periodic_render(p, renderer);
+	SDL_RenderFlush(renderer);   // the surface is read directly
 }
 
 static unsigned lit_pixels(void) {

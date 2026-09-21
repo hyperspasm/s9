@@ -39,6 +39,7 @@ static void frame(stereo_spectrum_t *ss, unsigned *offset) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	stereo_spectrum_render(ss, renderer);
+	SDL_RenderFlush(renderer);   // the surface is read directly
 }
 
 // lit pixels in the top or the bottom half of the screen
@@ -58,6 +59,7 @@ TEST each_half_shows_its_channel(void) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	stereo_spectrum_render(ss, renderer);
+	SDL_RenderFlush(renderer);
 	unsigned top = lit_pixels(0), bottom = lit_pixels(1);
 	ASSERT(top > 0 && bottom > 0);   // the graticules
 	for (int i = 0; i < 60; i++) frame(ss, &offset);

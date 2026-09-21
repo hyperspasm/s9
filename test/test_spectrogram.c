@@ -59,6 +59,7 @@ static void render(spectrogram_t *sg) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	spectrogram_render(sg, renderer);
+	SDL_RenderFlush(renderer);   // the surface is read directly
 }
 
 static unsigned lit_pixels(void) {

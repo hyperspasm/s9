@@ -43,6 +43,7 @@ static void frame(spectrum_t *sp, unsigned *offset) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	spectrum_render(sp, renderer);
+	SDL_RenderFlush(renderer);   // the surface is read directly
 }
 
 static unsigned lit_pixels(void) {
@@ -156,6 +157,7 @@ TEST a_tone_peaks_at_its_frequency(void) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	spectrum_render(sp, renderer);
+	SDL_RenderFlush(renderer);
 	unsigned before = lit_pixels();
 	int xs[8];
 	unsigned lines = 0;
