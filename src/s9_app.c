@@ -90,9 +90,14 @@ static void apply_mode(const s9_mode_slot_t *mode) {
 	slot->component = NULL; // sentinel
 }
 
+// The mode's components into the slot table the audio callback feeds. The
+// callback runs under the device's lock, so the lock is held for the swap
+// alone: a component starts streaming before the audio thread can reach it
+// and stops after it no longer can. Holding the lock through their setup
+// would keep the audio thread from the device for longer than its buffer
+// holds, and overrun it.
 static void switch_mode(s9_mode_id_t mode) {
 	const s9_mode_slot_t *new_mode = s9_mode_slots(mode);
-	SDL_LockAudioDevice(g_app->audio_device_id);
 
 	int incoming[COMP_COUNT] = {0};
 	for (const s9_mode_slot_t *m = new_mode; m->id != COMP_NONE; m++)
@@ -104,17 +109,6 @@ static void switch_mode(s9_mode_id_t mode) {
 			outgoing[m->id] = 1;
 	}
 
-	// stop streaming on components leaving the mode
-	for (int i = 0; i < COMP_COUNT; i++) {
-		if (outgoing[i] && !incoming[i]) {
-			s9_component_t *c = s9_components_get(g_app->components, i);
-			if (c && c->stop_streaming) c->stop_streaming(c->instance);
-		}
-	}
-
-	// rebuild slot array
-	apply_mode(new_mode);
-
 	// prepare components entering the mode
 	for (int i = 0; i < COMP_COUNT; i++) {
 		if (incoming[i] && !outgoing[i]) {
@@ -124,9 +118,20 @@ static void switch_mode(s9_mode_id_t mode) {
 		}
 	}
 
+	// rebuild slot array
+	SDL_LockAudioDevice(g_app->audio_device_id);
+	apply_mode(new_mode);
 	g_app->current_mode = new_mode;
 	g_app->mode = mode;
 	SDL_UnlockAudioDevice(g_app->audio_device_id);
+
+	// stop streaming on components that left the mode
+	for (int i = 0; i < COMP_COUNT; i++) {
+		if (outgoing[i] && !incoming[i]) {
+			s9_component_t *c = s9_components_get(g_app->components, i);
+			if (c && c->stop_streaming) c->stop_streaming(c->instance);
+		}
+	}
 }
 
 // a mode change made here, rather than requested by a client, is pushed to the client
