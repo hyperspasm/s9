@@ -23,6 +23,8 @@ s9 [options]
 
 Settings can also be specified in the `settings` file of s9's home directory as key-value pairs (e.g. `sample_rate=48000`), one per line, `#` starting a comment. Command-line arguments override the file.
 
+When the audio input stops delivering or is unplugged, s9 closes it and opens the input again, and while there is none to open it tries again every second.
+
 Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
 
 ## Parameters
