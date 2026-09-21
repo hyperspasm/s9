@@ -14,7 +14,7 @@ typedef struct {
 
 typedef struct {
 	float db_peak;
-	uint32_t t0;
+	uint64_t t0;
 } peak_hold_t;
 
 typedef struct vu {
@@ -111,7 +111,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 	
 	// update peak holds
 	for(uint32_t j = 0; j < n_channels; j++) {
-		uint32_t now = SDL_GetTicks();
+		uint64_t now = SDL_GetTicks();
 		if(vu->channel_vals[j].db_peak > vu->peak_holds[j].db_peak || (now - vu->peak_holds[j].t0) > vu->config.peak_hold_ms) {
 			vu->peak_holds[j].db_peak = vu->channel_vals[j].db_peak;
 			vu->peak_holds[j].t0 = now;

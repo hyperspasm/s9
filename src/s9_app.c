@@ -42,7 +42,7 @@ typedef struct s9_app {
 	SDL_AudioDeviceID audio_device_id;     // 0 while there is no input open
 	SDL_AudioSpec audio_spec;
 	s9_audio_stream_config_t stream_config;
-	SDL_atomic_t audio_ticks;              // when the callback last ran, in SDL's ticks, for the watchdog
+	SDL_AtomicInt audio_ticks;              // when the callback last ran, in SDL's ticks, for the watchdog
 	uint32_t audio_retry_ticks;            // when to try opening an input again, while there is none
 	bool audio_waiting;                    // there is no input, and the wait has been logged
 
@@ -157,7 +157,7 @@ static void log_audio_drivers(void) {
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	(void)userdata;
-	SDL_AtomicSet(&g_app->audio_ticks, (int)SDL_GetTicks());
+	SDL_SetAtomicInt(&g_app->audio_ticks, (int)(uint32_t)SDL_GetTicks());
 
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
 		if (s->component->enqueue_audio) {
@@ -227,7 +227,7 @@ static int open_audio_input(bool quiet) {
 
 // streaming from the input, the watchdog counting from now
 static void start_audio_input(void) {
-	SDL_AtomicSet(&g_app->audio_ticks, (int)SDL_GetTicks());
+	SDL_SetAtomicInt(&g_app->audio_ticks, (int)(uint32_t)SDL_GetTicks());
 	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
 }
 
@@ -245,7 +245,7 @@ static void reopen_audio_input(const char *why) {
 	if (open_audio_input(g_app->audio_waiting) != 0) {
 		if (!g_app->audio_waiting) S9_LOG_INFO("No audio input: waiting for one");
 		g_app->audio_waiting = true;
-		g_app->audio_retry_ticks = SDL_GetTicks() + S9_AUDIO_RETRY_MS;
+		g_app->audio_retry_ticks = (uint32_t)SDL_GetTicks() + S9_AUDIO_RETRY_MS;
 		return;
 	}
 	g_app->audio_waiting = false;
@@ -447,9 +447,9 @@ int s9_app_run(void) {
 	if (g_app->ret) return g_app->ret;
 
 	// the input watched: reopened when its audio stops arriving, tried again while there is none
-	uint32_t now = SDL_GetTicks();
+	uint32_t now = (uint32_t)SDL_GetTicks();
 	if (g_app->audio_device_id) {
-		if (now - (uint32_t)SDL_AtomicGet(&g_app->audio_ticks) > S9_AUDIO_STALL_MS) reopen_audio_input("stalled");
+		if (now - (uint32_t)SDL_GetAtomicInt(&g_app->audio_ticks) > S9_AUDIO_STALL_MS) reopen_audio_input("stalled");
 	} else if ((int32_t)(now - g_app->audio_retry_ticks) >= 0) {
 		reopen_audio_input(NULL);
 	}

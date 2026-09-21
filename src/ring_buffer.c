@@ -12,7 +12,7 @@ struct ring_buffer_t {
 	uint32_t size;
 	uint64_t overflow_bytes;
 	uint64_t underflow_bytes;
-	SDL_mutex *mutex;	
+	SDL_Mutex *mutex;	
 	uint8_t buffer[];
 };
 
