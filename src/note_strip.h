@@ -9,8 +9,9 @@
 
 // The note range: a scale of notes from a lowest to a highest, ticked at
 // every semitone and named at every C, with a marker at a note and the
-// frequency it was read from as text. A strip, drawn as strip.h says;
-// without a note it shows the scale alone.
+// frequency it was read from as text, and a dim marker at the lock the note
+// was decided from. A strip, drawn as strip.h says; without a note it shows
+// the scale alone, with the lock's marker if there is a lock.
 
 typedef struct note_strip note_strip_t;
 
@@ -34,8 +35,9 @@ void note_strip_set_config(note_strip_t *n, const note_strip_config_t *config);
 
 // Draw into the current viewport: the range from low to high as note
 // numbers, fractional as note_midi gives them; the note, or NULL for none,
-// with the frequency in Hz it was read from; valid now or held from before.
+// with the frequency in Hz it was read from, valid now or held from before;
+// and the lock as a note, or NULL for none.
 void note_strip_render(note_strip_t *n, SDL_Renderer *renderer, float low, float high, const note_t *note,
-                       float frequency_hz, bool valid);
+                       float frequency_hz, bool valid, const note_t *lock);
 
 #endif /* note_strip_h */

@@ -68,15 +68,19 @@ def lobe_reach(w):
     return int(math.ceil(x + 0.5))
 
 
+SHOULDER_MIN = 3   # the fewest bins a side cut short by the spectrum's edge may have and still count
+
+
 def floor_db(db, p, reach, shoulder):
     """The floor around bin p: on each side, the median of the `shoulder`
-    bins starting `reach` bins away; the lower side's. Bins off the ends of
-    the spectrum and empty bins are left out, a side without any is
-    ignored, and no usable bin at all gives -inf."""
+    bins starting `reach` bins away; the lower side's. A side cut short by
+    the spectrum's edge uses the bins it has, down to SHOULDER_MIN, and
+    empty bins are left out; a side with fewer is ignored, and no side at
+    all gives -inf."""
     sides = []
     for lo, hi in ((p - reach - shoulder + 1, p - reach), (p + reach, p + reach + shoulder - 1)):
         lo, hi = max(lo, 0), min(hi, len(db) - 1)
-        if lo <= hi:
+        if hi - lo + 1 >= SHOULDER_MIN:
             values = db[lo:hi + 1]
             values = values[np.isfinite(values)]
             if len(values):

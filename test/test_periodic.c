@@ -113,8 +113,9 @@ TEST readings_go_with_the_lock(void) {
 	PASS();
 }
 
-// Reconfiguration while streaming keeps reading: the tracker's window and
-// its function, and the harmonic count, which is clamped to what fits.
+// Reconfiguration while streaming keeps reading: the harmonics' transform
+// and its window, the tracker's range, which remakes the tracker, and the
+// harmonic count, which is clamped to what fits.
 TEST reconfigures_while_streaming(void) {
 	periodic_t *p = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 110.0, 0, 0.5, 0.3, 10, 0, 0 };
@@ -122,8 +123,9 @@ TEST reconfigures_while_streaming(void) {
 	for (int i = 0; i < 60; i++) frame(p, &saw, &offset);
 
 	periodic_config_t c = *periodic_config(p);
-	c.tracker.window_s = 0.4f;
-	c.tracker.window_function = WINDOW_FUNCTION_HANN;
+	c.spectrum.window_s = 0.4f;
+	c.spectrum.window_function = WINDOW_FUNCTION_HANN;
+	c.tracker.f_max = 2000.0f;
 	c.harmonics.reader.harmonics = 20;
 	periodic_set_config(p, &c);
 	for (int i = 0; i < 90; i++) frame(p, &saw, &offset);
@@ -158,6 +160,26 @@ TEST noise_is_drawn_without_readings(void) {
 	PASS();
 }
 
+// The frequency counter reads the same audio as the tracker: on a sine it
+// agrees with the tracker to within a cent and reads the note true to a
+// thousandth of a cent; on silence it reads nothing.
+TEST counter_reads_the_same_audio(void) {
+	periodic_t *p = streaming();
+	test_signal_t sine = { SIGNAL_SINE, 220.0, 0, 0.5, 0.3, 0, 0, 0 };
+	test_signal_t silence = { SIGNAL_SILENCE, 0, 0, 0, 0, 0, 0, 0 };
+	unsigned offset = 0;
+	for (int i = 0; i < 120; i++) frame(p, &sine, &offset);
+	float counted;
+	ASSERT(periodic_counter(p, &counted));
+	ASSERT_IN_RANGE(0.0, 1200.0 * log2((double)counted / 220.0), 0.001);
+	ASSERT(periodic_valid(p));
+	ASSERT_IN_RANGE(0.0, 1200.0 * log2((double)periodic_frequency(p) / (double)counted), 1.0);
+	for (int i = 0; i < 60; i++) frame(p, &silence, &offset);
+	ASSERT_FALSE(periodic_counter(p, &counted));
+	periodic_free(&p);
+	PASS();
+}
+
 // The waveform view draws a sawtooth swept over one cycle of the tracked
 // fundamental, and keeps drawing when the cycles change.
 TEST waveform_view_draws_cycles(void) {
@@ -182,7 +204,8 @@ TEST waveform_view_draws_cycles(void) {
 // The note is read from the fundamental at the reference and shown across
 // the top, on the range and on the tuner's scale: a 220 Hz sawtooth is A3,
 // in tune at A4 = 440 Hz, and flat by the cents between 440 and 442 Hz at
-// a reference of 442. There is none before the tracker has locked.
+// a reference of 442. There is none before the tracker has decided, and the
+// lock, at the same note here, is reported beside it with its confidence.
 TEST note_is_read_and_shown(void) {
 	periodic_t *p = streaming();
 	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
@@ -196,6 +219,11 @@ TEST note_is_read_and_shown(void) {
 	ASSERT_IN_RANGE(0.0, (double)note.cents, 5.0);
 	ASSERT(band_lit_pixels(0) > 200);
 	ASSERT(band_lit_pixels(1) > 200);
+	float lock_hz, confidence;
+	ASSERT(periodic_lock(p, &lock_hz, &confidence));
+	ASSERT_IN_RANGE(220.0, (double)lock_hz, 1.0);
+	ASSERT(confidence > 0.9f);
+	ASSERT(periodic_harmonicity(p) > 0.9f);
 
 	periodic_config_t c = *periodic_config(p);
 	c.note.a4 = 442.0f;
@@ -230,6 +258,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(readings_go_with_the_lock);
 	RUN_TEST(reconfigures_while_streaming);
 	RUN_TEST(noise_is_drawn_without_readings);
+	RUN_TEST(counter_reads_the_same_audio);
 	RUN_TEST(waveform_view_draws_cycles);
 	RUN_TEST(note_is_read_and_shown);
 	GREATEST_MAIN_END();

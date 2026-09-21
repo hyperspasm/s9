@@ -11,6 +11,8 @@ dependencies = ["numpy>=1.20"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+# the tracker harness's outside baselines: pYIN through librosa, CREPE and PESTO through torch
+tracker = ["librosa>=0.10", "torch>=2.0", "torchcrepe>=0.0.23", "pesto-pitch>=1.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/s9"]

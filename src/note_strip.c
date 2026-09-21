@@ -38,7 +38,7 @@ void note_strip_free(note_strip_t **n) {
 }
 
 void note_strip_render(note_strip_t *n, SDL_Renderer *renderer, float low, float high, const note_t *note,
-                       float frequency_hz, bool valid) {
+                       float frequency_hz, bool valid, const note_t *lock) {
 	if (!(high > low)) return;
 	strip_tick_t ticks[STRIP_TICKS_MAX];
 	uint32_t count = 0;
@@ -53,13 +53,17 @@ void note_strip_render(note_strip_t *n, SDL_Renderer *renderer, float low, float
 		else t->label[0] = '\0';
 	}
 
-	// the frequency as text, and the marker at the note
+	// the frequency as text, the marker at the note, and the dim marker at the lock
 	char text[32] = "";
-	float marker = -1.0f;
+	float marker = -1.0f, dim = -1.0f;
 	if (note) {
 		snprintf(text, sizeof(text), "%.2f Hz", frequency_hz);
 		marker = (note_midi(note) - low) / (high - low);
 		if (marker < 0.0f) marker = 0.0f;
 	}
-	strip_render(n->strip, renderer, text, ticks, count, marker, valid);
+	if (lock) {
+		dim = (note_midi(lock) - low) / (high - low);
+		if (dim < 0.0f) dim = 0.0f;
+	}
+	strip_render(n->strip, renderer, text, ticks, count, marker, valid, dim);
 }

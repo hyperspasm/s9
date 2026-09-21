@@ -46,8 +46,11 @@ typedef struct {
 // The most harmonics read of one fundamental, counting the fundamental
 #define HARMONIC_MAX 64
 
-// The most bins the floor is read from on each side of a peak
+// The most bins the floor is read from on each side of a peak, and the fewest a
+// side cut short by the spectrum's edge may have and still count: fewer make no
+// floor, and the first bin alone would stand in for one
 #define HARMONIC_SHOULDER_MAX 64
+#define HARMONIC_SHOULDER_MIN 3
 
 // The shoulder that fits between harmonics spacing_bins apart: shoulder, or
 // less so that it ends before the neighbouring harmonic's lobe, never
@@ -56,7 +59,8 @@ uint32_t harmonic_shoulder(double spacing_bins, uint32_t reach, uint32_t shoulde
 
 // The floor beside bin p: on each side, the median of the shoulder bins
 // starting reach bins away; the lower side's, so the skirt of a louder
-// neighbour does not hide a peak. -inf without any usable bin.
+// neighbour does not hide a peak. A side cut short by the spectrum's edge
+// uses the bins it has, down to HARMONIC_SHOULDER_MIN; -inf without a side.
 double harmonic_floor_db(const float *db, uint32_t bins, long p, uint32_t reach, uint32_t shoulder);
 
 // A local maximum at bin p, 1 <= p <= bins - 2, refined by a parabola

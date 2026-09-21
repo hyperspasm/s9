@@ -4,31 +4,32 @@
 #include "s9_dsp.h"
 #include "s9_colors.h"
 #include "harmonic_reader.h"
-#include "fundamental.h"
+#include "fft_analyzer.h"
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
-// The harmonic analyzer: a fundamental tracker's latest spectrum on a linear axis
-// scaled to the fundamental it finds, with a marker at each harmonic. While
-// the tracker is locked, each harmonic that stands out from the floor
-// carries its level and its phase relative to the fundamental's, and the
-// fundamental's own level and the distortion the harmonics add up to sit
-// above. The axis keeps the last locked fundamental, or a configured one
+// The harmonic analyzer: an analyzer's latest spectrum on a linear axis
+// scaled to the fundamental it is given, with a marker at each harmonic.
+// While the fundamental is valid, each harmonic that stands out from the
+// floor carries its level and its phase relative to the fundamental's, and
+// the fundamental's own level and the distortion the harmonics add up to sit
+// above. The axis keeps the last valid fundamental, or a configured one
 // before there is any, so the spectrum is always on a scale. The curve is
-// live; the readings come from the tracker's power average, so they settle
-// rather than jitter. The tracker is the audio's; this component takes none.
+// live; the readings come from the analyzer's power average, so they settle
+// rather than jitter. The analyzer is the audio's, updated by whoever owns it
+// before each frame; this component takes none.
 
 typedef struct harmonics harmonics_t;
 
 typedef struct {
 	// reading the harmonics
 	harmonic_reader_config_t reader;  // its harmonics are the markers across the graph. Noise reaches a
-	                                  // prominence of about 10 dB after a second of the tracker's
+	                                  // prominence of about 10 dB after a second of the analyzer's
 	                                  // averaging, 15 dB with none
 
 	// display
-	float initial_f0;                 // the axis' fundamental before the tracker has locked, Hz
+	float initial_f0;                 // the axis' fundamental before one has been valid, Hz
 	int32_t min_db, max_db;
 	uint32_t major_db_interval, minor_db_interval;
 	SDL_Color major_color;            // the frame, the numbers, and the axis labels
@@ -63,23 +64,24 @@ static const harmonics_config_t default_harmonics_config = {
 	.held_color = S9_SLATE,
 };
 
-// create harmonics reading a tracker's spectrum and fundamental; the
-// tracker must be updated before each frame is rendered. NULL takes the
-// default configuration
-harmonics_t *harmonics_new(const harmonics_config_t *config, fundamental_t *tracker);
+// create harmonics reading an analyzer's spectrum, one transform of the
+// audio without padding, its power averaged; NULL takes the default
+// configuration
+harmonics_t *harmonics_new(const harmonics_config_t *config, fft_analyzer_t *spectrum);
 
 // destroy harmonics
 void harmonics_free(harmonics_t **h);
 
-// render harmonics
-void harmonics_render(harmonics_t *h, SDL_Renderer *renderer);
+// render harmonics at a fundamental, in Hz, 0 for none yet, valid now or held
+// from before
+void harmonics_render(harmonics_t *h, SDL_Renderer *renderer, float fundamental_hz, bool valid);
 
 // the configuration, and its replacement, applied at the next frame
 const harmonics_config_t *harmonics_config(const harmonics_t *h);
 void harmonics_set_config(harmonics_t *h, const harmonics_config_t *config);
 
-// the last frame's readings of harmonics 1..*count, none unless the tracker
-// is locked; valid until the next frame
+// the last frame's readings of harmonics 1..*count, none unless the fundamental
+// is valid; good until the next frame
 const harmonic_reading_t *harmonics_readings(const harmonics_t *h, uint32_t *count);
 
 // The last frame's total harmonic distortion as a ratio. Returns 0, or -1

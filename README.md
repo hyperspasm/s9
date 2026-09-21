@@ -1,6 +1,6 @@
 # s9
 
-A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL2 for rendering and FFTW for spectral analysis.
+A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL2 for rendering and PFFFT for spectral analysis.
 
 ## Usage
 

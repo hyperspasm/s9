@@ -90,11 +90,6 @@ target_include_directories(test_fft_analyzer PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_fft_analyzer PkgConfig::SDL2 pffft m)
 add_test(NAME fft_analyzer COMMAND test_fft_analyzer)
 
-add_executable(test_conditioner test_conditioner.c ${CMAKE_SOURCE_DIR}/src/conditioner.c)
-target_include_directories(test_conditioner PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_conditioner m)
-add_test(NAME conditioner COMMAND test_conditioner)
-
 add_executable(test_harmonic_readout test_harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
@@ -107,20 +102,6 @@ add_executable(test_harmonic_readout test_harmonic_readout.c
 target_include_directories(test_harmonic_readout PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_harmonic_readout PkgConfig::SDL2 pffft m)
 add_test(NAME harmonic_readout COMMAND test_harmonic_readout)
-
-add_executable(test_harmonic_series test_harmonic_series.c
-    ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
-    ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
-    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
-    ${CMAKE_SOURCE_DIR}/src/fft.c
-    ${CMAKE_SOURCE_DIR}/src/window_function.c
-    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
-    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
-    ${CMAKE_SOURCE_DIR}/src/s9_log.c
-)
-target_include_directories(test_harmonic_series PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_harmonic_series PkgConfig::SDL2 pffft m)
-add_test(NAME harmonic_series COMMAND test_harmonic_series)
 
 add_executable(test_constant_q test_constant_q.c
     ${CMAKE_SOURCE_DIR}/src/constant_q.c
@@ -141,21 +122,32 @@ target_include_directories(test_note PRIVATE ${DSP_TEST_INCLUDES})
 target_link_libraries(test_note m)
 add_test(NAME note COMMAND test_note)
 
-add_executable(test_fundamental test_fundamental.c
-    ${CMAKE_SOURCE_DIR}/src/fundamental.c
-    ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
+add_executable(test_tracker test_tracker.c
+    ${CMAKE_SOURCE_DIR}/src/tracker.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
-    ${CMAKE_SOURCE_DIR}/src/conditioner.c
-    ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/window_function.c
-    ${CMAKE_SOURCE_DIR}/src/ring_buffer.c
-    ${CMAKE_SOURCE_DIR}/src/s9_dsp.c
     ${CMAKE_SOURCE_DIR}/src/s9_log.c
 )
-target_include_directories(test_fundamental PRIVATE ${DSP_TEST_INCLUDES})
-target_link_libraries(test_fundamental PkgConfig::SDL2 pffft m)
-add_test(NAME fundamental COMMAND test_fundamental)
+target_include_directories(test_tracker PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_tracker PkgConfig::SDL2 pffft m)
+add_test(NAME tracker COMMAND test_tracker)
+
+add_executable(test_fft test_fft.c
+    ${CMAKE_SOURCE_DIR}/src/fft.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_fft PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_fft PkgConfig::SDL2 pffft m)
+add_test(NAME fft COMMAND test_fft)
+
+add_executable(test_frequency_counter test_frequency_counter.c
+    ${CMAKE_SOURCE_DIR}/src/frequency_counter.c
+    ${CMAKE_SOURCE_DIR}/src/s9_log.c
+)
+target_include_directories(test_frequency_counter PRIVATE ${DSP_TEST_INCLUDES})
+target_link_libraries(test_frequency_counter PkgConfig::SDL2 m)
+add_test(NAME frequency_counter COMMAND test_frequency_counter)
 
 add_executable(test_harmonic_reader test_harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
@@ -184,11 +176,10 @@ add_executable(test_periodic test_periodic.c
     ${CMAKE_SOURCE_DIR}/src/strip.c
     ${CMAKE_SOURCE_DIR}/src/note_strip.c
     ${CMAKE_SOURCE_DIR}/src/tuner_strip.c
-    ${CMAKE_SOURCE_DIR}/src/fundamental.c
-    ${CMAKE_SOURCE_DIR}/src/harmonic_series.c
+    ${CMAKE_SOURCE_DIR}/src/tracker.c
+    ${CMAKE_SOURCE_DIR}/src/frequency_counter.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_reader.c
     ${CMAKE_SOURCE_DIR}/src/harmonic_readout.c
-    ${CMAKE_SOURCE_DIR}/src/conditioner.c
     ${CMAKE_SOURCE_DIR}/src/fft_analyzer.c
     ${CMAKE_SOURCE_DIR}/src/fft.c
     ${CMAKE_SOURCE_DIR}/src/graph_axis.c

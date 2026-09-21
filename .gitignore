@@ -17,3 +17,6 @@ venv/
 
 # Temporary files and references
 temp/
+
+# The tracker corpus is generated on demand
+validation/tracker/cache/
