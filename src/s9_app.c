@@ -24,6 +24,8 @@ static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *pare
 #define S9_MAX_COMPONENTS 256
 #define S9_AUDIO_STALL_MS 500    // audio not arriving for this long has the input reopened
 #define S9_AUDIO_RETRY_MS 1000   // between attempts to open an input while there is none
+#define S9_AUDIO_BUFFER_FRAMES "256"   // the buffer asked of the input device, in frames, as the hint takes it
+#define S9_AUDIO_CHUNK_BYTES 8192      // read from the stream at a time
 
 typedef struct s9_app {
 	s9_app_config_t config;
@@ -38,8 +40,9 @@ typedef struct s9_app {
 	bool show_fps;
 	s9_pn_t *pn;
 
-	SDL_AudioDeviceID audio_device_id;     // 0 while there is no input open
-	SDL_AudioSpec audio_spec;
+	SDL_AudioStream *audio_stream;         // the input, open through its stream; NULL while there is none
+	SDL_AudioDeviceID audio_device_id;     // the device the stream opened, 0 while there is none
+	SDL_AudioSpec audio_spec;              // what the stream delivers, whatever the device runs at
 	s9_audio_stream_config_t stream_config;
 	SDL_AtomicInt audio_ticks;              // when the callback last ran, in SDL's ticks, for the watchdog
 	uint32_t audio_retry_ticks;            // when to try opening an input again, while there is none
@@ -93,7 +96,7 @@ static void apply_mode(const s9_mode_slot_t *mode) {
 }
 
 // The mode's components into the slot table the audio callback feeds. The
-// callback runs under the device's lock, so the lock is held for the swap
+// callback runs under the stream's lock, so the lock is held for the swap
 // alone: a component starts streaming before the audio thread can reach it
 // and stops after it no longer can. Holding the lock through their setup
 // would keep the audio thread from the device for longer than its buffer
@@ -121,11 +124,11 @@ static void switch_mode(s9_mode_id_t mode) {
 	}
 
 	// rebuild slot array
-	SDL_LockAudioDevice(g_app->audio_device_id);
+	if (g_app->audio_stream) SDL_LockAudioStream(g_app->audio_stream);
 	apply_mode(new_mode);
 	g_app->current_mode = new_mode;
 	g_app->mode = mode;
-	SDL_UnlockAudioDevice(g_app->audio_device_id);
+	if (g_app->audio_stream) SDL_UnlockAudioStream(g_app->audio_stream);
 
 	// stop streaming on components that left the mode
 	for (int i = 0; i < COMP_COUNT; i++) {
@@ -152,63 +155,87 @@ static void log_audio_drivers(void) {
 	S9_LOG_INFO("Available audio drivers: %s", names);
 }
 
-static void audio_callback(void *userdata, Uint8 *stream, int len) {
+// The device's audio as it arrives, in the stream's format, to the components
+// of the mode. Runs on SDL's audio thread with the stream locked; switch_mode
+// takes the same lock to change the components.
+static void audio_callback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount) {
 	(void)userdata;
+	(void)additional_amount;
+	(void)total_amount;
 	SDL_SetAtomicInt(&g_app->audio_ticks, (int)(uint32_t)SDL_GetTicks());
-
-	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
-		if (s->component->enqueue_audio) {
-			s->component->enqueue_audio(s->component->instance, stream, len);
+	uint8_t chunk[S9_AUDIO_CHUNK_BYTES];
+	for (;;) {
+		int len = SDL_GetAudioStreamData(stream, chunk, (int)sizeof(chunk));
+		if (len <= 0) break;
+		for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
+			if (s->component->enqueue_audio) {
+				s->component->enqueue_audio(s->component->instance, chunk, len);
+			}
 		}
 	}
 }
 
+// recording devices in name order, so the choice among several is the same from run to run
+static int compare_device_names(const void *a, const void *b) {
+	const char *na = SDL_GetAudioDeviceName(*(const SDL_AudioDeviceID *)a);
+	const char *nb = SDL_GetAudioDeviceName(*(const SDL_AudioDeviceID *)b);
+	return strcmp(na ? na : "", nb ? nb : "");
+}
+
 // The input: the device the configuration names when it is there, else the
-// first listed, opened for float stereo at the configured rate and left
-// paused; then the stream config the components are prepared with, from the
-// device's format and the display's rate. Returns 1 when there is no device
-// at all and -1 when one would not open, quietly when asked, for the
-// retries while there is none.
+// first in name order that opens, through a stream that delivers float
+// stereo at the configured rate whatever the device runs at, left paused;
+// then the stream config the components are prepared with, from that
+// format and the display's rate. Returns 1 when there is no device at all
+// and -1 when none would open, quietly when asked, for the retries while
+// there is none.
 static int open_audio_input(bool quiet) {
-	int num_audio_devices = SDL_GetNumAudioDevices(SDL_TRUE);
-	if (num_audio_devices <= 0) {
+	int num_audio_devices = 0;
+	SDL_AudioDeviceID *audio_devices = SDL_GetAudioRecordingDevices(&num_audio_devices);
+	if (audio_devices == NULL || num_audio_devices <= 0) {
+		SDL_free(audio_devices);
 		if (!quiet) S9_LOG_ERROR("No available audio input devices");
 		return 1;
 	}
-	
-	// choose first device as default
-	const char *selected_audio_device_name = SDL_GetAudioDeviceName(0, SDL_TRUE);
-	
-	// enumerate audio devices and select the specified one, if any
+	qsort(audio_devices, num_audio_devices, sizeof(*audio_devices), compare_device_names);
 	if (!quiet) S9_LOG_INFO("Available audio input devices:");
 	for (int i = 0; i < num_audio_devices; i++) {
-		const char *device_name = SDL_GetAudioDeviceName(i, SDL_TRUE);
-		if (!quiet) S9_LOG_INFO("    %s", device_name);
-		if (g_app->config.audio_device != NULL && device_name && strcmp(device_name, g_app->config.audio_device) == 0) {
-			selected_audio_device_name = device_name;
-		}
-	}	
-	
-	// open audio device with requested settings
-	SDL_AudioSpec desired_spec;
-	SDL_zero(desired_spec);
-	desired_spec.freq = g_app->config.sample_rate;
-	desired_spec.format = AUDIO_F32;
-	desired_spec.channels = 2;
-	desired_spec.samples = 256;
-	desired_spec.callback = audio_callback;
-	
-	g_app->audio_device_id = SDL_OpenAudioDevice(selected_audio_device_name, SDL_TRUE, &desired_spec, &g_app->audio_spec, 0);
-	if (g_app->audio_device_id == 0) {
-		if (!quiet) S9_LOG_ERROR("Failed to open audio device: %s", SDL_GetError());
-		return -1;
+		if (!quiet) S9_LOG_INFO("    %s", SDL_GetAudioDeviceName(audio_devices[i]));
 	}
 	
-	// print audio device info
+	// open the named device, else the first that opens
+	SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, S9_AUDIO_BUFFER_FRAMES);
+	SDL_AudioSpec desired_spec = { SDL_AUDIO_F32, 2, g_app->config.sample_rate };
+	const char *selected_audio_device_name = NULL;
+	for (int pass = 0; pass < 2 && g_app->audio_stream == NULL; pass++) {
+		for (int i = 0; i < num_audio_devices && g_app->audio_stream == NULL; i++) {
+			const char *device_name = SDL_GetAudioDeviceName(audio_devices[i]);
+			bool named = device_name && g_app->config.audio_device && strcmp(device_name, g_app->config.audio_device) == 0;
+			if (pass == 0 ? !named : named) continue;
+			g_app->audio_stream = SDL_OpenAudioDeviceStream(audio_devices[i], &desired_spec, audio_callback, NULL);
+			if (g_app->audio_stream) selected_audio_device_name = device_name;
+			else if (!quiet) S9_LOG_INFO("    %s did not open: %s", device_name, SDL_GetError());
+		}
+	}
+	SDL_free(audio_devices);
+	if (g_app->audio_stream == NULL) {
+		if (!quiet) S9_LOG_ERROR("Failed to open an audio input device");
+		return -1;
+	}
+	g_app->audio_device_id = SDL_GetAudioStreamDevice(g_app->audio_stream);
+	
+	// print audio device info: the device's format and, where it differs, the stream's
+	SDL_AudioSpec device_spec;
+	int device_frames = 0;
+	SDL_GetAudioDeviceFormat(g_app->audio_device_id, &device_spec, &device_frames);
+	SDL_GetAudioStreamFormat(g_app->audio_stream, NULL, &g_app->audio_spec);
 	S9_LOG_INFO("Selected audio input device: %s", selected_audio_device_name);
-	S9_LOG_INFO("    Sample Rate: %d Hz", g_app->audio_spec.freq);
-	S9_LOG_INFO("    Channels: %d", g_app->audio_spec.channels);
-	S9_LOG_INFO("    Buffer Size: %d samples", g_app->audio_spec.samples);
+	S9_LOG_INFO("    Sample Rate: %d Hz", device_spec.freq);
+	S9_LOG_INFO("    Channels: %d", device_spec.channels);
+	S9_LOG_INFO("    Buffer Size: %d samples", device_frames);
+	if (device_spec.freq != g_app->audio_spec.freq || device_spec.channels != g_app->audio_spec.channels) {
+		S9_LOG_INFO("    Converted to %d Hz, %d channels", g_app->audio_spec.freq, g_app->audio_spec.channels);
+	}
 	
 	// init stream_config; a display that does not say its refresh rate is taken as 60 Hz
 	float refresh_rate = g_app->display_mode->refresh_rate > 0.0f ? g_app->display_mode->refresh_rate : 60.0f;
@@ -216,7 +243,7 @@ static int open_audio_input(bool quiet) {
 		.audio_format = S9_FORMAT_FLOAT32,
 		.sample_rate = g_app->audio_spec.freq,
 		.channels = g_app->audio_spec.channels,
-		.buffer_frames = g_app->audio_spec.samples,
+		.buffer_frames = device_frames,
 		.samples_per_display_frame = ceil(g_app->audio_spec.freq / refresh_rate),
 	};
 	return 0;
@@ -225,7 +252,7 @@ static int open_audio_input(bool quiet) {
 // streaming from the input, the watchdog counting from now
 static void start_audio_input(void) {
 	SDL_SetAtomicInt(&g_app->audio_ticks, (int)(uint32_t)SDL_GetTicks());
-	SDL_PauseAudioDevice(g_app->audio_device_id, SDL_FALSE);
+	SDL_ResumeAudioStreamDevice(g_app->audio_stream);
 }
 
 // The input opened again after it stalled or went away, or tried again
@@ -233,9 +260,10 @@ static void start_audio_input(void) {
 // the new device's format differs from the one they stream, and streaming
 // resumes. Without a device to open, the attempt is repeated later.
 static void reopen_audio_input(const char *why) {
-	if (g_app->audio_device_id) {
+	if (g_app->audio_stream) {
 		S9_LOG_INFO("Audio input %s: reopening", why);
-		SDL_CloseAudioDevice(g_app->audio_device_id);
+		SDL_DestroyAudioStream(g_app->audio_stream);   // closes the device with it
+		g_app->audio_stream = NULL;
 		g_app->audio_device_id = 0;
 	}
 	s9_audio_stream_config_t was = g_app->stream_config;
@@ -273,7 +301,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	g_app->config = *config;
 	
 	// the audio driver, when the configuration names one
-	if (g_app->config.audio_driver) SDL_SetHint(SDL_HINT_AUDIODRIVER, g_app->config.audio_driver);
+	if (g_app->config.audio_driver) SDL_SetHint(SDL_HINT_AUDIO_DRIVER, g_app->config.audio_driver);
 
 	// initialize SDL
 	CHECK_ERROR(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
@@ -375,10 +403,10 @@ int s9_app_create(const s9_app_config_t *config) {
 void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
 
-	// close the audio device before the components its callback feeds go
-	if (g_app->audio_device_id > 0) {
-		SDL_PauseAudioDevice(g_app->audio_device_id, SDL_TRUE);
-		SDL_CloseAudioDevice(g_app->audio_device_id);
+	// close the audio device, and with it the stream feeding the components, before they go
+	if (g_app->audio_stream) {
+		SDL_DestroyAudioStream(g_app->audio_stream);
+		g_app->audio_stream = NULL;
 	}
 
 	// destroy components
@@ -416,9 +444,9 @@ int s9_app_run(void) {
 			case SDLK_5: key_set_mode(S9_MODE_SPECTROGRAM); break;
 			default: break;
 			}
-		} else if (e.type == SDL_AUDIODEVICEREMOVED && e.adevice.iscapture && e.adevice.which == g_app->audio_device_id) {
+		} else if (e.type == SDL_EVENT_AUDIO_DEVICE_REMOVED && e.adevice.recording && e.adevice.which == g_app->audio_device_id) {
 			reopen_audio_input("device removed");
-		} else if (e.type == SDL_AUDIODEVICEADDED && e.adevice.iscapture && g_app->audio_device_id == 0) {
+		} else if (e.type == SDL_EVENT_AUDIO_DEVICE_ADDED && e.adevice.recording && g_app->audio_stream == NULL) {
 			reopen_audio_input(NULL);
 		}
 	}
@@ -428,7 +456,7 @@ int s9_app_run(void) {
 
 	// the input watched: reopened when its audio stops arriving, tried again while there is none
 	uint32_t now = (uint32_t)SDL_GetTicks();
-	if (g_app->audio_device_id) {
+	if (g_app->audio_stream) {
 		if (now - (uint32_t)SDL_GetAtomicInt(&g_app->audio_ticks) > S9_AUDIO_STALL_MS) reopen_audio_input("stalled");
 	} else if ((int32_t)(now - g_app->audio_retry_ticks) >= 0) {
 		reopen_audio_input(NULL);
