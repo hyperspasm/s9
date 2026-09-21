@@ -284,12 +284,12 @@ int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, con
 	CHECK_PARAMETER(text != NULL, return -1);
 	
 	// create the text surface
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
-	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+	SDL_Surface *surface = TTF_RenderText_Blended(font, text, 0, color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", SDL_GetError());
 	
 	// create the texture from the surface
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	CHECK_ERROR(texture != NULL, return -1, "failed to create texture: %s", SDL_GetError());
 	
 	// blit the texture to the renderer at the specified position with the given anchor
@@ -308,17 +308,17 @@ int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font
 	CHECK_PARAMETER(color != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
 	
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, *color);
-	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+	SDL_Surface *surface = TTF_RenderText_Blended(font, text, 0, *color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", SDL_GetError());
 	
 	if(*texture) SDL_DestroyTexture(*texture);
 	
 	*texture = SDL_CreateTextureFromSurface(renderer, surface);
-	CHECK_ERROR(texture != NULL, SDL_FreeSurface(surface); return -1, "failed to create texture: %s", SDL_GetError());
+	CHECK_ERROR(texture != NULL, SDL_DestroySurface(surface); return -1, "failed to create texture: %s", SDL_GetError());
 	
 	if(out_width) *out_width = surface->w;
 	if(out_height) *out_height = surface->h;
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	
 	return 0;
 }

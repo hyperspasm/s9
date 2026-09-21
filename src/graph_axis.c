@@ -31,7 +31,7 @@ void graph_db_axis_measure(const graph_db_axis_t *axis, TTF_Font *font, int *wid
 		char label[32];
 		graph_format_db(label, sizeof(label), db);
 		int w, h;
-		CHECK_ERROR(TTF_SizeUTF8(font, label, &w, &h) == 0, continue, "failed to measure string \"%s\"", label);
+		CHECK_ERROR(TTF_GetStringSize(font, label, 0, &w, &h), continue, "failed to measure string \"%s\"", label);
 		if (*width < w) *width = w;
 		if (*height < h) *height = h;
 	}
@@ -84,7 +84,7 @@ static void measure_step(void *ctx, float freq, int major) {
 	char label[32];
 	graph_format_hz(label, sizeof(label), freq);
 	int w, h;
-	CHECK_ERROR(TTF_SizeUTF8(m->font, label, &w, &h) == 0, return, "failed to measure string \"%s\"", label);
+	CHECK_ERROR(TTF_GetStringSize(m->font, label, 0, &w, &h), return, "failed to measure string \"%s\"", label);
 	if (m->height < h) m->height = h;
 	if (freq == m->max_hz && m->right < w / 2) m->right = w / 2;
 }

@@ -354,7 +354,7 @@ static graph_hz_axis_t hz_axis(const spectrogram_t *sg) {
 // room for the time labels on the left, the frequency labels below
 static void compute_plot(spectrogram_t *sg, TTF_Font *font) {
 	int time_w = 0, time_h = 0, hz_h = 0, hz_right = 0;
-	TTF_SizeUTF8(font, "100 s", &time_w, &time_h);
+	TTF_GetStringSize(font, "100 s", 0, &time_w, &time_h);
 	graph_hz_axis_t axis = hz_axis(sg);
 	graph_hz_axis_measure(&axis, font, &hz_h, &hz_right);
 	int left = GRAPH_MARGIN + time_w + LABEL_MARGIN;
