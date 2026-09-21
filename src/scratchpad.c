@@ -2,6 +2,8 @@
 #include "s9.h"
 #include "draw_sdl.h"
 #include "fresp_graph.h"
+#include <math.h>
+#include <stdlib.h>
 
 
 typedef struct scratchpad {

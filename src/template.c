@@ -1,5 +1,6 @@
 #include "template.h"
 #include "s9.h"
+#include <stdlib.h>
 
 typedef struct template {
 	SDL_Renderer *renderer;

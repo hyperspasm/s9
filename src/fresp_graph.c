@@ -3,6 +3,7 @@
 #include "s9_font.h"
 #include "draw_sdl.h"
 #include "graph_axis.h"
+#include <stdlib.h>
 
 typedef struct fresp_graph {
 	SDL_Renderer *renderer;

@@ -3,6 +3,7 @@
 #include "s9.h"
 #include "draw_sdl.h"
 #include "graticule.h"
+#include <stdlib.h>
 
 typedef struct scope_display {
 	SDL_Renderer *renderer;

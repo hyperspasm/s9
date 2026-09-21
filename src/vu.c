@@ -2,6 +2,8 @@
 #include "s9.h"
 #include "draw_sdl.h"
 #include "ring_buffer.h"
+#include <math.h>
+#include <stdlib.h>
 
 typedef struct {
 	float rms;

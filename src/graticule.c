@@ -4,6 +4,7 @@
 #include "draw_sdl.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 typedef struct graticule {
 	SDL_Renderer *renderer;

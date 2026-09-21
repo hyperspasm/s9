@@ -9,6 +9,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define THRESHOLD_DB -100.0f   // a kernel's taps below this of its peak are dropped; what that leaves out stays
                                // below -95 dB of full scale, measured by validation/scripts/measure_constant_q.py

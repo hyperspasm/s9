@@ -6,6 +6,8 @@
 #include "scope_display.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define FAST_MODE_SWEEPS_PER_SEC	10.0f   // sweeps faster than this rate use fast mode
 #define FAST_MODE_HOLD_TIME			0.0667f // seconds to keep displaying last sweep while waiting for next

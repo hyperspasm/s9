@@ -5,6 +5,7 @@
 #include "fresp_graph.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #define FRAME_MIN 1024           // the frame's length, at least
 #define FRAME_MAX 524288         // and at most

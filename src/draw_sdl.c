@@ -1,6 +1,8 @@
 #include "draw_sdl.h"
 #include "s9.h"
 #include "s9_colors.h"
+#include <math.h>
+#include <stdlib.h>
 
 
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
