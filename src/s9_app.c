@@ -310,13 +310,14 @@ int s9_app_create(const s9_app_config_t *config) {
 	S9_LOG_INFO("    Channels: %d", g_app->audio_spec.channels);
 	S9_LOG_INFO("    Buffer Size: %d samples", g_app->audio_spec.samples);
 	
-	// init stream_config
+	// init stream_config; a display that does not say its refresh rate is taken as 60 Hz
+	int refresh_rate = g_app->display_mode.refresh_rate > 0 ? g_app->display_mode.refresh_rate : 60;
 	g_app->stream_config = (s9_audio_stream_config_t){
 		.audio_format = S9_FORMAT_FLOAT32,
 		.sample_rate = g_app->audio_spec.freq,
 		.channels = g_app->audio_spec.channels,
 		.buffer_frames = g_app->audio_spec.samples,
-		.samples_per_display_frame = ceil(g_app->audio_spec.freq / g_app->display_mode.refresh_rate),
+		.samples_per_display_frame = ceil(g_app->audio_spec.freq / refresh_rate),
 	};
 
 	// apply initial mode (prepares components for streaming)
