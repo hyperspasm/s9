@@ -317,7 +317,7 @@ int s9_app_create(const s9_app_config_t *config) {
 		.sample_rate = g_app->audio_spec.freq,
 		.channels = g_app->audio_spec.channels,
 		.buffer_frames = g_app->audio_spec.samples,
-		.samples_per_display_frame = ceil(g_app->audio_spec.freq / refresh_rate),
+		.samples_per_display_frame = ceil(g_app->audio_spec.freq / (double)refresh_rate),
 	};
 
 	// apply initial mode (prepares components for streaming)
