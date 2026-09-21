@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <SDL2/SDL_mutex.h>
+#include <SDL3/SDL_mutex.h>
 
 // defining the structure for ring buffer
 struct ring_buffer_t {

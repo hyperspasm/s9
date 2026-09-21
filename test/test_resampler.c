@@ -3,7 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include "resampler.h"
 
 #ifndef M_PI

@@ -5,8 +5,8 @@
 #include "stereo_spectrum.h"
 #include "test_signals.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <stdlib.h>
 #include <string.h>
 

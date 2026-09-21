@@ -5,8 +5,8 @@
 #include "window_function.h"
 #include "s9_colors.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 typedef struct vu vu_t;
 

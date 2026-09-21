@@ -49,8 +49,8 @@ set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 
 # Find dependencies using pkg-config (with IMPORTED_TARGET for proper dependency management)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
-pkg_check_modules(SDL2_TTF REQUIRED IMPORTED_TARGET SDL2_ttf)
+pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
+pkg_check_modules(SDL3_TTF REQUIRED IMPORTED_TARGET sdl3-ttf)
 pkg_check_modules(LWS REQUIRED IMPORTED_TARGET libwebsockets)
 
 # Workaround: libwebsockets.h includes the headers of the TLS library libwebsockets was built
@@ -122,8 +122,8 @@ target_compile_definitions(s9 PRIVATE S9_VERSION="${S9_VERSION}")
 
 # Link using imported targets (handles includes, library dirs, and dependencies automatically)
 target_link_libraries(s9
-    PkgConfig::SDL2
-    PkgConfig::SDL2_TTF
+    PkgConfig::SDL3
+    PkgConfig::SDL3_TTF
     PkgConfig::LWS
     pffft
     pn
@@ -141,13 +141,13 @@ target_link_libraries(s9_schema pn)
 # Readout benchmark: the spectrogram's readout timed at the display's defaults, for sizing a machine
 add_executable(cq_bench tools/cq_bench.c src/constant_q.c src/fft.c src/window_function.c src/s9_log.c)
 target_include_directories(cq_bench PRIVATE src)
-target_link_libraries(cq_bench PkgConfig::SDL2 pffft m)
+target_link_libraries(cq_bench PkgConfig::SDL3 pffft m)
 
 # The tracker over a file, for the harness in validation/tracker
 add_executable(tracker_vectors tools/tracker_vectors.c
     src/tracker.c src/harmonic_readout.c src/fft.c src/window_function.c src/s9_log.c)
 target_include_directories(tracker_vectors PRIVATE src)
-target_link_libraries(tracker_vectors PkgConfig::SDL2 pffft m)
+target_link_libraries(tracker_vectors PkgConfig::SDL3 pffft m)
 
 add_subdirectory(test)
 

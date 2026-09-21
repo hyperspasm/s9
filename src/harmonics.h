@@ -6,7 +6,7 @@
 #include "harmonic_reader.h"
 #include "fft_analyzer.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <stdbool.h>
 
 // The harmonic analyzer: an analyzer's latest spectrum on a linear axis

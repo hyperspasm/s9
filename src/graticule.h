@@ -1,7 +1,7 @@
 #ifndef graticule_h
 #define graticule_h
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "s9_colors.h"
 

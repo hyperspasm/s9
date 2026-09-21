@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include "ring_buffer.h"
 
 #define BUFFER_SIZE 1024

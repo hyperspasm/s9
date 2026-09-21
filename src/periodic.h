@@ -11,7 +11,7 @@
 #include "note_strip.h"
 #include "tuner_strip.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <stdbool.h>
 
 // The analyzer of a periodic signal. It assumes the audio is a steady or

@@ -7,9 +7,9 @@
 #include <stdarg.h>
 #include <assert.h>
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL_audio.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3/SDL_audio.h>
 #include <math.h>
 
 static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *parent) {

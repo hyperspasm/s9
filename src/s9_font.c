@@ -2,7 +2,7 @@
 #include "s9.h"
 #include "Roboto-Regular.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 TTF_Font *s9_open_font(int point_size) {
 	SDL_RWops *rw = SDL_RWFromConstMem(Roboto_Regular_TTF, sizeof(Roboto_Regular_TTF));

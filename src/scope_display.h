@@ -3,7 +3,7 @@
 
 #include "s9_colors.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 typedef struct scope_display scope_display_t;
 

@@ -1,6 +1,6 @@
 # s9
 
-A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL2 for rendering and PFFFT for spectral analysis.
+A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL3 for rendering and PFFFT for spectral analysis.
 
 ## Usage
 
@@ -45,16 +45,16 @@ The web interface at `/` is [www/app.js](www/app.js): a control for every parame
 
 ### Dependencies
 
-The build needs a C compiler, CMake, pkg-config, and three libraries: SDL2, SDL2_ttf, and libwebsockets. The FFT is [PFFFT](extern/pffft/pffft.h), compiled in from the tree. pn's protobuf sources are committed, so nothing generates code at build time. The pn submodule must be checked out.
+The build needs a C compiler, CMake, pkg-config, and three libraries: SDL3, SDL3_ttf, and libwebsockets. The FFT is [PFFFT](extern/pffft/pffft.h), compiled in from the tree. pn's protobuf sources are committed, so nothing generates code at build time. The pn submodule must be checked out.
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt install build-essential cmake pkg-config git libsdl2-dev libsdl2-ttf-dev libwebsockets-dev
+sudo apt install build-essential cmake pkg-config git libsdl3-dev libsdl3-ttf-dev libwebsockets-dev
 ```
 
 **macOS:**
 ```bash
-brew install cmake pkg-config sdl2 sdl2_ttf libwebsockets
+brew install cmake pkg-config sdl3 sdl3_ttf libwebsockets
 ```
 
 **After cloning:**
