@@ -40,7 +40,7 @@ static void frame(periodic_t *p, const test_signal_t *s, unsigned *offset) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	periodic_render(p, renderer);
-	SDL_RenderFlush(renderer);   // the surface is read directly
+	SDL_FlushRenderer(renderer);   // the surface is read directly
 }
 
 static unsigned lit_pixels(void) {
@@ -241,12 +241,12 @@ TEST note_is_read_and_shown(void) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
-	setenv("SDL_VIDEODRIVER", "dummy", 1);
-	if (SDL_Init(SDL_INIT_VIDEO) != 0 || TTF_Init() != 0) {
+	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+	if (!SDL_Init(SDL_INIT_VIDEO) || !TTF_Init()) {
 		fprintf(stderr, "SDL unavailable: %s\n", SDL_GetError());
 		return 1;
 	}
-	surface = SDL_CreateRGBSurfaceWithFormat(0, WIDTH, HEIGHT, 32, SDL_PIXELFORMAT_RGBA8888);
+	surface = SDL_CreateSurface(WIDTH, HEIGHT, SDL_PIXELFORMAT_RGBA8888);
 	renderer = SDL_CreateSoftwareRenderer(surface);
 	if (!surface || !renderer) {
 		fprintf(stderr, "software renderer unavailable: %s\n", SDL_GetError());
