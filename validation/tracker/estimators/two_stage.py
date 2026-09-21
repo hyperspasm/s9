@@ -19,13 +19,15 @@ the lock, the lock retunes down to it.
 The fundamental (Fundamental) runs every hop over a longer frame sized to resolve
 partials at the lock's frequency. The frame is first warped by the lock's own
 history so that the pitch is constant across it, which keeps the partials sharp
-through vibrato and glides. Its prominent spectral peaks are read, and those that
-are both prominent and within the balance the objective promises count as evidence.
+through vibrato and glides. Its prominent spectral peaks are read, each refined by a
+parabola through its neighbours less the window's bias in it, and those that are
+both prominent and within the balance the objective promises count as evidence.
 A coarse comb of the lock's harmonics is refined by the lowest partials on it, and
 then the comb and its octave sub-multiples are judged: the lock's comb is the
 fundamental's unless a sub-multiple's own slots hold evidence, below twice the lock,
 that persists; the greatest common divisor of the evident harmonic numbers lifts a
-lock that sits on a sub-multiple, once that too has persisted; and a comb whose
+lock that sits on a sub-multiple, once that too has persisted and the waveform is
+found to repeat at the shorter period nearly as well as at the lock's; and a comb whose
 harmonics split into multiples of two coprime numbers is two voices, of which the
 louder is taken. A decision commits once the comb holds most of the evident power
 for a few evaluations, and is revised when another has held for longer, contrary
