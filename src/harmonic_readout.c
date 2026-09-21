@@ -126,11 +126,11 @@ double harmonic_floor_db(const float *db, uint32_t bins, long p, uint32_t reach,
 	int any = 0;
 	long lo = p - (long)reach - (long)shoulder + 1, hi = p - (long)reach;
 	if (lo < 0) lo = 0;
-	if (hi >= 0 && lo <= hi && median_db(db, lo, hi, &side)) { floor = side; any = 1; }
+	if (hi - lo + 1 >= HARMONIC_SHOULDER_MIN && median_db(db, lo, hi, &side)) { floor = side; any = 1; }
 	lo = p + (long)reach;
 	hi = p + (long)reach + (long)shoulder - 1;
 	if (hi > (long)bins - 1) hi = (long)bins - 1;
-	if (lo <= hi && median_db(db, lo, hi, &side) && side < floor) { floor = side; any = 1; }
+	if (hi - lo + 1 >= HARMONIC_SHOULDER_MIN && median_db(db, lo, hi, &side) && side < floor) { floor = side; any = 1; }
 	return any ? floor : -INFINITY;
 }
 

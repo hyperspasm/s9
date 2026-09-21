@@ -395,39 +395,6 @@ static void lock_update(tracker_t *t, int64_t end, int silent) {
 
 // -- the fundamental
 
-// the median of the finite values in db[lo..hi]; false with none
-static int median_db(const float *db, long lo, long hi, double *out) {
-	double v[HARMONIC_SHOULDER_MAX];
-	int n = 0;
-	for (long i = lo; i <= hi && n < HARMONIC_SHOULDER_MAX; i++) {
-		if (!isfinite(db[i])) continue;
-		int j = n++;
-		while (j > 0 && v[j - 1] > db[i]) { v[j] = v[j - 1]; j--; }
-		v[j] = db[i];
-	}
-	if (!n) return 0;
-	*out = n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
-	return 1;
-}
-
-// The floor beside bin p: on each side, the median of shoulder bins starting past the
-// lobe; the lower side's. A side cut short by the spectrum's edge uses the bins it has,
-// down to three: fewer make no floor, and the first bin alone would stand in for one.
-// (harmonic_floor_db reads the same shoulders but takes any bin it can; the difference
-// only shows at the edges.)
-static double floor_db(const float *db, uint32_t bins, long p, uint32_t reach, uint32_t shoulder) {
-	double floor = INFINITY, side;
-	int any = 0;
-	long hi = p - (long)reach - 1, lo = hi - (long)shoulder + 1;
-	if (lo < 0) lo = 0;
-	if (hi - lo + 1 >= 3 && median_db(db, lo, hi, &side)) { floor = side; any = 1; }
-	lo = p + (long)reach + 1;
-	hi = lo + (long)shoulder - 1;
-	if (hi > (long)bins - 1) hi = (long)bins - 1;
-	if (hi - lo + 1 >= 3 && median_db(db, lo, hi, &side) && side < floor) { floor = side; any = 1; }
-	return any ? floor : -INFINITY;
-}
-
 static void fund_reset(tracker_t *t) {
 	memset(&t->fund, 0, sizeof t->fund);
 	t->fund.correction = 1.0;
@@ -532,7 +499,7 @@ static void read_peaks(tracker_t *t, uint32_t n, double *bin_hz) {
 	t->n_peaks = 0;
 	for (uint32_t p = 1; p + 1 < bins && t->n_peaks < MAX_PEAKS; p++) {
 		if (!(t->db[p] > t->db[p - 1] && t->db[p] >= t->db[p + 1] && t->db[p] > strongest - cfg->peak_floor_db)) continue;
-		double floor = floor_db(t->db, bins, (long)p, cfg->lobe_reach, cfg->shoulder);
+		double floor = harmonic_floor_db(t->db, bins, (long)p, cfg->lobe_reach + 1, cfg->shoulder);   // the shoulders start past the lobe
 		double prom = t->db[p] - floor;
 		if (!(prom >= cfg->prominence_db)) continue;
 		double f, level;
