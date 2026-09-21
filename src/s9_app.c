@@ -140,6 +140,16 @@ static void key_set_mode(s9_mode_id_t mode) {
 		s9_pn_notify_mode(g_app->pn);
 }
 
+// the audio drivers this build of SDL offers, the names the audio_driver setting takes
+static void log_audio_drivers(void) {
+	char names[256] = "";
+	for (int i = 0; i < SDL_GetNumAudioDrivers(); i++) {
+		size_t used = strlen(names);
+		snprintf(names + used, sizeof(names) - used, "%s%s", i ? " " : "", SDL_GetAudioDriver(i));
+	}
+	S9_LOG_INFO("Available audio drivers: %s", names);
+}
+
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
 	(void)userdata;
 
@@ -168,13 +178,19 @@ int s9_app_create(const s9_app_config_t *config) {
 	
 	g_app->config = *config;
 	
+	// the audio driver, when the configuration names one
+	if (g_app->config.audio_driver) SDL_SetHint(SDL_HINT_AUDIODRIVER, g_app->config.audio_driver);
+
 	// initialize SDL
 	ret = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO); 
 	CHECK_ERROR(ret == 0,
+				log_audio_drivers();
 				free(g_app);
 				g_app = NULL;
 				return -1,
 				"SDL_Init failed: %s", SDL_GetError());
+	S9_LOG_INFO("Audio driver: %s", SDL_GetCurrentAudioDriver());
+	log_audio_drivers();
 	
 	// initialize SDL_ttf
 	ret = TTF_Init();

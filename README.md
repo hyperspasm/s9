@@ -13,6 +13,7 @@ s9 [options]
 | `-w, --window_width` | Window width in pixels | 1280 |
 | `-h, --window_height` | Window height in pixels | 720 |
 | `-a, --audio_device` | Audio input device name | System default |
+| `-d, --audio_driver` | Audio driver, by SDL's name for it (`alsa`, `pipewire`, `coreaudio`, ...); the log lists the ones available | SDL's choice |
 | `-r, --sample_rate` | Sample rate in Hz | 44100 |
 | `-l, --log_level` | Log verbosity (0-3) | 1 |
 | `-p, --port` | Port of the parameter server and the web interface | 8080 |
