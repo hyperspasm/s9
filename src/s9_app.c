@@ -330,15 +330,15 @@ int s9_app_create(const s9_app_config_t *config) {
 void s9_app_destroy(void) {
 	CHECK_ERROR(g_app != NULL, return, "ignoring attempt to destroy uncreated app");
 
-	// destroy components
-	s9_components_free(&g_app->components);
-
-	// close audio device
+	// close the audio device before the components its callback feeds go
 	if (g_app->audio_device_id > 0) {
 		SDL_PauseAudioDevice(g_app->audio_device_id, SDL_TRUE);
 		SDL_CloseAudioDevice(g_app->audio_device_id);
 	}
-	
+
+	// destroy components
+	s9_components_free(&g_app->components);
+
 	// close pn
 	s9_pn_free(&g_app->pn);
 
