@@ -265,14 +265,14 @@ static void render_gradient_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 		// inner edge (index i)
 		vertices[i] = (SDL_Vertex){
 			.position = { cx + dx, cy - dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 
 		// outer edge (reversed, matching sdl_path_new layout)
 		vertices[n_verts - 1 - i] = (SDL_Vertex){
 			.position = { cx - dx, cy + dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 

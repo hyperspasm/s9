@@ -21,6 +21,11 @@ typedef enum {
 #define SDL_SET_RENDER_DRAW_COLOR(renderer, color) \
 	SDL_SetRenderDrawColor((renderer), (color)->r, (color)->g, (color)->b, (color)->a)
 
+// a color as a vertex carries it
+static inline SDL_FColor draw_sdl_fcolor(SDL_Color color) {
+	return (SDL_FColor){ color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f };
+}
+
 // clear the current viewport with a given background color, or black in color is NULL
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
 

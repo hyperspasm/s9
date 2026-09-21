@@ -84,9 +84,9 @@ void scope_display_invalidate(scope_display_t *d) {
 
 int scope_display_prepare(scope_display_t *d, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 
-	if(d->renderer == renderer && SDL_RectEquals(&d->viewport, &viewport)) {
+	if(d->renderer == renderer && SDL_RectsEqual(&d->viewport, &viewport)) {
 		return 0;
 	}
 
@@ -94,13 +94,10 @@ int scope_display_prepare(scope_display_t *d, SDL_Renderer *renderer) {
 	d->viewport = viewport;
 
 	// check if renderer supports MIN blend operation
-	SDL_RendererInfo info;
 	int min_blend_supported = 0;
-	if(SDL_GetRendererInfo(renderer, &info) == 0) {
-		const char *name = info.name;
-		if(strstr(name, "direct3d") != NULL || strstr(name, "metal") != NULL) {
-			min_blend_supported = 1;
-		}
+	const char *name = SDL_GetRendererName(renderer);
+	if(name && (strstr(name, "direct3d") != NULL || strstr(name, "metal") != NULL)) {
+		min_blend_supported = 1;
 	}
 	if(!min_blend_supported) {
 		d->clip_blend_mode = SDL_BLENDMODE_INVALID;
@@ -144,7 +141,7 @@ void scope_display_begin_frame(scope_display_t *d, SDL_Renderer *renderer) {
 	SDL_Texture *cur = d->blur_buffer[d->blur_buffer_index];
 
 	SDL_SetRenderTarget(renderer, cur);
-	SDL_RenderSetClipRect(renderer, &d->frame_rect);
+	SDL_SetRenderClipRect(renderer, &d->frame_rect);
 	draw_sdl_clear_viewport(renderer, NULL);
 }
 
@@ -153,23 +150,23 @@ void scope_display_end_frame(scope_display_t *d, SDL_Renderer *renderer) {
 	SDL_Texture *prv = d->blur_buffer[!d->blur_buffer_index];
 
 	// clear clip rect before blending
-	SDL_RenderSetClipRect(renderer, NULL);
+	SDL_SetRenderClipRect(renderer, NULL);
 
 	// blend in history for persistence effect
 	SDL_SetTextureBlendMode(prv, SDL_BLENDMODE_ADD);
 	SDL_SetTextureAlphaMod(prv, d->config.persistence);
-	SDL_RenderCopy(renderer, prv, NULL, NULL);
+	SDL_RenderTexture(renderer, prv, NULL, NULL);
 
 	// clip to trace color using MIN blend (prevents hue shift)
 	if(d->clip_texture && d->clip_blend_mode != SDL_BLENDMODE_INVALID) {
 		SDL_SetTextureBlendMode(d->clip_texture, d->clip_blend_mode);
-		SDL_RenderCopy(renderer, d->clip_texture, NULL, NULL);
+		SDL_RenderTexture(renderer, d->clip_texture, NULL, NULL);
 	}
 
 	// blit current buffer to screen
 	SDL_SetRenderTarget(renderer, NULL);
 	SDL_SetTextureBlendMode(cur, SDL_BLENDMODE_NONE);
-	SDL_RenderCopy(renderer, cur, NULL, NULL);
+	SDL_RenderTexture(renderer, cur, NULL, NULL);
 
 	// render graticule on top
 	graticule_render(d->graticule, renderer, &d->frame_rect);

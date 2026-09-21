@@ -3,6 +3,7 @@
 #include "s9.h"
 #include "resampler.h"
 #include "scope_display.h"
+#include "draw_sdl.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -168,14 +169,14 @@ static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *rend
 		// inner edge (index i)
 		vertices[i] = (SDL_Vertex){
 			.position = { cx + dx, cy + dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 
 		// outer edge (reversed)
 		vertices[n_verts - 1 - i] = (SDL_Vertex){
 			.position = { cx - dx, cy - dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 

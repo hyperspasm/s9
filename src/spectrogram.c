@@ -187,7 +187,7 @@ static void clear_image(spectrogram_t *sg) {
 	if (!sg->image) return;
 	void *pixels;
 	int pitch;
-	if (SDL_LockTexture(sg->image, NULL, &pixels, &pitch) == 0) {
+	if (SDL_LockTexture(sg->image, NULL, &pixels, &pitch)) {
 		memset(pixels, 0, (size_t)pitch * (size_t)sg->image_h);
 		SDL_UnlockTexture(sg->image);
 	}
@@ -280,7 +280,7 @@ static void recolor(spectrogram_t *sg) {
 	if (!sg->image) return;
 	void *pixels;
 	int pitch;
-	if (SDL_LockTexture(sg->image, NULL, &pixels, &pitch) != 0) return;
+	if (!SDL_LockTexture(sg->image, NULL, &pixels, &pitch)) return;
 	for (int r = 0; r < sg->image_h; r++) {
 		uint32_t *row = (uint32_t *)((uint8_t *)pixels + (size_t)r * (size_t)pitch);
 		if (r < sg->rows) color_row(sg, sg->history + (size_t)r * (size_t)sg->plot.w, row);
@@ -386,12 +386,12 @@ static void draw_time_axis(const spectrogram_t *sg, SDL_Renderer *renderer, TTF_
 		if (y < sg->plot.y) break;
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &c->minor_color);
 		if (i % per_major == 0) {
-			if (c->grid) SDL_RenderDrawLine(renderer, sg->plot.x, y, sg->plot.x + sg->plot.w, y);
+			if (c->grid) SDL_RenderLine(renderer, sg->plot.x, y, sg->plot.x + sg->plot.w, y);
 			char label[32];
 			snprintf(label, sizeof label, "%g s", i * minor);
 			draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_MIDDLE_RIGHT, c->major_color, sg->plot.x - LABEL_MARGIN, y);
 		} else if (c->grid) {
-			SDL_RenderDrawLine(renderer, sg->plot.x, y, sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH, y);
+			SDL_RenderLine(renderer, sg->plot.x, y, sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH, y);
 		}
 	}
 }
@@ -404,7 +404,7 @@ static void draw_axes(spectrogram_t *sg, SDL_Renderer *renderer) {
 	sg->axes = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, sg->viewport.w, sg->viewport.h);
 	CHECK_ALLOC(sg->axes, return);
 	SDL_SetTextureBlendMode(sg->axes, SDL_BLENDMODE_BLEND);
-	CHECK_ERROR(SDL_SetRenderTarget(renderer, sg->axes) == 0, SDL_DestroyTexture(sg->axes); sg->axes = NULL; return, "could not set render target");
+	CHECK_ERROR(SDL_SetRenderTarget(renderer, sg->axes), SDL_DestroyTexture(sg->axes); sg->axes = NULL; return, "could not set render target");
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 	SDL_RenderClear(renderer);
 
@@ -434,8 +434,8 @@ static void draw_axes(spectrogram_t *sg, SDL_Renderer *renderer) {
 // the textures and buffers for the viewport; the image starts over with a new one
 static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
-	if (sg->renderer == renderer && SDL_RectEquals(&sg->viewport, &viewport) && sg->image) {
+	SDL_GetRenderViewport(renderer, &viewport);
+	if (sg->renderer == renderer && SDL_RectsEqual(&sg->viewport, &viewport) && sg->image) {
 		if (!sg->axes_drawn) draw_axes(sg, renderer);
 		return 0;
 	}
@@ -454,11 +454,11 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	sg->image = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, sg->plot.w, sg->image_h);
 	CHECK_ALLOC(sg->image, return -1);
 	SDL_SetTextureBlendMode(sg->image, SDL_BLENDMODE_NONE);
-	SDL_SetTextureScaleMode(sg->image, SDL_ScaleModeNearest);
+	SDL_SetTextureScaleMode(sg->image, SDL_SCALEMODE_NEAREST);
 	sg->unrolled = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, sg->plot.w, sg->image_h);
 	CHECK_ALLOC(sg->unrolled, free_textures(sg); return -1);
 	SDL_SetTextureBlendMode(sg->unrolled, SDL_BLENDMODE_NONE);
-	SDL_SetTextureScaleMode(sg->unrolled, SDL_ScaleModeLinear);   // a fractional offset blends neighbouring rows
+	SDL_SetTextureScaleMode(sg->unrolled, SDL_SCALEMODE_LINEAR);   // a fractional offset blends neighbouring rows
 	sg->edges = malloc(sizeof(double) * ((size_t)sg->plot.w + 1));
 	CHECK_ALLOC(sg->edges, free_textures(sg); return -1);
 	sg->history = malloc(sizeof(float) * (size_t)sg->plot.w * (size_t)sg->image_h);
@@ -482,17 +482,17 @@ static void draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	if (sg->rows == h && sg->head < h)
-		SDL_RenderCopy(renderer, sg->image, &(SDL_Rect){ 0, sg->head, w, h - sg->head }, &(SDL_Rect){ 0, 0, w, h - sg->head });
+		SDL_RenderTexture(renderer, sg->image, &(SDL_FRect){ 0, sg->head, w, h - sg->head }, &(SDL_FRect){ 0, 0, w, h - sg->head });
 	if (sg->head > 0)
-		SDL_RenderCopy(renderer, sg->image, &(SDL_Rect){ 0, 0, w, sg->head }, &(SDL_Rect){ 0, h - sg->head, w, sg->head });
+		SDL_RenderTexture(renderer, sg->image, &(SDL_FRect){ 0, 0, w, sg->head }, &(SDL_FRect){ 0, h - sg->head, w, sg->head });
 	SDL_SetRenderTarget(renderer, NULL);
 
 	double below = ((double)sg->consumed + (double)GUARD_ROWS * sg->hop - clock_now(sg)) / (double)sg->hop;   // rows
 	float bottom = (float)(sg->plot.y + sg->plot.h) + (float)below;
-	SDL_RenderSetClipRect(renderer, &sg->plot);
-	SDL_RenderCopyF(renderer, sg->unrolled, NULL, &(SDL_FRect){ (float)sg->plot.x, bottom - (float)h, (float)w, (float)h });
-	SDL_RenderSetClipRect(renderer, NULL);
-	if (sg->axes) SDL_RenderCopy(renderer, sg->axes, NULL, &(SDL_Rect){ 0, 0, sg->viewport.w, sg->viewport.h });
+	SDL_SetRenderClipRect(renderer, &sg->plot);
+	SDL_RenderTexture(renderer, sg->unrolled, NULL, &(SDL_FRect){ (float)sg->plot.x, bottom - (float)h, (float)w, (float)h });
+	SDL_SetRenderClipRect(renderer, NULL);
+	if (sg->axes) SDL_RenderTexture(renderer, sg->axes, NULL, &(SDL_FRect){ 0, 0, sg->viewport.w, sg->viewport.h });
 }
 
 // -- lifecycle

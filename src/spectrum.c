@@ -133,9 +133,9 @@ uint32_t spectrum_frame(const spectrum_t *sp) {
 
 static S9_FORCE_INLINE void prepare_to_draw(spectrum_t *sp, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 
-	if(sp->renderer != renderer || !SDL_RectEquals(&sp->viewport, &viewport)) {
+	if(sp->renderer != renderer || !SDL_RectsEqual(&sp->viewport, &viewport)) {
 		sp->renderer = renderer;
 		sp->viewport = viewport;
 		fresp_graph_free(&sp->graph);

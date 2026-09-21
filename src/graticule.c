@@ -74,7 +74,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		if (i == 5) continue;  // skip center (major line)
 
 		float x = rect->x + (rect->w * i / 10.0f);
-		SDL_RenderDrawLineF(renderer,
+		SDL_RenderLine(renderer,
 			x, rect->y,
 			x, rect->y + rect->h);
 	}
@@ -84,7 +84,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		if (i == 5) continue;  // skip center (major line)
 
 		float y = rect->y + (rect->h * i / 10.0f);
-		SDL_RenderDrawLineF(renderer,
+		SDL_RenderLine(renderer,
 			rect->x, y,
 			rect->x + rect->w, y);
 	}
@@ -147,9 +147,9 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 
 static S9_FORCE_INLINE void prepare_to_draw(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect *rect) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 
-	if (grat->renderer != renderer || !SDL_RectEquals(&grat->rect, rect)) {
+	if (grat->renderer != renderer || !SDL_RectsEqual(&grat->rect, rect)) {
 		grat->renderer = renderer;
 		grat->rect = *rect;
 
@@ -161,15 +161,15 @@ static S9_FORCE_INLINE void prepare_to_draw(graticule_t *grat, SDL_Renderer *ren
 		grat->texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, viewport.w, viewport.h);
 		CHECK_ALLOC(grat->texture, return);
 
-		int ret = SDL_SetRenderTarget(renderer, grat->texture);
-		CHECK_ERROR(ret == 0,
+		bool ret = SDL_SetRenderTarget(renderer, grat->texture);
+		CHECK_ERROR(ret,
 			SDL_DestroyTexture(grat->texture);
 			grat->texture = NULL;
 			return,
 			"could not set render target");
 
 		ret = SDL_SetTextureBlendMode(grat->texture, SDL_BLENDMODE_BLEND);
-		CHECK_ERROR(ret == 0,
+		CHECK_ERROR(ret,
 			SDL_DestroyTexture(grat->texture);
 			grat->texture = NULL;
 			return,
@@ -186,8 +186,8 @@ void graticule_render(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect 
 
 	if (grat->texture) {
 		SDL_Rect viewport;
-		SDL_RenderGetViewport(renderer, &viewport);
-		SDL_Rect dst_rect = { 0, 0, viewport.w, viewport.h };
-		SDL_RenderCopy(renderer, grat->texture, NULL, &dst_rect);
+		SDL_GetRenderViewport(renderer, &viewport);
+		SDL_FRect dst_rect = { 0.0f, 0.0f, (float)viewport.w, (float)viewport.h };
+		SDL_RenderTexture(renderer, grat->texture, NULL, &dst_rect);
 	}
 }

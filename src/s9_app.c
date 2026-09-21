@@ -69,19 +69,19 @@ static void print_renderer_info(void) {
 
 static void render(SDL_Renderer *renderer) {
 	SDL_Rect default_viewport;
-	SDL_RenderGetViewport(renderer, &default_viewport);
+	SDL_GetRenderViewport(renderer, &default_viewport);
 	const s9_component_t *fps = s9_components_get(g_app->components, COMP_FPS);
 
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
 		if (s->component == fps && !g_app->show_fps) continue;
 		if (s->component->render) {
 			SDL_Rect viewport = compute_viewport(&s->layout, &default_viewport);
-			SDL_RenderSetViewport(renderer, &viewport);
+			SDL_SetRenderViewport(renderer, &viewport);
 			s->component->render(s->component->instance, renderer);
 		}
 	}
 
-	SDL_RenderSetViewport(renderer, &default_viewport);
+	SDL_SetRenderViewport(renderer, &default_viewport);
 }
 
 static void apply_mode(const s9_mode_slot_t *mode) {
@@ -458,7 +458,7 @@ int s9_app_run(void) {
 	s9_pn_update(g_app->pn);
 
 	// reset viewport to default
-	SDL_RenderSetViewport(g_app->renderer, NULL);
+	SDL_SetRenderViewport(g_app->renderer, NULL);
 	
 	// clear screen
 	SDL_SetRenderDrawColor(g_app->renderer, 0, 0, 0, 255);

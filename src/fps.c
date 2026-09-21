@@ -75,7 +75,7 @@ void fps_render(fps_t *fps, SDL_Renderer *renderer) {
 	}
 
 	if (fps->fps_texture) {
-		SDL_Rect dst_rect = { 0, 0, fps->width, fps->height };
-		SDL_RenderCopy(renderer, fps->fps_texture, NULL, &dst_rect);
+		SDL_FRect dst_rect = { 0.0f, 0.0f, (float)fps->width, (float)fps->height };
+		SDL_RenderTexture(renderer, fps->fps_texture, NULL, &dst_rect);
 	}
 }

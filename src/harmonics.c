@@ -224,8 +224,8 @@ static void draw_graticule(harmonics_t *h, SDL_Renderer *renderer) {
 
 static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
-	if (h->renderer == renderer && SDL_RectEquals(&h->viewport, &viewport)) return;
+	SDL_GetRenderViewport(renderer, &viewport);
+	if (h->renderer == renderer && SDL_RectsEqual(&h->viewport, &viewport)) return;
 
 	free_drawing(h);
 	h->renderer = renderer;
@@ -236,8 +236,8 @@ static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 
 	h->graticule = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, viewport.w, viewport.h);
 	CHECK_ALLOC(h->graticule, return);
-	CHECK_ERROR(SDL_SetTextureBlendMode(h->graticule, SDL_BLENDMODE_BLEND) == 0, free_drawing(h); return, "could not set blend mode");
-	CHECK_ERROR(SDL_SetRenderTarget(renderer, h->graticule) == 0, free_drawing(h); return, "could not set render target");
+	CHECK_ERROR(SDL_SetTextureBlendMode(h->graticule, SDL_BLENDMODE_BLEND), free_drawing(h); return, "could not set blend mode");
+	CHECK_ERROR(SDL_SetRenderTarget(renderer, h->graticule), free_drawing(h); return, "could not set render target");
 	draw_graticule(h, renderer);
 	SDL_SetRenderTarget(renderer, NULL);
 
@@ -291,7 +291,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	double f_end = axis_end(h, f0, fs);
 
 	SDL_Rect save_viewport;
-	SDL_RenderGetViewport(renderer, &save_viewport);
+	SDL_GetRenderViewport(renderer, &save_viewport);
 	const SDL_Rect *plot = &h->plot_rect;
 
 	// the spectrum, clipped to the plot
@@ -300,16 +300,16 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	for (int i = 0; i < plot->w; i++)
 		h->points[i] = (SDL_FPoint){ (float)i, ((float)h->config.max_db - h->plot[i]) * db_scale };
 	SDL_Rect plot_viewport = { save_viewport.x + plot->x, save_viewport.y + plot->y, plot->w, plot->h };
-	SDL_RenderSetViewport(renderer, &plot_viewport);
+	SDL_SetRenderViewport(renderer, &plot_viewport);
 	sdl_path_t *path = sdl_path_new(&h->config.plot_color, h->config.plot_width, 1, h->points, plot->w);
 	if (path) {
 		sdl_path_render(path, renderer);
 		sdl_path_free(&path);
 	}
-	SDL_RenderSetViewport(renderer, &save_viewport);
+	SDL_SetRenderViewport(renderer, &save_viewport);
 
-	SDL_Rect dst = { 0, 0, h->viewport.w, h->viewport.h };
-	SDL_RenderCopy(renderer, h->graticule, NULL, &dst);
+	SDL_FRect dst = { 0.0f, 0.0f, (float)h->viewport.w, (float)h->viewport.h };
+	SDL_RenderTexture(renderer, h->graticule, NULL, &dst);
 
 	// markers and numbers at the harmonics on the axis
 	uint32_t count = h->config.reader.harmonics;
@@ -319,7 +319,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		double fk = k * f0;
 		if (fk > f_end) break;
 		float x = plot->x + (float)(plot->w * fk / f_end);
-		SDL_RenderDrawLineF(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
+		SDL_RenderLine(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
 		snprintf(text, sizeof(text), "%u", (unsigned)k);
 		label_set(&h->numbers[k - 1], renderer, h->font, h->config.major_color, text);
 		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
