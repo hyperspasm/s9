@@ -29,8 +29,7 @@ typedef struct s9_app {
 	s9_app_config_t config;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
-	SDL_RendererInfo renderer_info;
-	SDL_DisplayMode display_mode;
+	const SDL_DisplayMode *display_mode;   // SDL's, for the window's display
 
 	s9_components_t *components;
 	s9_component_slot_t slots[S9_MAX_COMPONENTS]; // NULL-terminated (component == NULL)
@@ -54,17 +53,15 @@ static s9_app_t *g_app = NULL; // singleton instance
 // -- private
 
 static void print_renderer_info(void) {
-	S9_LOG_INFO("Renderer: %s", g_app->renderer_info.name);
-	if (g_app->renderer_info.flags & SDL_RENDERER_SOFTWARE) S9_LOG_INFO("    * Software");
-	if (g_app->renderer_info.flags & SDL_RENDERER_ACCELERATED) S9_LOG_INFO("    * Accelerated");
-	if (g_app->renderer_info.flags & SDL_RENDERER_PRESENTVSYNC) S9_LOG_INFO("    * VSync");
-	if (g_app->renderer_info.flags & SDL_RENDERER_TARGETTEXTURE) S9_LOG_INFO("    * Render to texture");
-	S9_LOG_INFO("    Max texture %d x %d", g_app->renderer_info.max_texture_width, g_app->renderer_info.max_texture_height);
+	SDL_PropertiesID props = SDL_GetRendererProperties(g_app->renderer);
+	S9_LOG_INFO("Renderer: %s", SDL_GetRendererName(g_app->renderer));
+	if (SDL_GetNumberProperty(props, SDL_PROP_RENDERER_VSYNC_NUMBER, 0) != 0) S9_LOG_INFO("    * VSync");
+	S9_LOG_INFO("    Max texture %d", (int)SDL_GetNumberProperty(props, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 0));
 	
 	S9_LOG_INFO("Display mode:");
-	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(g_app->display_mode.format));
-	S9_LOG_INFO("    %d x %d", g_app->display_mode.w, g_app->display_mode.h);
-	S9_LOG_INFO("    %d Hz", g_app->display_mode.refresh_rate);
+	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(g_app->display_mode->format));
+	S9_LOG_INFO("    %d x %d", g_app->display_mode->w, g_app->display_mode->h);
+	S9_LOG_INFO("    %g Hz", g_app->display_mode->refresh_rate);
 }
 
 static void render(SDL_Renderer *renderer) {
@@ -214,13 +211,13 @@ static int open_audio_input(bool quiet) {
 	S9_LOG_INFO("    Buffer Size: %d samples", g_app->audio_spec.samples);
 	
 	// init stream_config; a display that does not say its refresh rate is taken as 60 Hz
-	int refresh_rate = g_app->display_mode.refresh_rate > 0 ? g_app->display_mode.refresh_rate : 60;
+	float refresh_rate = g_app->display_mode->refresh_rate > 0.0f ? g_app->display_mode->refresh_rate : 60.0f;
 	g_app->stream_config = (s9_audio_stream_config_t){
 		.audio_format = S9_FORMAT_FLOAT32,
 		.sample_rate = g_app->audio_spec.freq,
 		.channels = g_app->audio_spec.channels,
 		.buffer_frames = g_app->audio_spec.samples,
-		.samples_per_display_frame = ceil(g_app->audio_spec.freq / (double)refresh_rate),
+		.samples_per_display_frame = ceil(g_app->audio_spec.freq / refresh_rate),
 	};
 	return 0;
 }
@@ -261,7 +258,6 @@ static void reopen_audio_input(const char *why) {
 // --
 
 int s9_app_create(const s9_app_config_t *config) {
-	int ret;
 	CHECK_PARAMETER(config != NULL, return -1);
 	CHECK_ERROR(g_app == NULL, return -1, "ignoring attempt to create a second app instance");
 	
@@ -280,8 +276,7 @@ int s9_app_create(const s9_app_config_t *config) {
 	if (g_app->config.audio_driver) SDL_SetHint(SDL_HINT_AUDIODRIVER, g_app->config.audio_driver);
 
 	// initialize SDL
-	ret = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO); 
-	CHECK_ERROR(ret == 0,
+	CHECK_ERROR(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO),
 				log_audio_drivers();
 				free(g_app);
 				g_app = NULL;
@@ -291,22 +286,15 @@ int s9_app_create(const s9_app_config_t *config) {
 	log_audio_drivers();
 	
 	// initialize SDL_ttf
-	ret = TTF_Init();
-	CHECK_ERROR(ret == 0,
+	CHECK_ERROR(TTF_Init(),
 				free(g_app);
 				g_app = NULL;
 				SDL_Quit();
 				return -1,
-				"TTF_Init failed: %d", ret);
-	
-	// NOTE: overriding SDL_WINDOW_ALLOW_HIGHDPI below until I can figure out how to actually make this work properly
-	SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
+				"TTF_Init failed: %s", SDL_GetError());
 	
 	// create window
-	g_app->window = SDL_CreateWindow("S9",
-									 SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-									 g_app->config.window_width, g_app->config.window_height,
-									 SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
+	g_app->window = SDL_CreateWindow("S9", g_app->config.window_width, g_app->config.window_height, 0);
 	CHECK_ERROR(g_app->window != NULL,
 				free(g_app);
 				g_app = NULL;
@@ -315,8 +303,8 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"SDL_CreateWindow failed: %s", SDL_GetError());
 	
-	// create renderer
-	g_app->renderer = SDL_CreateRenderer(g_app->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	// create renderer, presenting in step with the display
+	g_app->renderer = SDL_CreateRenderer(g_app->window, NULL);
 	CHECK_ERROR(g_app->renderer != NULL,
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
@@ -325,33 +313,25 @@ int s9_app_create(const s9_app_config_t *config) {
 				SDL_Quit();
 				return -1,
 				"SDL_CreateRenderer failed: %s", SDL_GetError());
+	SDL_SetRenderVSync(g_app->renderer, 1);
 	
 	// s9 has no pointer interaction; this also keeps the pointer off a display that has no mouse
-	SDL_ShowCursor(SDL_DISABLE);
+	SDL_HideCursor();
 
-	// get renderer info
-	CHECK_ERROR(SDL_GetRendererInfo(g_app->renderer, &g_app->renderer_info) == 0,
+	// the mode of the window's display
+	SDL_DisplayID display = SDL_GetDisplayForWindow(g_app->window);
+	CHECK_ERROR(display != 0,
+				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
 				g_app = NULL;
 				TTF_Quit();
 				SDL_Quit();
 				return -1,
-				"SDL_GetRendererInfo failed: %s", SDL_GetError());
-		
-	// get display index
-	int display_index = SDL_GetWindowDisplayIndex(g_app->window);
-	CHECK_ERROR(display_index >= 0,
-				SDL_DestroyWindow(g_app->window);
-				free(g_app);
-				g_app = NULL;
-				TTF_Quit();
-				SDL_Quit();
-				return -1,
-				"SDL_GetWindowDisplayIndex failed: %s", SDL_GetError());
-	
-	// get display mode
-	CHECK_ERROR(SDL_GetCurrentDisplayMode(display_index, &g_app->display_mode) == 0,
+				"SDL_GetDisplayForWindow failed: %s", SDL_GetError());
+	g_app->display_mode = SDL_GetCurrentDisplayMode(display);
+	CHECK_ERROR(g_app->display_mode != NULL,
+				SDL_DestroyRenderer(g_app->renderer);
 				SDL_DestroyWindow(g_app->window);
 				free(g_app);
 				g_app = NULL;
@@ -424,11 +404,11 @@ int s9_app_run(void) {
 
 	// poll until all events are handled!
 	while (SDL_PollEvent(&e)) {
-		if (e.type == SDL_QUIT) {
+		if (e.type == SDL_EVENT_QUIT) {
 			g_app->ret = 1;
-		} else if (e.type == SDL_KEYDOWN) {
-			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.keysym.sym));
-			switch (e.key.keysym.sym) {
+		} else if (e.type == SDL_EVENT_KEY_DOWN) {
+			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.key));
+			switch (e.key.key) {
 			case SDLK_1: key_set_mode(S9_MODE_FULL);     break;
 			case SDLK_2: key_set_mode(S9_MODE_SCOPE);    break;
 			case SDLK_3: key_set_mode(S9_MODE_SPECTRUM); break;
