@@ -124,7 +124,7 @@ static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *rend
 
 	uint32_t n_verts = 2 * n_points;
 	uint32_t n_indices = (n_points - 1) * 6;
-	float half_width = 0.5f * liss->config.trace_width;
+	float half_width = 0.5f * liss->config.trace_width * draw_sdl_scale(renderer);
 
 	SDL_Vertex *vertices = (SDL_Vertex *) malloc(n_verts * sizeof(SDL_Vertex));
 	CHECK_ALLOC(vertices, return);

@@ -352,15 +352,16 @@ static graph_hz_axis_t hz_axis(const spectrogram_t *sg) {
 }
 
 // room for the time labels on the left, the frequency labels below
-static void compute_plot(spectrogram_t *sg, TTF_Font *font) {
+static void compute_plot(spectrogram_t *sg, TTF_Font *font, float scale) {
 	int time_w = 0, time_h = 0, hz_h = 0, hz_right = 0;
 	TTF_GetStringSize(font, "100 s", 0, &time_w, &time_h);
 	graph_hz_axis_t axis = hz_axis(sg);
 	graph_hz_axis_measure(&axis, font, &hz_h, &hz_right);
-	int left = GRAPH_MARGIN + time_w + LABEL_MARGIN;
-	int bottom = GRAPH_MARGIN + LABEL_MARGIN + hz_h;
-	int top = GRAPH_MARGIN + time_h / 2;
-	int right = GRAPH_MARGIN + hz_right;
+	int graph_margin = (int)lround(GRAPH_MARGIN * scale), label_margin = (int)lround(LABEL_MARGIN * scale);
+	int left = graph_margin + time_w + label_margin;
+	int bottom = graph_margin + label_margin + hz_h;
+	int top = graph_margin + time_h / 2;
+	int right = graph_margin + hz_right;
 	sg->plot = (SDL_Rect){ left, top, sg->viewport.w - left - right, sg->viewport.h - top - bottom };
 }
 
@@ -380,18 +381,19 @@ static void draw_time_axis(const spectrogram_t *sg, SDL_Renderer *renderer, TTF_
 	double minor = major / per_major;
 
 	const spectrogram_config_t *c = &sg->config;
+	float scale = draw_sdl_scale(renderer);
 	int below = sg->plot.y + sg->plot.h;
 	for (int i = 1; ; i++) {
 		int y = below - 1 - (int)lround(i * minor * rows_per_second);
 		if (y < sg->plot.y) break;
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &c->minor_color);
 		if (i % per_major == 0) {
-			if (c->grid) SDL_RenderLine(renderer, sg->plot.x, y, sg->plot.x + sg->plot.w, y);
+			if (c->grid) draw_sdl_line(renderer, sg->plot.x, y, sg->plot.x + sg->plot.w, y);
 			char label[32];
 			snprintf(label, sizeof label, "%g s", i * minor);
-			draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_MIDDLE_RIGHT, c->major_color, sg->plot.x - LABEL_MARGIN, y);
+			draw_sdl_render_text_at_position(renderer, font, label, ANCHOR_MIDDLE_RIGHT, c->major_color, sg->plot.x - (int)lround(LABEL_MARGIN * scale), y);
 		} else if (c->grid) {
-			SDL_RenderLine(renderer, sg->plot.x, y, sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH, y);
+			draw_sdl_line(renderer, sg->plot.x, y, sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH * scale, y);
 		}
 	}
 }
@@ -409,20 +411,22 @@ static void draw_axes(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_RenderClear(renderer);
 
 	const spectrogram_config_t *c = &sg->config;
-	TTF_Font *font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
+	float scale = draw_sdl_scale(renderer);
+	int label_margin = (int)lround(LABEL_MARGIN * scale);
+	TTF_Font *font = s9_open_font(FONT_SIZE * scale);
 	if (font) {
 		graph_hz_axis_t axis = hz_axis(sg);
-		if (c->grid) graph_hz_axis_draw(&axis, renderer, font, &sg->plot, LABEL_MARGIN);
-		else graph_hz_axis_draw_labels(&axis, renderer, font, &sg->plot, LABEL_MARGIN);
+		if (c->grid) graph_hz_axis_draw(&axis, renderer, font, &sg->plot, label_margin);
+		else graph_hz_axis_draw_labels(&axis, renderer, font, &sg->plot, label_margin);
 		draw_time_axis(sg, renderer, font);
 		if (sg->label[0]) {
 			draw_sdl_render_text_at_position(renderer, font, sg->label, ANCHOR_TOP_LEFT, c->major_color,
-			                                 sg->plot.x + GRAPH_DB_AXIS_TICK_LENGTH + 4, sg->plot.y + 4);
+			                                 sg->plot.x + (int)lround((GRAPH_DB_AXIS_TICK_LENGTH + 4) * scale), sg->plot.y + (int)lround(4 * scale));
 		}
 		TTF_CloseFont(font);
 	}
 
-	sdl_polygon_t *frame = frame_new_from_rect(sg->plot, 2.0, c->major_color);
+	sdl_polygon_t *frame = frame_new_from_rect(sg->plot, 2.0f * scale, c->major_color);
 	if (frame) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
@@ -444,9 +448,10 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	free_textures(sg);
 	constant_q_free(&sg->cq);
 
-	TTF_Font *font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
+	float scale = draw_sdl_scale(renderer);
+	TTF_Font *font = s9_open_font(FONT_SIZE * scale);
 	CHECK_ERROR(font != NULL, return -1, "unable to open font");
-	compute_plot(sg, font);
+	compute_plot(sg, font, scale);
 	TTF_CloseFont(font);
 	if (sg->plot.w < 2 || sg->plot.h < 1) return -1;
 	sg->image_h = sg->plot.h + EXTRA_ROWS;

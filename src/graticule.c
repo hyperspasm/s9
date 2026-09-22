@@ -5,6 +5,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 typedef struct graticule {
 	SDL_Renderer *renderer;
@@ -66,7 +67,8 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 	SDL_RenderClear(renderer);
 
 	const SDL_Rect *rect = &grat->rect;
-	float major_line_width = 1.0f;
+	float scale = draw_sdl_scale(renderer);
+	float major_line_width = 1.0f * scale;
 
 	// draw minor vertical lines (1/10, 2/10, 3/10, 4/10, 6/10, 7/10, 8/10, 9/10)
 	SDL_SET_RENDER_DRAW_COLOR(renderer, &grat->config.minor_color);
@@ -74,7 +76,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		if (i == 5) continue;  // skip center (major line)
 
 		float x = rect->x + (rect->w * i / 10.0f);
-		SDL_RenderLine(renderer,
+		draw_sdl_line(renderer,
 			x, rect->y,
 			x, rect->y + rect->h);
 	}
@@ -84,7 +86,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		if (i == 5) continue;  // skip center (major line)
 
 		float y = rect->y + (rect->h * i / 10.0f);
-		SDL_RenderLine(renderer,
+		draw_sdl_line(renderer,
 			rect->x, y,
 			rect->x + rect->w, y);
 	}
@@ -128,17 +130,18 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 
 	// draw labels
 	if (grat->label_bottom || grat->label_top) {
-		TTF_Font *font = s9_open_font(16.0f * draw_sdl_scale(renderer));
+		TTF_Font *font = s9_open_font(16.0f * scale);
+		int inset = (int)lround(4 * scale);
 		if (font) {
 			if (grat->label_bottom) {
 				draw_sdl_render_text_at_position(renderer, font, grat->label_bottom,
 					ANCHOR_BOTTOM_LEFT, grat->config.major_color,
-					rect->x + 4, rect->y + rect->h - 4);
+					rect->x + inset, rect->y + rect->h - inset);
 			}
 			if (grat->label_top) {
 				draw_sdl_render_text_at_position(renderer, font, grat->label_top,
 					ANCHOR_TOP_LEFT, grat->config.major_color,
-					rect->x + 4, rect->y + 4);
+					rect->x + inset, rect->y + inset);
 			}
 			TTF_CloseFont(font);
 		}

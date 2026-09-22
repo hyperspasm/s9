@@ -43,11 +43,12 @@ float graph_db_axis_y(const graph_db_axis_t *axis, const SDL_Rect *plot, float d
 }
 
 void graph_db_axis_draw(const graph_db_axis_t *axis, SDL_Renderer *renderer, TTF_Font *font, const SDL_Rect *plot, int label_margin) {
+	float scale = draw_sdl_scale(renderer);
 	for (int db = axis->max_db; db >= axis->min_db; db--) {
 		float y = graph_db_axis_y(axis, plot, (float)db);
 		if (db % (int)axis->major_interval == 0) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &axis->minor_color);
-			SDL_RenderLine(renderer, plot->x, y, plot->x + plot->w, y);
+			draw_sdl_line(renderer, plot->x, y, plot->x + plot->w, y);
 
 			char label[32];
 			graph_format_db(label, sizeof(label), db);
@@ -55,7 +56,7 @@ void graph_db_axis_draw(const graph_db_axis_t *axis, SDL_Renderer *renderer, TTF
 											 plot->x - label_margin, (int)y);
 		} else if (db % (int)axis->minor_interval == 0) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &axis->minor_color);
-			SDL_RenderLine(renderer, plot->x, y, plot->x + GRAPH_DB_AXIS_TICK_LENGTH, y);
+			draw_sdl_line(renderer, plot->x, y, plot->x + GRAPH_DB_AXIS_TICK_LENGTH * scale, y);
 		}
 	}
 }
@@ -101,15 +102,16 @@ float graph_hz_axis_x(const graph_hz_axis_t *axis, const SDL_Rect *plot, double 
 	return plot->x + (log10f((float)hz) - log_min) * ((float)plot->w / (log_max - log_min));
 }
 
-typedef struct { const graph_hz_axis_t *axis; SDL_Renderer *renderer; TTF_Font *font; const SDL_Rect *plot; int label_margin; int lines; } hz_draw_t;
+typedef struct { const graph_hz_axis_t *axis; SDL_Renderer *renderer; TTF_Font *font; const SDL_Rect *plot; int label_margin; int lines; float scale; } hz_draw_t;
 
 static void draw_step(void *ctx, float freq, int major) {
 	hz_draw_t *d = ctx;
 	float x = graph_hz_axis_x(d->axis, d->plot, freq);
 	if (major) {
 		if (d->lines) {
-			sdl_polygon_t *line = rect_new(x - HZ_MAJOR_WIDTH * 0.5f, d->plot->y - HZ_MAJOR_WIDTH * 0.5f,
-			                               HZ_MAJOR_WIDTH, d->plot->h + HZ_MAJOR_WIDTH, d->axis->major_color);
+			float width = HZ_MAJOR_WIDTH * d->scale;
+			sdl_polygon_t *line = rect_new(x - width * 0.5f, d->plot->y - width * 0.5f,
+			                               width, d->plot->h + width, d->axis->major_color);
 			if (line) {
 				SDL_RENDER_GEOMETRY_POLYGON(d->renderer, line);
 				sdl_polygon_free(&line);
@@ -121,16 +123,16 @@ static void draw_step(void *ctx, float freq, int major) {
 		                                 (int)x, d->plot->y + d->plot->h + d->label_margin);
 	} else if (d->lines) {
 		SDL_SET_RENDER_DRAW_COLOR(d->renderer, &d->axis->minor_color);
-		SDL_RenderLine(d->renderer, x, d->plot->y, x, d->plot->y + d->plot->h);
+		draw_sdl_line(d->renderer, x, d->plot->y, x, d->plot->y + d->plot->h);
 	}
 }
 
 void graph_hz_axis_draw(const graph_hz_axis_t *axis, SDL_Renderer *renderer, TTF_Font *font, const SDL_Rect *plot, int label_margin) {
-	hz_draw_t d = { axis, renderer, font, plot, label_margin, 1 };
+	hz_draw_t d = { axis, renderer, font, plot, label_margin, 1, draw_sdl_scale(renderer) };
 	hz_steps(axis, draw_step, &d);
 }
 
 void graph_hz_axis_draw_labels(const graph_hz_axis_t *axis, SDL_Renderer *renderer, TTF_Font *font, const SDL_Rect *plot, int label_margin) {
-	hz_draw_t d = { axis, renderer, font, plot, label_margin, 0 };
+	hz_draw_t d = { axis, renderer, font, plot, label_margin, 0, draw_sdl_scale(renderer) };
 	hz_steps(axis, draw_step, &d);
 }

@@ -1,5 +1,6 @@
 #include "periodic.h"
 #include "s9.h"
+#include "draw_sdl.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -295,9 +296,10 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 	// the note across the top, on the range tracked and then on the tuner's scale; the view under them
 	SDL_Rect viewport;
 	SDL_GetRenderViewport(renderer, &viewport);
-	int top = 2 * STRIP_HEIGHT;
-	SDL_Rect range_band = { viewport.x, viewport.y, viewport.w, STRIP_HEIGHT };
-	SDL_Rect tuner_band = { viewport.x, viewport.y + STRIP_HEIGHT, viewport.w, STRIP_HEIGHT };
+	int band = (int)lround(STRIP_HEIGHT * draw_sdl_scale(renderer));
+	int top = 2 * band;
+	SDL_Rect range_band = { viewport.x, viewport.y, viewport.w, band };
+	SDL_Rect tuner_band = { viewport.x, viewport.y + band, viewport.w, band };
 	SDL_Rect below = { viewport.x, viewport.y + top, viewport.w, viewport.h - top };
 	note_t note, lock;
 	bool have_note = periodic_note(p, &note);

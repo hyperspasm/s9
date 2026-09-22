@@ -35,6 +35,11 @@ static inline SDL_FColor draw_sdl_fcolor(SDL_Color color) {
 	return (SDL_FColor){ color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f };
 }
 
+// A line one pixel of the design wide, from (x1, y1) to (x2, y2): SDL's line
+// at scale 1; above it, when the line is level or upright, a band as wide as
+// the scale and as long as the pixels the line covers.
+void draw_sdl_line(SDL_Renderer *renderer, float x1, float y1, float x2, float y2);
+
 // clear the current viewport with a given background color, or black in color is NULL
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);
 

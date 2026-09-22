@@ -107,7 +107,9 @@ static S9_FORCE_INLINE void prepare_to_draw(vu_t *vu, SDL_Renderer *renderer) {
 static void draw(vu_t *vu, SDL_Renderer *renderer) {
 	
 	uint32_t n_channels = vu->stream_config.channels;
-	int bar_width = (vu->viewport.w - (n_channels - 1) * vu->config.margin) / n_channels;
+	float scale = draw_sdl_scale(renderer);
+	int margin = (int)lround(vu->config.margin * scale);
+	int bar_width = (vu->viewport.w - (n_channels - 1) * margin) / n_channels;
 	
 	// update peak holds
 	for(uint32_t j = 0; j < n_channels; j++) {
@@ -130,7 +132,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.bar_background_color);
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->config.margin;
+		x += bar_width + margin;
 	}
 	
 	// draw peak
@@ -144,13 +146,13 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 			.x = x,
 			.y = (int)(vu->viewport.h - top),
 			.w = bar_width,
-			.h = 2,
+			.h = 2 * scale,
 		};
 		
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.peak_color);
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->config.margin;
+		x += bar_width + margin;
 	}
 	
 	// draw rms
@@ -170,7 +172,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &vu->config.rms_color);
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->config.margin;
+		x += bar_width + margin;
 	}
 	
 	// draw peak hold
@@ -184,7 +186,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 			.x = x,
 			.y = (int)(vu->viewport.h - top),
 			.w = bar_width,
-			.h = 4,
+			.h = 4 * scale,
 		};
 		
 		if(vu->peak_holds[j].db_peak > vu->config.over_threshold_db) {
@@ -194,7 +196,7 @@ static void draw(vu_t *vu, SDL_Renderer *renderer) {
 		}
 		SDL_RenderFillRect(renderer, &bar_rect);
 		
-		x += bar_width + vu->config.margin;
+		x += bar_width + margin;
 	}
 		
 	
