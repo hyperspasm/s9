@@ -53,7 +53,7 @@ struct spectrogram {
 	SDL_Renderer *renderer;
 	SDL_Rect viewport;
 	SDL_Rect plot;                   // where the image shows, within the viewport
-	int image_h;                     // rows in the image: the plot's height and EXTRA_ROWS
+	int image_h;                     // rows in the image: the plot's height in rows and EXTRA_ROWS
 	SDL_Texture *image;              // plot.w x image_h, a ring of rows
 	SDL_Texture *unrolled;           // the ring in order, newest row last
 	SDL_Texture *axes;               // the ticks, labels and frame, drawn once per viewport and stream
@@ -384,7 +384,7 @@ static void draw_time_axis(const spectrogram_t *sg, SDL_Renderer *renderer, TTF_
 	float scale = draw_sdl_scale(renderer);
 	int below = sg->plot.y + sg->plot.h;
 	for (int i = 1; ; i++) {
-		int y = below - 1 - (int)lround(i * minor * rows_per_second);
+		int y = below - 1 - (int)lround(i * minor * rows_per_second * scale);
 		if (y < sg->plot.y) break;
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &c->minor_color);
 		if (i % per_major == 0) {
@@ -454,7 +454,7 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	compute_plot(sg, font, scale);
 	TTF_CloseFont(font);
 	if (sg->plot.w < 2 || sg->plot.h < 1) return -1;
-	sg->image_h = sg->plot.h + EXTRA_ROWS;
+	sg->image_h = (int)ceil(sg->plot.h / scale) + EXTRA_ROWS;   // a row is a pixel of the design tall
 
 	sg->image = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, sg->plot.w, sg->image_h);
 	CHECK_ALLOC(sg->image, return -1);
@@ -480,9 +480,12 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 // The ring unrolled, then placed so that the plot's bottom edge is the
 // audio clock's now less the guard: the newest row sits below the edge by
 // what has arrived since it, moving up as the clock runs and dropping
-// back a row as each row is written, so the picture never jumps.
+// back a row as each row is written, so the picture never jumps. A row is
+// drawn a pixel of the design tall, so the plot spans the same time at any
+// scale.
 static void draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	int w = sg->plot.w, h = sg->image_h;
+	float row = draw_sdl_scale(renderer);
 	SDL_SetRenderTarget(renderer, sg->unrolled);
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
@@ -493,9 +496,9 @@ static void draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_SetRenderTarget(renderer, NULL);
 
 	double below = ((double)sg->consumed + (double)GUARD_ROWS * sg->hop - clock_now(sg)) / (double)sg->hop;   // rows
-	float bottom = (float)(sg->plot.y + sg->plot.h) + (float)below;
+	float bottom = (float)(sg->plot.y + sg->plot.h) + (float)below * row;
 	SDL_SetRenderClipRect(renderer, &sg->plot);
-	SDL_RenderTexture(renderer, sg->unrolled, NULL, &(SDL_FRect){ (float)sg->plot.x, bottom - (float)h, (float)w, (float)h });
+	SDL_RenderTexture(renderer, sg->unrolled, NULL, &(SDL_FRect){ (float)sg->plot.x, bottom - (float)h * row, (float)w, (float)h * row });
 	SDL_SetRenderClipRect(renderer, NULL);
 	if (sg->axes) SDL_RenderTexture(renderer, sg->axes, NULL, &(SDL_FRect){ 0, 0, sg->viewport.w, sg->viewport.h });
 }
