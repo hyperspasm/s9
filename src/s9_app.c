@@ -336,8 +336,13 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"TTF_Init failed: %s", SDL_GetError());
 	
-	// create window
-	g_app->window = SDL_CreateWindow("S9", g_app->config.window_width, g_app->config.window_height, 0);
+	// create window: the configured size in the display's points, at the display's pixel density.
+	// Where a window's size is in pixels and the desktop asks for larger content, the display's
+	// content scale is above 1 and the window grows by it, so it shows the same design at the same size.
+	float content_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+	if (!(content_scale > 0.0f)) content_scale = 1.0f;
+	g_app->window = SDL_CreateWindow("S9", (int)lround(g_app->config.window_width * content_scale),
+	                                 (int)lround(g_app->config.window_height * content_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
 	CHECK_ERROR(g_app->window != NULL,
 				free(g_app);
 				g_app = NULL;
