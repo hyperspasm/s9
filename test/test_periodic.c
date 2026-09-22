@@ -4,6 +4,7 @@
 // reader, and the tracking on the tracker.
 #include "greatest.h"
 #include "periodic.h"
+#include "draw_sdl.h"
 #include "test_signals.h"
 
 #include <SDL3/SDL.h>
@@ -29,18 +30,22 @@ static periodic_t *streaming(void) {
 	return p;
 }
 
-// one display frame: its audio, both channels alike, then the rendering
-static void frame(periodic_t *p, const test_signal_t *s, unsigned *offset) {
+// one display frame: its audio, both channels alike, then the rendering on a renderer
+static void frame_on(periodic_t *p, const test_signal_t *s, unsigned *offset, SDL_Renderer *r) {
 	float *mono = malloc(sizeof(float) * (*offset + FRAME)), stereo[FRAME * 2];
 	test_signal_generate(s, mono, *offset + FRAME, FS);
 	for (unsigned i = 0; i < FRAME; i++) stereo[2 * i] = stereo[2 * i + 1] = mono[*offset + i];
 	free(mono);
 	*offset += FRAME;
 	periodic_enqueue_audio_data(p, stereo, sizeof(stereo));
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-	SDL_RenderClear(renderer);
-	periodic_render(p, renderer);
-	SDL_FlushRenderer(renderer);   // the surface is read directly
+	SDL_SetRenderDrawColor(r, 0, 0, 0, 255);
+	SDL_RenderClear(r);
+	periodic_render(p, r);
+	SDL_FlushRenderer(r);   // the surface is read directly
+}
+
+static void frame(periodic_t *p, const test_signal_t *s, unsigned *offset) {
+	frame_on(p, s, offset, renderer);
 }
 
 static unsigned lit_pixels(void) {
@@ -238,6 +243,43 @@ TEST note_is_read_and_shown(void) {
 	PASS();
 }
 
+// Drawn at twice the scale on a surface twice the size, the view keeps its
+// layout and covers four times the pixels: the strips fill the top two bands
+// of twice the height, and the whole lights about four times as many.
+TEST scales_with_the_renderer(void) {
+	SDL_Surface *big = SDL_CreateSurface(2 * WIDTH, 2 * HEIGHT, SDL_PIXELFORMAT_RGBA8888);
+	SDL_Renderer *r2 = SDL_CreateSoftwareRenderer(big);
+	ASSERT(big && r2);
+	SDL_SetRenderDrawBlendMode(r2, SDL_BLENDMODE_BLEND);
+	draw_sdl_set_scale(r2, 2.0f);
+
+	test_signal_t saw = { SIGNAL_SAWTOOTH, 220.0, 0, 0.5, 0.0, 10, 0, 0 };
+	periodic_t *small = streaming(), *large = streaming();
+	unsigned offset = 0;
+	for (int i = 0; i < 120; i++) frame(small, &saw, &offset);
+	unsigned lit_small = lit_pixels();
+	offset = 0;
+	for (int i = 0; i < 120; i++) frame_on(large, &saw, &offset, r2);
+
+	unsigned lit_large = 0, band0 = 0, band1 = 0;
+	const uint32_t *px = big->pixels;
+	for (int i = 0; i < 4 * WIDTH * HEIGHT; i++) {
+		if ((px[i] & 0xffffff00) == 0) continue;
+		lit_large++;
+		int y = i / (2 * WIDTH);
+		if (y < 2 * STRIP_HEIGHT) band0++;
+		else if (y < 4 * STRIP_HEIGHT) band1++;
+	}
+	ASSERT(band0 > 800);
+	ASSERT(band1 > 800);
+	ASSERT(lit_large > 3 * lit_small && lit_large < 5 * lit_small);
+	periodic_free(&small);
+	periodic_free(&large);
+	SDL_DestroyRenderer(r2);
+	SDL_DestroySurface(big);
+	PASS();
+}
+
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
@@ -262,5 +304,6 @@ int main(int argc, char **argv) {
 	RUN_TEST(counter_reads_the_same_audio);
 	RUN_TEST(waveform_view_draws_cycles);
 	RUN_TEST(note_is_read_and_shown);
+	RUN_TEST(scales_with_the_renderer);
 	GREATEST_MAIN_END();
 }
