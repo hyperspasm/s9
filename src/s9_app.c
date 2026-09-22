@@ -1,6 +1,7 @@
 #include "s9_app.h"
 #include "s9_components.h"
 #include "s9_pn.h"
+#include "draw_sdl.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,12 +13,15 @@
 #include <SDL3/SDL_audio.h>
 #include <math.h>
 
-static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *parent) {
+// a layout's viewport within its parent, the layout's pixels at the renderer's scale
+static SDL_Rect compute_viewport(const s9_layout_t *layout, const SDL_Rect *parent, float scale) {
+	int left = (int)lround(layout->margin_left * scale), top = (int)lround(layout->margin_top * scale);
+	int right = (int)lround(layout->margin_right * scale), bottom = (int)lround(layout->margin_bottom * scale);
 	SDL_Rect vp;
-	vp.x = parent->x + layout->margin_left;
-	vp.y = parent->y + layout->margin_top;
-	vp.w = layout->fixed_width  ? layout->fixed_width  : parent->w - layout->margin_left - layout->margin_right;
-	vp.h = layout->fixed_height ? layout->fixed_height : parent->h - layout->margin_top - layout->margin_bottom;
+	vp.x = parent->x + left;
+	vp.y = parent->y + top;
+	vp.w = layout->fixed_width  ? (int)lround(layout->fixed_width * scale)  : parent->w - left - right;
+	vp.h = layout->fixed_height ? (int)lround(layout->fixed_height * scale) : parent->h - top - bottom;
 	return vp;
 }
 
@@ -65,17 +69,28 @@ static void print_renderer_info(void) {
 	S9_LOG_INFO("    %s", SDL_GetPixelFormatName(g_app->display_mode->format));
 	S9_LOG_INFO("    %d x %d", g_app->display_mode->w, g_app->display_mode->h);
 	S9_LOG_INFO("    %g Hz", g_app->display_mode->refresh_rate);
+
+	int w = 0, h = 0, pw = 0, ph = 0;
+	SDL_GetWindowSize(g_app->window, &w, &h);
+	SDL_GetWindowSizeInPixels(g_app->window, &pw, &ph);
+	S9_LOG_INFO("Window: %d x %d, %d x %d pixels, drawn at %g", w, h, pw, ph, draw_sdl_scale(g_app->renderer));
+}
+
+// the views draw at the window's display scale
+static void follow_display_scale(void) {
+	draw_sdl_set_scale(g_app->renderer, SDL_GetWindowDisplayScale(g_app->window));
 }
 
 static void render(SDL_Renderer *renderer) {
 	SDL_Rect default_viewport;
 	SDL_GetRenderViewport(renderer, &default_viewport);
+	float scale = draw_sdl_scale(renderer);
 	const s9_component_t *fps = s9_components_get(g_app->components, COMP_FPS);
 
 	for (s9_component_slot_t *s = g_app->slots; s->component; s++) {
 		if (s->component == fps && !g_app->show_fps) continue;
 		if (s->component->render) {
-			SDL_Rect viewport = compute_viewport(&s->layout, &default_viewport);
+			SDL_Rect viewport = compute_viewport(&s->layout, &default_viewport, scale);
 			SDL_SetRenderViewport(renderer, &viewport);
 			s->component->render(s->component->instance, renderer);
 		}
@@ -321,8 +336,13 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"TTF_Init failed: %s", SDL_GetError());
 	
-	// create window
-	g_app->window = SDL_CreateWindow("S9", g_app->config.window_width, g_app->config.window_height, 0);
+	// create window: the configured size in the display's points, at the display's pixel density.
+	// Where a window's size is in pixels and the desktop asks for larger content, the display's
+	// content scale is above 1 and the window grows by it, so it shows the same design at the same size.
+	float content_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+	if (!(content_scale > 0.0f)) content_scale = 1.0f;
+	g_app->window = SDL_CreateWindow("S9", (int)lround(g_app->config.window_width * content_scale),
+	                                 (int)lround(g_app->config.window_height * content_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
 	CHECK_ERROR(g_app->window != NULL,
 				free(g_app);
 				g_app = NULL;
@@ -342,6 +362,7 @@ int s9_app_create(const s9_app_config_t *config) {
 				return -1,
 				"SDL_CreateRenderer failed: %s", SDL_GetError());
 	SDL_SetRenderVSync(g_app->renderer, 1);
+	follow_display_scale();
 	
 	// s9 has no pointer interaction; this also keeps the pointer off a display that has no mouse
 	SDL_HideCursor();
@@ -444,6 +465,8 @@ int s9_app_run(void) {
 			case SDLK_5: key_set_mode(S9_MODE_SPECTROGRAM); break;
 			default: break;
 			}
+		} else if (e.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+			follow_display_scale();
 		} else if (e.type == SDL_EVENT_AUDIO_DEVICE_REMOVED && e.adevice.recording && e.adevice.which == g_app->audio_device_id) {
 			reopen_audio_input("device removed");
 		} else if (e.type == SDL_EVENT_AUDIO_DEVICE_ADDED && e.adevice.recording && g_app->audio_stream == NULL) {

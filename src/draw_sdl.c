@@ -4,6 +4,29 @@
 #include <math.h>
 #include <stdlib.h>
 
+#define SCALE_PROPERTY "s9.draw.scale"   // the renderer's property the scale is kept in
+
+float draw_sdl_scale(SDL_Renderer *renderer) {
+	float scale = SDL_GetFloatProperty(SDL_GetRendererProperties(renderer), SCALE_PROPERTY, 1.0f);
+	return scale > 0.0f ? scale : 1.0f;
+}
+
+void draw_sdl_set_scale(SDL_Renderer *renderer, float scale) {
+	SDL_SetFloatProperty(SDL_GetRendererProperties(renderer), SCALE_PROPERTY, scale > 0.0f ? scale : 1.0f);
+}
+
+
+void draw_sdl_line(SDL_Renderer *renderer, float x1, float y1, float x2, float y2) {
+	float scale = draw_sdl_scale(renderer);
+	if (scale <= 1.0f || (x1 != x2 && y1 != y2)) {
+		SDL_RenderLine(renderer, x1, y1, x2, y2);
+		return;
+	}
+	SDL_FRect band = x1 == x2
+		? (SDL_FRect){ x1, fminf(y1, y2), scale, fabsf(y2 - y1) + scale }
+		: (SDL_FRect){ fminf(x1, x2), y1, fabsf(x2 - x1) + scale, scale };
+	SDL_RenderFillRect(renderer, &band);
+}
 
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
 	SDL_Rect viewport;	

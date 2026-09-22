@@ -4,6 +4,7 @@
 #include "draw_sdl.h"
 #include "graticule.h"
 #include <stdlib.h>
+#include <math.h>
 
 typedef struct scope_display {
 	SDL_Renderer *renderer;
@@ -127,7 +128,8 @@ int scope_display_prepare(scope_display_t *d, SDL_Renderer *renderer) {
 		SDL_RenderClear(renderer);
 	}
 
-	d->frame_rect = (SDL_Rect){ .x = 10, .y = 10, .w = viewport.w - 20, .h = viewport.h - 20 };
+	int inset = (int)lround(10 * draw_sdl_scale(renderer));
+	d->frame_rect = (SDL_Rect){ .x = inset, .y = inset, .w = viewport.w - 2 * inset, .h = viewport.h - 2 * inset };
 
 	return 1;
 }

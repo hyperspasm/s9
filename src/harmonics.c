@@ -203,19 +203,21 @@ static void draw_graticule(harmonics_t *h, SDL_Renderer *renderer) {
 	int axis_label_w, axis_label_h;
 	graph_db_axis_measure(&axis, h->font, &axis_label_w, &axis_label_h);
 
-	int left = axis_label_w + LABEL_MARGIN + GRAPH_MARGIN;
-	int top = axis_label_h + LABEL_MARGIN + GRAPH_MARGIN;       // the header's line
-	int bottom = axis_label_h + LABEL_MARGIN + GRAPH_MARGIN;    // the harmonic numbers' line
-	int right = GRAPH_MARGIN;
+	float scale = draw_sdl_scale(renderer);
+	int label_margin = (int)lround(LABEL_MARGIN * scale), graph_margin = (int)lround(GRAPH_MARGIN * scale);
+	int left = axis_label_w + label_margin + graph_margin;
+	int top = axis_label_h + label_margin + graph_margin;       // the header's line
+	int bottom = axis_label_h + label_margin + graph_margin;    // the harmonic numbers' line
+	int right = graph_margin;
 	h->plot_rect = (SDL_Rect){ left, top, h->viewport.w - left - right, h->viewport.h - top - bottom };
 
 	// lines go into the texture as they are, alpha included, so they blend
 	// onto the screen once, exactly as the markers drawn there do
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-	graph_db_axis_draw(&axis, renderer, h->font, &h->plot_rect, LABEL_MARGIN);
+	graph_db_axis_draw(&axis, renderer, h->font, &h->plot_rect, label_margin);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-	sdl_polygon_t *frame = frame_new_from_rect(h->plot_rect, 2.0, h->config.major_color);
+	sdl_polygon_t *frame = frame_new_from_rect(h->plot_rect, 2.0f * scale, h->config.major_color);
 	if (frame) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
@@ -231,7 +233,7 @@ static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 	h->renderer = renderer;
 	h->viewport = viewport;
 
-	h->font = s9_open_font(FONT_SIZE);
+	h->font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
 	CHECK_ERROR(h->font != NULL, return, "unable to create font");
 
 	h->graticule = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, viewport.w, viewport.h);
@@ -293,6 +295,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	SDL_Rect save_viewport;
 	SDL_GetRenderViewport(renderer, &save_viewport);
 	const SDL_Rect *plot = &h->plot_rect;
+	float scale = draw_sdl_scale(renderer), label_margin = LABEL_MARGIN * scale;
 
 	// the spectrum, clipped to the plot
 	reduce_plot(h, f_end, delta_f, bins);
@@ -301,7 +304,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		h->points[i] = (SDL_FPoint){ (float)i, ((float)h->config.max_db - h->plot[i]) * db_scale };
 	SDL_Rect plot_viewport = { save_viewport.x + plot->x, save_viewport.y + plot->y, plot->w, plot->h };
 	SDL_SetRenderViewport(renderer, &plot_viewport);
-	sdl_path_t *path = sdl_path_new(&h->config.plot_color, h->config.plot_width, 1, h->points, plot->w);
+	sdl_path_t *path = sdl_path_new(&h->config.plot_color, h->config.plot_width * scale, 1, h->points, plot->w);
 	if (path) {
 		sdl_path_render(path, renderer);
 		sdl_path_free(&path);
@@ -319,10 +322,10 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		double fk = k * f0;
 		if (fk > f_end) break;
 		float x = plot->x + (float)(plot->w * fk / f_end);
-		SDL_RenderLine(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
+		draw_sdl_line(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
 		snprintf(text, sizeof(text), "%u", (unsigned)k);
 		label_set(&h->numbers[k - 1], renderer, h->font, h->config.major_color, text);
-		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
+		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h) + label_margin, ANCHOR_TOP_MIDDLE);
 	}
 
 	// the levels and phases relative to the fundamental's, while locked and the fundamental read
@@ -345,8 +348,8 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		label_set(&h->degrees[k - 1], renderer, h->font, h->config.readout_color, degrees);
 		if (k * f0 <= f_end) {
 			float x = plot->x + (float)(plot->w * k * f0 / f_end);
-			label_blit(&h->readouts[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
-			label_blit(&h->degrees[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN + h->readouts[k - 1].h), ANCHOR_TOP_MIDDLE);
+			label_blit(&h->readouts[k - 1], renderer, x, (float)plot->y + label_margin, ANCHOR_TOP_MIDDLE);
+			label_blit(&h->degrees[k - 1], renderer, x, (float)(plot->y + h->readouts[k - 1].h) + label_margin, ANCHOR_TOP_MIDDLE);
 		}
 	}
 
@@ -359,7 +362,7 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		snprintf(text, sizeof(text), "%.2f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * thd);
 	}
 	label_set(&h->header, renderer, h->font, h->fundamental_valid ? h->config.readout_color : h->config.held_color, text);
-	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);
+	label_blit(&h->header, renderer, (float)plot->x, (float)plot->y - label_margin, ANCHOR_BOTTOM_LEFT);
 }
 
 void harmonics_render(harmonics_t *h, SDL_Renderer *renderer, float fundamental_hz, bool valid) {

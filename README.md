@@ -10,8 +10,8 @@ s9 [options]
 
 | Option | Description | Default |
 |---|---|---|
-| `-w, --window_width` | Window width in pixels | 1280 |
-| `-h, --window_height` | Window height in pixels | 720 |
+| `-w, --window_width` | Window width, in the display's points | 1280 |
+| `-h, --window_height` | Window height, in the display's points | 720 |
 | `-a, --audio_device` | Audio input device name | System default |
 | `-d, --audio_driver` | Audio driver, by SDL's name for it (`alsa`, `pipewire`, `coreaudio`, ...); the log lists the ones available | SDL's choice |
 | `-r, --sample_rate` | Sample rate in Hz | 44100 |
@@ -26,6 +26,8 @@ Settings can also be specified in the `settings` file of s9's home directory as 
 When the audio input stops delivering or is unplugged, s9 closes it and opens the input again, and while there is none to open it tries again every second.
 
 Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
+
+The window is drawn at the display's pixel density: on a high-density display it has the same size and layout and more pixels, with the text, lines and traces sharp. The startup log reports the window's size, its size in pixels and the scale it is drawn at.
 
 ## Parameters
 

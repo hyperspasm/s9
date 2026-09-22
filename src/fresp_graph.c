@@ -4,6 +4,7 @@
 #include "draw_sdl.h"
 #include "graph_axis.h"
 #include <stdlib.h>
+#include <math.h>
 
 typedef struct fresp_graph {
 	SDL_Renderer *renderer;
@@ -91,7 +92,7 @@ static graph_hz_axis_t hz_axis(const fresp_graph_t *frg) {
 }
 
 // measures unit labels and sets plot_rect member accordingly
-static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
+static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font, float scale) {
 	int top_margin = 0;
 	int left_margin = 0;
 	int bottom_margin = 0;
@@ -128,10 +129,11 @@ static void compute_plot_rect(fresp_graph_t *frg, TTF_Font *font) {
 		}
 	}
 	
-	top_margin    += GRAPH_MARGIN;
-	left_margin   += GRAPH_MARGIN + LABEL_MARGIN;
-	bottom_margin += GRAPH_MARGIN + LABEL_MARGIN;
-	right_margin  += GRAPH_MARGIN;
+	int graph_margin = (int)lround(GRAPH_MARGIN * scale), label_margin = (int)lround(LABEL_MARGIN * scale);
+	top_margin    += graph_margin;
+	left_margin   += graph_margin + label_margin;
+	bottom_margin += graph_margin + label_margin;
+	right_margin  += graph_margin;
 	
 	frg->plot_rect = (SDL_Rect) { .x = left_margin, .y = top_margin, .w = frg->viewport.w - (left_margin + right_margin), .h = frg->viewport.h - (top_margin + bottom_margin) };
 }
@@ -140,25 +142,27 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0); // clear background
 	SDL_RenderClear(renderer);
 	
-	TTF_Font *font = s9_open_font(16);
+	float scale = draw_sdl_scale(renderer);
+	TTF_Font *font = s9_open_font(16.0f * scale);
 	CHECK_ERROR(font != NULL, return, "unable to create font");
 	
-	compute_plot_rect(frg, font);
+	compute_plot_rect(frg, font, scale);
+	int label_margin = (int)lround(LABEL_MARGIN * scale);
 
 	// draw frequency graticule
 	{
 		graph_hz_axis_t axis = hz_axis(frg);
-		graph_hz_axis_draw(&axis, renderer, font, &frg->plot_rect, LABEL_MARGIN);
+		graph_hz_axis_draw(&axis, renderer, font, &frg->plot_rect, label_margin);
 	}
 	
 	// draw db graticule
 	{
 		graph_db_axis_t axis = db_axis(frg);
-		graph_db_axis_draw(&axis, renderer, font, &frg->plot_rect, LABEL_MARGIN);
+		graph_db_axis_draw(&axis, renderer, font, &frg->plot_rect, label_margin);
 	}
 	
 	// draw frame
-	sdl_polygon_t *frame = frame_new_from_rect(frg->plot_rect, 2.0, frg->config.major_color);
+	sdl_polygon_t *frame = frame_new_from_rect(frg->plot_rect, 2.0f * scale, frg->config.major_color);
 	if(frame) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
@@ -167,7 +171,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	// draw the label, inside the plot's top left corner, clear of the dB axis's ticks
 	if(frg->label) {
 		draw_sdl_render_text_at_position(renderer, font, frg->label, ANCHOR_TOP_LEFT, frg->config.major_color,
-										 frg->plot_rect.x + GRAPH_DB_AXIS_TICK_LENGTH + 4, frg->plot_rect.y + 4);
+										 frg->plot_rect.x + (int)lround((GRAPH_DB_AXIS_TICK_LENGTH + 4) * scale), frg->plot_rect.y + (int)lround(4 * scale));
 	}
 
 	TTF_CloseFont(font);
@@ -250,7 +254,7 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 				points[i].x = i;
 				points[i].y = y;
 			}						
-			sdl_path_t *path = sdl_path_new(&frg->config.plot_color, 2.f, 1, points, frg->plot_rect.w);
+			sdl_path_t *path = sdl_path_new(&frg->config.plot_color, 2.0f * draw_sdl_scale(renderer), 1, points, frg->plot_rect.w);
 			free(points);
 			
 			// render path

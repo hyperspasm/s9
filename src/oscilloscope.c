@@ -162,7 +162,7 @@ static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 	}
 
 	sdl_path_free(&osc->path);
-	osc->path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width, 1, points, n_pixels);
+	osc->path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width * draw_sdl_scale(renderer), 1, points, n_pixels);
 	free(points);
 
 	if(osc->path) {
@@ -220,7 +220,7 @@ static void render_gradient_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 
 	uint32_t n_verts = 2 * n_pixels;
 	uint32_t n_indices = (n_pixels - 1) * 6;
-	float half_width = 0.5f * osc->config.trace_width;
+	float half_width = 0.5f * osc->config.trace_width * draw_sdl_scale(renderer);
 
 	SDL_Vertex *vertices = (SDL_Vertex *) malloc(n_verts * sizeof(SDL_Vertex));
 	CHECK_ALLOC(vertices, return);
