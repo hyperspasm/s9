@@ -409,7 +409,7 @@ static void draw_axes(spectrogram_t *sg, SDL_Renderer *renderer) {
 	SDL_RenderClear(renderer);
 
 	const spectrogram_config_t *c = &sg->config;
-	TTF_Font *font = s9_open_font(FONT_SIZE);
+	TTF_Font *font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
 	if (font) {
 		graph_hz_axis_t axis = hz_axis(sg);
 		if (c->grid) graph_hz_axis_draw(&axis, renderer, font, &sg->plot, LABEL_MARGIN);
@@ -444,7 +444,7 @@ static int prepare_to_draw(spectrogram_t *sg, SDL_Renderer *renderer) {
 	free_textures(sg);
 	constant_q_free(&sg->cq);
 
-	TTF_Font *font = s9_open_font(FONT_SIZE);
+	TTF_Font *font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
 	CHECK_ERROR(font != NULL, return -1, "unable to open font");
 	compute_plot(sg, font);
 	TTF_CloseFont(font);

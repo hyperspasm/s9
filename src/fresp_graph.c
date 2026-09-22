@@ -140,7 +140,7 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0); // clear background
 	SDL_RenderClear(renderer);
 	
-	TTF_Font *font = s9_open_font(16);
+	TTF_Font *font = s9_open_font(16.0f * draw_sdl_scale(renderer));
 	CHECK_ERROR(font != NULL, return, "unable to create font");
 	
 	compute_plot_rect(frg, font);

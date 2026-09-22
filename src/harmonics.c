@@ -231,7 +231,7 @@ static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 	h->renderer = renderer;
 	h->viewport = viewport;
 
-	h->font = s9_open_font(FONT_SIZE);
+	h->font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
 	CHECK_ERROR(h->font != NULL, return, "unable to create font");
 
 	h->graticule = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, viewport.w, viewport.h);

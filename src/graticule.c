@@ -128,7 +128,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 
 	// draw labels
 	if (grat->label_bottom || grat->label_top) {
-		TTF_Font *font = s9_open_font(16);
+		TTF_Font *font = s9_open_font(16.0f * draw_sdl_scale(renderer));
 		if (font) {
 			if (grat->label_bottom) {
 				draw_sdl_render_text_at_position(renderer, font, grat->label_bottom,

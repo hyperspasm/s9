@@ -67,7 +67,7 @@ static void prepare_to_draw(strip_t *s, SDL_Renderer *renderer) {
 	free_drawing(s);
 	s->renderer = renderer;
 	s->viewport = viewport;
-	s->font = s9_open_font(FONT_SIZE);
+	s->font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
 	CHECK_ERROR(s->font != NULL, return, "unable to create font");
 }
 

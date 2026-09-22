@@ -7,6 +7,7 @@
 
 typedef struct fps {
 	TTF_Font *font;
+	float scale;            // the renderer's, that the font was opened for
 	SDL_Color color;
 	uint32_t interval_ms;
 	
@@ -31,14 +32,8 @@ fps_t *fps_new(SDL_Color color, uint32_t interval_ms) {
 	fps->fps_value = 0.0f;
 	fps->fps_texture = NULL;
 	fps->width = 0;
-	fps->height = 0;	
-	
-	fps->font = s9_open_font(16);
-	CHECK_ERROR(fps->font != NULL,
-				fps_free(&fps);
-				return NULL,
-				"Failed to load small font");
-	
+	fps->height = 0;
+
 	return fps;
 }
 
@@ -65,6 +60,16 @@ static void update_fps_texture(fps_t *fps, SDL_Renderer *renderer) {
 }
 
 void fps_render(fps_t *fps, SDL_Renderer *renderer) {
+	// the font at the renderer's scale, opened at the first frame and again when the scale changes
+	float scale = draw_sdl_scale(renderer);
+	if (!fps->font || scale != fps->scale) {
+		if (fps->font) TTF_CloseFont(fps->font);
+		fps->font = s9_open_font(16.0f * scale);
+		fps->scale = scale;
+		CHECK_ERROR(fps->font != NULL, return, "Failed to load small font");
+		update_fps_texture(fps, renderer);
+	}
+
 	uint64_t current_time = SDL_GetTicks();
 	fps->frame_count++;
 	if (current_time - fps->last_time >= fps->interval_ms) {
