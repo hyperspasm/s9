@@ -1,8 +1,8 @@
 #ifndef graph_axis_h
 #define graph_axis_h
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include <stddef.h>
 #include <stdint.h>

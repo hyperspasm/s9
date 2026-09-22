@@ -7,8 +7,8 @@
 #include "spectrogram.h"
 #include "test_signals.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +59,7 @@ static void render(spectrogram_t *sg) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	spectrogram_render(sg, renderer);
-	SDL_RenderFlush(renderer);   // the surface is read directly
+	SDL_FlushRenderer(renderer);   // the surface is read directly
 }
 
 static unsigned lit_pixels(void) {
@@ -76,7 +76,7 @@ static unsigned colored_pixels(void) {
 	const uint32_t *px = surface->pixels;
 	for (int i = 0; i < WIDTH * HEIGHT; i++) {
 		Uint8 r, g, b;
-		SDL_GetRGB(px[i], surface->format, &r, &g, &b);
+		SDL_GetRGB(px[i], SDL_GetPixelFormatDetails(surface->format), NULL, &r, &g, &b);
 		if ((r || g || b) && (r != g || g != b)) colored++;
 	}
 	return colored;
@@ -130,7 +130,7 @@ static int brightest_x(void) {
 	int best = -1, x_best = -1;
 	for (int i = 0; i < WIDTH * HEIGHT; i++) {
 		Uint8 r, g, b;
-		SDL_GetRGB(px[i], surface->format, &r, &g, &b);
+		SDL_GetRGB(px[i], SDL_GetPixelFormatDetails(surface->format), NULL, &r, &g, &b);
 		if ((r != g || g != b) && r + g + b > best) { best = r + g + b; x_best = i % WIDTH; }
 	}
 	return x_best;
@@ -358,12 +358,12 @@ TEST config_is_kept_sane(void) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
-	SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
-	if (SDL_Init(SDL_INIT_VIDEO) != 0 || TTF_Init() != 0) {
+	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+	if (!SDL_Init(SDL_INIT_VIDEO) || !TTF_Init()) {
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	surface = SDL_CreateRGBSurfaceWithFormat(0, WIDTH, HEIGHT, 32, SDL_PIXELFORMAT_RGBA8888);
+	surface = SDL_CreateSurface(WIDTH, HEIGHT, SDL_PIXELFORMAT_RGBA8888);
 	renderer = SDL_CreateSoftwareRenderer(surface);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 

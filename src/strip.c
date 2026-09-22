@@ -61,8 +61,8 @@ void strip_free(strip_t **s) {
 
 static void prepare_to_draw(strip_t *s, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
-	if (s->renderer == renderer && SDL_RectEquals(&s->viewport, &viewport)) return;
+	SDL_GetRenderViewport(renderer, &viewport);
+	if (s->renderer == renderer && SDL_RectsEqual(&s->viewport, &viewport)) return;
 
 	free_drawing(s);
 	s->renderer = renderer;
@@ -91,14 +91,14 @@ void strip_render(strip_t *s, SDL_Renderer *renderer, const char *text, const st
 	for (uint32_t i = 0; i < count; i++) {
 		if (ticks[i].major || ticks[i].position < 0.0f || ticks[i].position > 1.0f) continue;
 		float x = x0 + ticks[i].position * (x1 - x0);
-		SDL_RenderDrawLineF(renderer, x, y - MINOR_TICK, x, y + MINOR_TICK);
+		SDL_RenderLine(renderer, x, y - MINOR_TICK, x, y + MINOR_TICK);
 	}
 	SDL_SET_RENDER_DRAW_COLOR(renderer, &c->major_color);
-	SDL_RenderDrawLineF(renderer, x0, y, x1, y);
+	SDL_RenderLine(renderer, x0, y, x1, y);
 	for (uint32_t i = 0; i < count; i++) {
 		if (!ticks[i].major || ticks[i].position < 0.0f || ticks[i].position > 1.0f) continue;
 		float x = x0 + ticks[i].position * (x1 - x0);
-		SDL_RenderDrawLineF(renderer, x, y - MAJOR_TICK, x, y + MAJOR_TICK);
+		SDL_RenderLine(renderer, x, y - MAJOR_TICK, x, y + MAJOR_TICK);
 		label_set(&s->labels[i], renderer, s->font, c->major_color, ticks[i].label);
 		// a label at either end is pulled in to stay whole
 		float half = s->labels[i].w / 2.0f, lx = x;
@@ -115,7 +115,7 @@ void strip_render(strip_t *s, SDL_Renderer *renderer, const char *text, const st
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &c->dim_marker_color);
 		float x = x0 + dim * (x1 - x0);
 		SDL_FRect rect = { x - c->dim_marker_width / 2.0f, y - MARKER_HEIGHT / 2.0f, c->dim_marker_width, MARKER_HEIGHT };
-		SDL_RenderFillRectF(renderer, &rect);
+		SDL_RenderFillRect(renderer, &rect);
 	}
 	if (marker >= 0.0f) {
 		if (marker > 1.0f) marker = 1.0f;
@@ -123,6 +123,6 @@ void strip_render(strip_t *s, SDL_Renderer *renderer, const char *text, const st
 		SDL_SET_RENDER_DRAW_COLOR(renderer, &color);
 		float x = x0 + marker * (x1 - x0);
 		SDL_FRect rect = { x - c->marker_width / 2.0f, y - MARKER_HEIGHT / 2.0f, c->marker_width, MARKER_HEIGHT };
-		SDL_RenderFillRectF(renderer, &rect);
+		SDL_RenderFillRect(renderer, &rect);
 	}
 }

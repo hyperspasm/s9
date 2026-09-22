@@ -3,7 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include "osc_sampler.h"
 
 #ifndef M_PI
@@ -860,7 +860,7 @@ static void test_phase_lock_clock(void) {
 }
 
 int main(void) {
-	if (SDL_Init(SDL_INIT_TIMER) != 0) {
+	if (!SDL_Init(0)) {
 		fprintf(stderr, "Unable to initialize SDL: %s\n", SDL_GetError());
 		return 1;
 	}

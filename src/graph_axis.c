@@ -31,7 +31,7 @@ void graph_db_axis_measure(const graph_db_axis_t *axis, TTF_Font *font, int *wid
 		char label[32];
 		graph_format_db(label, sizeof(label), db);
 		int w, h;
-		CHECK_ERROR(TTF_SizeUTF8(font, label, &w, &h) == 0, continue, "failed to measure string \"%s\"", label);
+		CHECK_ERROR(TTF_GetStringSize(font, label, 0, &w, &h), continue, "failed to measure string \"%s\"", label);
 		if (*width < w) *width = w;
 		if (*height < h) *height = h;
 	}
@@ -47,7 +47,7 @@ void graph_db_axis_draw(const graph_db_axis_t *axis, SDL_Renderer *renderer, TTF
 		float y = graph_db_axis_y(axis, plot, (float)db);
 		if (db % (int)axis->major_interval == 0) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &axis->minor_color);
-			SDL_RenderDrawLineF(renderer, plot->x, y, plot->x + plot->w, y);
+			SDL_RenderLine(renderer, plot->x, y, plot->x + plot->w, y);
 
 			char label[32];
 			graph_format_db(label, sizeof(label), db);
@@ -55,7 +55,7 @@ void graph_db_axis_draw(const graph_db_axis_t *axis, SDL_Renderer *renderer, TTF
 											 plot->x - label_margin, (int)y);
 		} else if (db % (int)axis->minor_interval == 0) {
 			SDL_SET_RENDER_DRAW_COLOR(renderer, &axis->minor_color);
-			SDL_RenderDrawLineF(renderer, plot->x, y, plot->x + GRAPH_DB_AXIS_TICK_LENGTH, y);
+			SDL_RenderLine(renderer, plot->x, y, plot->x + GRAPH_DB_AXIS_TICK_LENGTH, y);
 		}
 	}
 }
@@ -84,7 +84,7 @@ static void measure_step(void *ctx, float freq, int major) {
 	char label[32];
 	graph_format_hz(label, sizeof(label), freq);
 	int w, h;
-	CHECK_ERROR(TTF_SizeUTF8(m->font, label, &w, &h) == 0, return, "failed to measure string \"%s\"", label);
+	CHECK_ERROR(TTF_GetStringSize(m->font, label, 0, &w, &h), return, "failed to measure string \"%s\"", label);
 	if (m->height < h) m->height = h;
 	if (freq == m->max_hz && m->right < w / 2) m->right = w / 2;
 }
@@ -121,7 +121,7 @@ static void draw_step(void *ctx, float freq, int major) {
 		                                 (int)x, d->plot->y + d->plot->h + d->label_margin);
 	} else if (d->lines) {
 		SDL_SET_RENDER_DRAW_COLOR(d->renderer, &d->axis->minor_color);
-		SDL_RenderDrawLineF(d->renderer, x, d->plot->y, x, d->plot->y + d->plot->h);
+		SDL_RenderLine(d->renderer, x, d->plot->y, x, d->plot->y + d->plot->h);
 	}
 }
 

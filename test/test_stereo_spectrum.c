@@ -5,8 +5,8 @@
 #include "stereo_spectrum.h"
 #include "test_signals.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,7 +39,7 @@ static void frame(stereo_spectrum_t *ss, unsigned *offset) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	stereo_spectrum_render(ss, renderer);
-	SDL_RenderFlush(renderer);   // the surface is read directly
+	SDL_FlushRenderer(renderer);   // the surface is read directly
 }
 
 // lit pixels in the top or the bottom half of the screen
@@ -59,7 +59,7 @@ TEST each_half_shows_its_channel(void) {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	stereo_spectrum_render(ss, renderer);
-	SDL_RenderFlush(renderer);
+	SDL_FlushRenderer(renderer);
 	unsigned top = lit_pixels(0), bottom = lit_pixels(1);
 	ASSERT(top > 0 && bottom > 0);   // the graticules
 	for (int i = 0; i < 60; i++) frame(ss, &offset);
@@ -87,12 +87,12 @@ TEST configuration_reaches_both(void) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
-	SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
-	if (SDL_Init(SDL_INIT_VIDEO) != 0 || TTF_Init() != 0) {
+	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+	if (!SDL_Init(SDL_INIT_VIDEO) || !TTF_Init()) {
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	surface = SDL_CreateRGBSurfaceWithFormat(0, WIDTH, HEIGHT, 32, SDL_PIXELFORMAT_RGBA8888);
+	surface = SDL_CreateSurface(WIDTH, HEIGHT, SDL_PIXELFORMAT_RGBA8888);
 	renderer = SDL_CreateSoftwareRenderer(surface);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 

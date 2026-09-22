@@ -4,7 +4,7 @@
 #include "s9_dsp.h"
 #include "s9_colors.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 typedef struct lissajous lissajous_t;
 

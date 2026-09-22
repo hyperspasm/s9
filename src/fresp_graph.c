@@ -175,9 +175,9 @@ static void draw_graticule(fresp_graph_t *frg, SDL_Renderer *renderer) {
 
 static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 	
-	if(frg->renderer != renderer || !SDL_RectEquals(&frg->viewport, &viewport)) {
+	if(frg->renderer != renderer || !SDL_RectsEqual(&frg->viewport, &viewport)) {
 		frg->renderer = renderer;
 		frg->viewport = viewport;
 		
@@ -189,15 +189,15 @@ static S9_FORCE_INLINE void prepare_to_draw(fresp_graph_t *frg, SDL_Renderer *re
 		frg->graticule_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, frg->viewport.w, frg->viewport.h);
 		CHECK_ALLOC(frg->graticule_texture, return);
 		
-		int ret = SDL_SetRenderTarget(renderer, frg->graticule_texture);
-		CHECK_ERROR(ret == 0,
+		bool ret = SDL_SetRenderTarget(renderer, frg->graticule_texture);
+		CHECK_ERROR(ret,
 					SDL_DestroyTexture(frg->graticule_texture);
 					frg->graticule_texture = NULL;
 					return,
 					"could not set render target");
 		
 		ret = SDL_SetTextureBlendMode(frg->graticule_texture, SDL_BLENDMODE_BLEND);
-		CHECK_ERROR(ret == 0,
+		CHECK_ERROR(ret,
 					SDL_DestroyTexture(frg->graticule_texture);
 					frg->graticule_texture = NULL;
 					return,
@@ -232,13 +232,13 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 		if( 0  == get_plot_data(get_data_callback_context, frg->plot_data_buffer, frg->plot_rect.w) ) {
 			// save current viewport
 			SDL_Rect save_viewport;
-			SDL_RenderGetViewport(renderer, &save_viewport);			
+			SDL_GetRenderViewport(renderer, &save_viewport);			
 			
 			// constrain viewport to plot_rect
 			SDL_Rect plot_viewport = frg->plot_rect;
 			plot_viewport.x += save_viewport.x;
 			plot_viewport.y += save_viewport.y;			
-			SDL_RenderSetViewport(renderer, &plot_viewport);
+			SDL_SetRenderViewport(renderer, &plot_viewport);
 			
 			// create path
 			SDL_FPoint *points = malloc(sizeof(SDL_FPoint) * frg->plot_rect.w);			
@@ -260,10 +260,10 @@ void fresp_graph_render(fresp_graph_t *frg, SDL_Renderer *renderer, fresp_graph_
 			sdl_path_free(&path);
 			
 			// restore viewport
-			SDL_RenderSetViewport(renderer, &save_viewport);
+			SDL_SetRenderViewport(renderer, &save_viewport);
 		}
 	}
 	
-	SDL_Rect dst_rect = { 0, 0, frg->viewport.w, frg->viewport.h };
-	SDL_RenderCopy(renderer, frg->graticule_texture, NULL, &dst_rect);
+	SDL_FRect dst_rect = { 0.0f, 0.0f, (float)frg->viewport.w, (float)frg->viewport.h };
+	SDL_RenderTexture(renderer, frg->graticule_texture, NULL, &dst_rect);
 }

@@ -294,7 +294,7 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 
 	// the note across the top, on the range tracked and then on the tuner's scale; the view under them
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 	int top = 2 * STRIP_HEIGHT;
 	SDL_Rect range_band = { viewport.x, viewport.y, viewport.w, STRIP_HEIGHT };
 	SDL_Rect tuner_band = { viewport.x, viewport.y + STRIP_HEIGHT, viewport.w, STRIP_HEIGHT };
@@ -310,15 +310,15 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 		low = note_midi(&lowest);
 		high = note_midi(&highest);
 	}
-	SDL_RenderSetViewport(renderer, &range_band);
+	SDL_SetRenderViewport(renderer, &range_band);
 	note_strip_render(p->range, renderer, low, high, have_note ? &note : NULL, p->fundamental, p->valid, have_lock ? &lock : NULL);
-	SDL_RenderSetViewport(renderer, &tuner_band);
+	SDL_SetRenderViewport(renderer, &tuner_band);
 	tuner_strip_render(p->tuner, renderer, have_note ? &note : NULL, p->valid);
 	if (below.h < 2) {
-		SDL_RenderSetViewport(renderer, &viewport);
+		SDL_SetRenderViewport(renderer, &viewport);
 		return;
 	}
-	SDL_RenderSetViewport(renderer, &below);
+	SDL_SetRenderViewport(renderer, &below);
 	switch (p->config.view) {
 	case PERIODIC_VIEW_HARMONICS:
 		harmonics_render(p->harmonics, renderer, p->fundamental, p->valid);
@@ -335,5 +335,5 @@ void periodic_render(periodic_t *p, SDL_Renderer *renderer) {
 	default:
 		break;
 	}
-	SDL_RenderSetViewport(renderer, &viewport);
+	SDL_SetRenderViewport(renderer, &viewport);
 }

@@ -10,7 +10,7 @@ typedef struct fps {
 	SDL_Color color;
 	uint32_t interval_ms;
 	
-	uint32_t last_time;
+	uint64_t last_time;
 	uint32_t frame_count;
 	float fps_value;
 	SDL_Texture *fps_texture;
@@ -65,7 +65,7 @@ static void update_fps_texture(fps_t *fps, SDL_Renderer *renderer) {
 }
 
 void fps_render(fps_t *fps, SDL_Renderer *renderer) {
-	uint32_t current_time = SDL_GetTicks();
+	uint64_t current_time = SDL_GetTicks();
 	fps->frame_count++;
 	if (current_time - fps->last_time >= fps->interval_ms) {
 		fps->fps_value = fps->frame_count * 1000.0f / (current_time - fps->last_time);
@@ -75,7 +75,7 @@ void fps_render(fps_t *fps, SDL_Renderer *renderer) {
 	}
 
 	if (fps->fps_texture) {
-		SDL_Rect dst_rect = { 0, 0, fps->width, fps->height };
-		SDL_RenderCopy(renderer, fps->fps_texture, NULL, &dst_rect);
+		SDL_FRect dst_rect = { 0.0f, 0.0f, (float)fps->width, (float)fps->height };
+		SDL_RenderTexture(renderer, fps->fps_texture, NULL, &dst_rect);
 	}
 }

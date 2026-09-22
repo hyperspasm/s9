@@ -4,7 +4,7 @@
 #include "note.h"
 #include "strip.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <stdbool.h>
 
 // The note range: a scale of notes from a lowest to a highest, ticked at

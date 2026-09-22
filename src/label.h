@@ -3,8 +3,8 @@
 
 #include "draw_sdl.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 // Text drawn from a texture that is remade only when the text or its
 // color changes. Caller-owned and zeroed to begin with; free it before it

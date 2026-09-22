@@ -4,7 +4,7 @@
 #include "note.h"
 #include "strip.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <stdbool.h>
 
 // A tuner's strip: a note's name and how many cents off it is, to a tenth,
