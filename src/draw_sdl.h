@@ -16,6 +16,15 @@ typedef enum {
 	ANCHOR_MIDDLE,
 } anchor_position_t;
 
+// -- the scale
+
+// The views draw at the renderer's scale: their lengths, margins and fonts
+// are given in the pixels of a 1:1 display and drawn that many times larger.
+// The shell sets it from the window's display scale; a renderer without one
+// draws at 1.
+float draw_sdl_scale(SDL_Renderer *renderer);
+void draw_sdl_set_scale(SDL_Renderer *renderer, float scale);
+
 // -- general
 
 #define SDL_SET_RENDER_DRAW_COLOR(renderer, color) \

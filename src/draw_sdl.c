@@ -4,6 +4,17 @@
 #include <math.h>
 #include <stdlib.h>
 
+#define SCALE_PROPERTY "s9.draw.scale"   // the renderer's property the scale is kept in
+
+float draw_sdl_scale(SDL_Renderer *renderer) {
+	float scale = SDL_GetFloatProperty(SDL_GetRendererProperties(renderer), SCALE_PROPERTY, 1.0f);
+	return scale > 0.0f ? scale : 1.0f;
+}
+
+void draw_sdl_set_scale(SDL_Renderer *renderer, float scale) {
+	SDL_SetFloatProperty(SDL_GetRendererProperties(renderer), SCALE_PROPERTY, scale > 0.0f ? scale : 1.0f);
+}
+
 
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
 	SDL_Rect viewport;	
