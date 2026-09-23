@@ -459,7 +459,7 @@ int s9_app_run(void) {
 			S9_LOG_TRACE("key pressed: %s", SDL_GetKeyName(e.key.key));
 			switch (e.key.key) {
 			case SDLK_1: key_set_mode(S9_MODE_FULL);     break;
-			case SDLK_2: key_set_mode(S9_MODE_SCOPE);    break;
+			case SDLK_2: key_set_mode(S9_MODE_OSCILLOSCOPE); break;
 			case SDLK_3: key_set_mode(S9_MODE_SPECTRUM); break;
 			case SDLK_4: key_set_mode(S9_MODE_PERIODIC); break;
 			case SDLK_5: key_set_mode(S9_MODE_SPECTROGRAM); break;

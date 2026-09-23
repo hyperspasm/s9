@@ -132,7 +132,7 @@ static const s9_mode_slot_t mode_full[] = {
 	{ COMP_NONE, {0} },
 };
 
-static const s9_mode_slot_t mode_scope[] = {
+static const s9_mode_slot_t mode_oscilloscope[] = {
 	{ COMP_FPS,           { .margin_left = 10,  .margin_top = 10,  .fixed_width = 50, .fixed_height = 40  } },
 	{ COMP_VU,            { .margin_left = 10,  .margin_top = 40,  .margin_bottom = 10, .fixed_width = 50 } },
 	{ COMP_OSCILLOSCOPE,  { .margin_left = 60 } },
@@ -162,7 +162,7 @@ static const s9_mode_slot_t mode_spectrogram[] = {
 
 static const s9_mode_slot_t *const mode_slots[S9_MODE_COUNT] = {
 	[S9_MODE_FULL]        = mode_full,
-	[S9_MODE_SCOPE]       = mode_scope,
+	[S9_MODE_OSCILLOSCOPE] = mode_oscilloscope,
 	[S9_MODE_SPECTRUM]    = mode_spectrum,
 	[S9_MODE_PERIODIC]    = mode_periodic,
 	[S9_MODE_SPECTROGRAM] = mode_spectrogram,

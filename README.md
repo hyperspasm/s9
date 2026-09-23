@@ -25,7 +25,7 @@ Settings can also be specified in the `settings` file of s9's home directory as 
 
 When the audio input stops delivering or is unplugged, s9 closes it and opens the input again, and while there is none to open it tries again every second.
 
-Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
+Keys `1` to `5` select the full, oscilloscope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
 
 The window is drawn at the display's pixel density: on a high-density display it has the same size and layout and more pixels, with the text, lines and traces sharp. The startup log reports the window's size, its size in pixels and the scale it is drawn at.
 
