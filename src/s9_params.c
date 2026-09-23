@@ -158,14 +158,14 @@ static bool get_spectrogram_auto_range(void *ctx) { return spectrogram_config(ct
 
 // -- tree
 
-pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *periodic, void *spectrogram) {
-	p->osc_params[0] = pn_unit(pn_float("time_per_div", osc, PN_FN(set_time_per_div), PN_FN(get_time_per_div), 0.00001f, 1.0f, 0), "s");
-	p->osc_params[1] = pn_float("amp_per_div",  osc, PN_FN(set_amp_per_div),  PN_FN(get_amp_per_div),  0.001f, 10.0f, 0);
-	p->osc_params[2] = pn_bool("trig_auto",     osc, PN_FN(set_trig_auto),    PN_FN(get_trig_auto));
-	p->osc_params[3] = pn_int("trig_slope",     osc, PN_FN(set_trig_slope),   PN_FN(get_trig_slope), -1, 1, 2);
-	p->osc_params[4] = pn_float("trig_thresh",  osc, PN_FN(set_trig_thresh),  PN_FN(get_trig_thresh), -1.0f, 1.0f, 0);
-	p->osc_params[5] = pn_unit(pn_float("trig_holdoff", osc, PN_FN(set_trig_holdoff), PN_FN(get_trig_holdoff), 0.0f, 1.0f, 0), "s");
-	p->osc_params[6] = pn_int("channel",        osc, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
+pn_param_t *s9_params_build(s9_params_t *p, void *oscilloscope, void *spectrum, void *periodic, void *spectrogram) {
+	p->oscilloscope_params[0] = pn_unit(pn_float("time_per_div", oscilloscope, PN_FN(set_time_per_div), PN_FN(get_time_per_div), 0.00001f, 1.0f, 0), "s");
+	p->oscilloscope_params[1] = pn_float("amp_per_div",  oscilloscope, PN_FN(set_amp_per_div),  PN_FN(get_amp_per_div),  0.001f, 10.0f, 0);
+	p->oscilloscope_params[2] = pn_bool("trig_auto",     oscilloscope, PN_FN(set_trig_auto),    PN_FN(get_trig_auto));
+	p->oscilloscope_params[3] = pn_int("trig_slope",     oscilloscope, PN_FN(set_trig_slope),   PN_FN(get_trig_slope), -1, 1, 2);
+	p->oscilloscope_params[4] = pn_float("trig_thresh",  oscilloscope, PN_FN(set_trig_thresh),  PN_FN(get_trig_thresh), -1.0f, 1.0f, 0);
+	p->oscilloscope_params[5] = pn_unit(pn_float("trig_holdoff", oscilloscope, PN_FN(set_trig_holdoff), PN_FN(get_trig_holdoff), 0.0f, 1.0f, 0), "s");
+	p->oscilloscope_params[6] = pn_int("channel",        oscilloscope, PN_FN(set_channel),      PN_FN(get_channel),      -1, 31, 1);
 
 	pn_param_t *spectrum_p = p->spectrum_params;
 	spectrum_p[0] = pn_unit(pn_int("resolution", spectrum, PN_FN(set_spectrum_resolution), PN_FN(get_spectrum_resolution), 25, 400, 1), "cents");
@@ -238,7 +238,7 @@ pn_param_t *s9_params_build(s9_params_t *p, void *osc, void *spectrum, void *per
 	p->debug_params[0] = pn_bool("fps", NULL, PN_FN(set_fps), PN_FN(get_fps));
 
 	p->root_children[S9_ROOT_MODE]        = pn_enum("mode", NULL, PN_FN(set_mode), PN_FN(get_mode), s9_mode_names, S9_MODE_COUNT);
-	p->root_children[S9_ROOT_OSC]         = pn_group("osc", p->osc_params, S9_OSC_NUM_PARAMS);
+	p->root_children[S9_ROOT_OSCILLOSCOPE] = pn_group("oscilloscope", p->oscilloscope_params, S9_OSCILLOSCOPE_NUM_PARAMS);
 	p->root_children[S9_ROOT_SPECTRUM]    = pn_group("spectrum", p->spectrum_params, S9_SPECTRUM_NUM_PARAMS);
 	p->root_children[S9_ROOT_PERIODIC]    = pn_group("periodic", p->periodic_params, S9_PERIODIC_NUM_PARAMS);
 	p->root_children[S9_ROOT_SPECTROGRAM] = pn_group("spectrogram", p->spectrogram_params, S9_SPECTROGRAM_NUM_PARAMS);

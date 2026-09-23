@@ -20,10 +20,10 @@ MANIFEST_PATH = Path(__file__).resolve().parents[4] / "s9.manifest"
 
 # What each dial controls and how it moves. The range comes from the manifest.
 DIALS = [
-    {"path": "s9/osc/time_per_div", "mode": "log",    "factor": 1/1.1},
-    {"path": "s9/osc/amp_per_div",  "mode": "log",    "factor": 1/1.1},
-    {"path": "s9/osc/trig_thresh",  "mode": "linear", "step": 0.02},
-    {"path": "s9/osc/channel",      "mode": "int",    "step": 1},
+    {"path": "s9/oscilloscope/time_per_div", "mode": "log",    "factor": 1/1.1},
+    {"path": "s9/oscilloscope/amp_per_div",  "mode": "log",    "factor": 1/1.1},
+    {"path": "s9/oscilloscope/trig_thresh",  "mode": "linear", "step": 0.02},
+    {"path": "s9/oscilloscope/channel",      "mode": "int",    "step": 1},
 ]
 
 # The display mode, stepped by the top-left (down) and top-right (up) keys.
