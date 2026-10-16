@@ -61,7 +61,7 @@ brew install cmake pkg-config sdl3 sdl3_ttf libwebsockets
 
 **After cloning:**
 ```bash
-git submodule update --init
+git submodule update --init --recursive
 ```
 
 ### Compile
