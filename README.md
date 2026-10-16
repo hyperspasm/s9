@@ -117,4 +117,4 @@ The version is the last tag of the form `vX.Y.Z`. A build past the tag carries t
 
 ## License
 
-Copyright Shea Ako, all rights reserved for now; see [LICENSE](LICENSE). The third-party pieces compiled in, and their licenses, are listed in [packaging/copyright](packaging/copyright).
+Copyright Shea Ako, under the MIT license; see [LICENSE](LICENSE). The third-party pieces compiled in, and their licenses, are listed in [packaging/copyright](packaging/copyright).
