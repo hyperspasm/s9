@@ -47,8 +47,12 @@ typedef struct pn_node {
     const char *name;
     pn_type_t type;       // PN_NONE, PN_ACTION, PN_BOOL, PN_INT, PN_FLOAT, PN_ENUM, PN_STRING
     pn_meta_t meta;       // type-specific metadata (min/max/step, enum labels, etc.)
+    bool readonly;        // a client's set is refused
+    const char *unit;     // int and float: what the value is measured in ("Hz", "dB", "cents"), or NULL
 } pn_node_t;
 ```
+
+The schema describes what each value is: its type, its constraints, and its unit. It never describes how a value is to be shown. Any client, a script or a user interface, decides its own presentation from those facts.
 
 `pn_param_t` wraps `pn_node_t` with getter/setter callbacks and tree linkage:
 
@@ -91,7 +95,7 @@ Other mismatches (e.g. `string` → `float`) are silently rejected. Values are c
 
 ## Module Pattern
 
-Server modules build their own parameter subtrees using `pn_param_t` arrays embedded in their structs. Inline constructors (`pn_float`, `pn_int`, `pn_bool`, `pn_enum`, `pn_string`, `pn_action`, `pn_group`) simplify tree construction. `pn_readonly()` wraps a constructed node that the server reports and pushes but never accepts a set for, a meter or a measurement; the manifest marks it `ro`.
+Server modules build their own parameter subtrees using `pn_param_t` arrays embedded in their structs. Inline constructors (`pn_float`, `pn_int`, `pn_bool`, `pn_enum`, `pn_string`, `pn_action`, `pn_group`) simplify tree construction. `pn_readonly()` wraps a constructed node that the server reports and pushes but never accepts a set for, a meter or a measurement; the manifest marks it `ro`. `pn_unit()` wraps an int or float with its unit, a token such as `"Hz"` or `"dB"`, which the manifest writes after the type (`float:Hz`); [MANIFEST.md](MANIFEST.md) lists the recommended spellings.
 
 Every setter and getter receives a `void *ctx` pointer from the param, allowing the same function to operate on different instances.
 

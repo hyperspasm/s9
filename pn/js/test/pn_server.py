@@ -10,13 +10,13 @@ from pn import transport
 
 
 class Eq:
-    bass = pn.Float(min=-12.0, max=12.0, step=0.5)
-    treble = pn.Float(min=-12.0, max=12.0, step=0.5)
+    bass = pn.Float(min=-12.0, max=12.0, step=0.5, unit="dB")
+    treble = pn.Float(min=-12.0, max=12.0, step=0.5, unit="dB")
 
 
 class Amp:
     power = pn.Bool()
-    volume = pn.Int(min=0, max=100, step=1)
+    volume = pn.Int(min=0, max=100, step=1, unit="%")
     eq = pn.Group(Eq)
     input = pn.Enum(labels=["mic", "line", "aux"])
     name = pn.String(max_len=32)

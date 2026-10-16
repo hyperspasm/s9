@@ -1,9 +1,11 @@
 #include "s9.h"
 #include "spectrum.h"
 #include "fft_analyzer.h"
+#include "fft.h"
 #include "fresp_graph.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #define FRAME_MIN 1024           // the frame's length, at least
 #define FRAME_MAX 524288         // and at most
@@ -62,7 +64,7 @@ static uint32_t frame_length(const spectrum_t *sp) {
 	double need = sp->bandwidth * sp->stream.sample_rate / ((double)sp->config.graph_config.min_freq * semitones);
 	if (need < FRAME_MIN) need = FRAME_MIN;
 	if (need > FRAME_MAX) need = FRAME_MAX;
-	return fft_analyzer_fast_length((uint32_t)ceil(need));
+	return fft_fast_length((uint32_t)ceil(need));
 }
 
 static fft_analyzer_config_t analyzer_config(const spectrum_t *sp) {
@@ -131,9 +133,9 @@ uint32_t spectrum_frame(const spectrum_t *sp) {
 
 static S9_FORCE_INLINE void prepare_to_draw(spectrum_t *sp, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 
-	if(sp->renderer != renderer || !SDL_RectEquals(&sp->viewport, &viewport)) {
+	if(sp->renderer != renderer || !SDL_RectsEqual(&sp->viewport, &viewport)) {
 		sp->renderer = renderer;
 		sp->viewport = viewport;
 		fresp_graph_free(&sp->graph);

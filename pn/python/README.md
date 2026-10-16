@@ -19,7 +19,7 @@ import pn
 from pn import transport
 
 class Channel:
-    gain = pn.Float(default=0.0, min=-72.0, max=6.0, step=0.1)
+    gain = pn.Float(default=0.0, min=-72.0, max=6.0, step=0.1, unit="dB")
     mute = pn.Bool(default=False)
     input = pn.Enum(labels=["mic", "line"], default=0)
     name = pn.String(default="", max_len=32)
@@ -46,8 +46,8 @@ await transport.serve_uds(server, "/tmp/pn.sock")
 
 | Descriptor | Kwargs | Notes |
 |---|---|---|
-| `pn.Float` | `default`, `min`, `max`, `step` | Clamped to [min, max] |
-| `pn.Int` | `default`, `min`, `max`, `step` | Clamped to [min, max] |
+| `pn.Float` | `default`, `min`, `max`, `step`, `unit` | Clamped to [min, max]; `unit` is what the value is measured in, `"dB"` or `"Hz"`, or None |
+| `pn.Int` | `default`, `min`, `max`, `step`, `unit` | Clamped to [min, max]; `unit` as for `pn.Float` |
 | `pn.Bool` | `default` | |
 | `pn.Enum` | `labels`, `default` | `default` is an index; clamped to [0, len-1] |
 | `pn.String` | `default`, `max_len` | Truncated to `max_len` |

@@ -20,6 +20,9 @@ typedef struct {
 	
 	// audio device name
 	char *audio_device;
+
+	// audio driver, by SDL's name for it; NULL leaves the choice to SDL
+	char *audio_driver;
 	
 	// sample rate
 	int sample_rate;

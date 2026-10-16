@@ -1,15 +1,17 @@
 // The spectrum end to end: audio in, frames rendered on SDL's software
 // renderer. Runs without a display. The frame follows the resolution at
 // the bottom of the range, a configuration that makes no sense falls back
-// to the default, and a tone lights the plot. What the bins hold is tested
-// on the analyzer.
+// to the default, and a tone peaks at its frequency. What the bins hold is
+// tested on the analyzer.
 #include "greatest.h"
 #include "spectrum.h"
-#include "fft_analyzer.h"
+#include "fft.h"
 #include "test_signals.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include "draw_sdl.h"
+
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,8 +33,8 @@ static spectrum_t *streaming(void) {
 	return sp;
 }
 
-// one display frame of a tone, both channels alike, then the rendering
-static void frame(spectrum_t *sp, unsigned *offset) {
+// one display frame of a tone, both channels alike, then the rendering on a renderer
+static void frame_on(spectrum_t *sp, unsigned *offset, SDL_Renderer *r) {
 	test_signal_t s = { SIGNAL_SINE, 1000.0, 0, 0.5, 0, 0, 0, 0 };
 	float *mono = malloc(sizeof(float) * (*offset + FRAME)), stereo[FRAME * 2];
 	test_signal_generate(&s, mono, *offset + FRAME, FS);
@@ -40,9 +42,14 @@ static void frame(spectrum_t *sp, unsigned *offset) {
 	free(mono);
 	*offset += FRAME;
 	spectrum_enqueue_audio_data(sp, stereo, sizeof(stereo));
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-	SDL_RenderClear(renderer);
-	spectrum_render(sp, renderer);
+	SDL_SetRenderDrawColor(r, 0, 0, 0, 255);
+	SDL_RenderClear(r);
+	spectrum_render(sp, r);
+	SDL_FlushRenderer(r);   // the surface is read directly
+}
+
+static void frame(spectrum_t *sp, unsigned *offset) {
+	frame_on(sp, offset, renderer);
 }
 
 static unsigned lit_pixels(void) {
@@ -51,6 +58,42 @@ static unsigned lit_pixels(void) {
 	for (int i = 0; i < WIDTH * HEIGHT; i++)
 		if ((px[i] & 0xffffff00) != 0) lit++;
 	return lit;
+}
+
+// The x of each white line between min_w and max_w pixels wide crossing
+// the row at y of a surface, left to right: the plot's frame at either end
+// and the decades between.
+static unsigned white_lines_on(const SDL_Surface *s, int y, int *xs, unsigned max, int min_w, int max_w) {
+	const uint32_t *px = (const uint32_t *)s->pixels + (size_t)y * s->w;
+	unsigned lines = 0;
+	int start = -1;
+	for (int x = 0; x <= s->w; x++) {
+		int white = x < s->w && (px[x] & 0xffffff00) == 0xffffff00;
+		if (white && start < 0) start = x;
+		if (!white && start >= 0) {
+			if (x - start >= min_w && x - start <= max_w && lines < max) xs[lines++] = start + 1;
+			start = -1;
+		}
+	}
+	return lines;
+}
+
+// the lines two or three pixels wide, as drawn at scale 1
+static unsigned white_lines(int y, int *xs, unsigned max) {
+	return white_lines_on(surface, y, xs, max, 2, 3);
+}
+
+// the x of the topmost pixel of the trace's color
+static int trace_peak_x(void) {
+	const uint32_t *px = surface->pixels;
+	for (int y = 0; y < HEIGHT; y++) {
+		for (int x = 0; x < WIDTH; x++) {
+			Uint8 r, g, b;
+			SDL_GetRGB(px[y * WIDTH + x], SDL_GetPixelFormatDetails(surface->format), NULL, &r, &g, &b);
+			if (g > 0x40 && r < g / 2 && b < g) return x;
+		}
+	}
+	return -1;
 }
 
 // The frame is the shortest fast length that holds the window of a ridge
@@ -63,7 +106,7 @@ TEST frame_follows_the_resolution(void) {
 	create_window_function(c->window_function, 4096, 0, c->window_skew, w);
 	double need = window_bandwidth(w, 4096) * FS / (c->graph_config.min_freq * (pow(2.0, c->resolution_cents / 1200.0) - 1.0));
 	unsigned n = spectrum_frame(sp);
-	ASSERT_EQ_FMT(fft_analyzer_fast_length((uint32_t)ceil(need)), n, "%u");
+	ASSERT_EQ_FMT(fft_fast_length((uint32_t)ceil(need)), n, "%u");
 	ASSERT(n >= need && n < need * 1.1);
 
 	spectrum_config_t finer = *c;
@@ -115,29 +158,71 @@ TEST config_is_kept_sane(void) {
 	PASS();
 }
 
-// A tone through a second of frames lights the plots beyond their graticules.
-TEST a_tone_lights_the_plot(void) {
+// A tone through a second of frames lights the plot beyond its graticule,
+// and its peak sits on the graticule's line for its frequency: of the
+// white lines crossing a row of the plot, the frame's two edges and the
+// three decades between them, the middle one is 1 kHz, and the trace is
+// highest within a few pixels of it.
+TEST a_tone_peaks_at_its_frequency(void) {
 	spectrum_t *sp = streaming();
 	unsigned offset = 0;
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	spectrum_render(sp, renderer);
+	SDL_FlushRenderer(renderer);
 	unsigned before = lit_pixels();
+	int xs[8];
+	unsigned lines = 0;
+	for (int y = HEIGHT / 2; y < HEIGHT / 2 + 40 && lines != 5; y++) lines = white_lines(y, xs, 8);
+	ASSERT_EQ_FMT(5u, lines, "%u");
+
 	for (int i = 0; i < 60; i++) frame(sp, &offset);
 	ASSERT(lit_pixels() > before);
+	int peak = trace_peak_x();
+	ASSERT(peak >= 0);
+	ASSERT_IN_RANGE(xs[2], peak, 3);
 	spectrum_free(&sp);
+	PASS();
+}
+
+// At twice the scale on a surface twice the size, the plot's frame and
+// decade lines are twice as wide and land at twice the x, within the
+// rounding of the labels that place them.
+TEST lines_land_at_twice_the_x_at_twice_the_scale(void) {
+	SDL_Surface *big = SDL_CreateSurface(2 * WIDTH, 2 * HEIGHT, SDL_PIXELFORMAT_RGBA8888);
+	SDL_Renderer *r2 = SDL_CreateSoftwareRenderer(big);
+	ASSERT(big && r2);
+	SDL_SetRenderDrawBlendMode(r2, SDL_BLENDMODE_BLEND);
+	draw_sdl_set_scale(r2, 2.0f);
+
+	spectrum_t *small = streaming(), *large = streaming();
+	unsigned offset = 0;
+	for (int i = 0; i < 30; i++) frame(small, &offset);
+	offset = 0;
+	for (int i = 0; i < 30; i++) frame_on(large, &offset, r2);
+	int xs[8], xl[8];
+	unsigned ns = 0, nl = 0;
+	for (int y = HEIGHT / 2; y < HEIGHT / 2 + 40 && ns != 5; y++) ns = white_lines(y, xs, 8);
+	for (int y = HEIGHT; y < HEIGHT + 80 && nl != 5; y++) nl = white_lines_on(big, y, xl, 8, 4, 6);
+	ASSERT_EQ(5u, ns);
+	ASSERT_EQ(5u, nl);
+	for (unsigned i = 0; i < ns; i++) ASSERT_IN_RANGE(2 * xs[i], xl[i], 4);
+	spectrum_free(&small);
+	spectrum_free(&large);
+	SDL_DestroyRenderer(r2);
+	SDL_DestroySurface(big);
 	PASS();
 }
 
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
-	SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
-	if (SDL_Init(SDL_INIT_VIDEO) != 0 || TTF_Init() != 0) {
+	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+	if (!SDL_Init(SDL_INIT_VIDEO) || !TTF_Init()) {
 		fprintf(stderr, "SDL: %s\n", SDL_GetError());
 		return 1;
 	}
-	surface = SDL_CreateRGBSurfaceWithFormat(0, WIDTH, HEIGHT, 32, SDL_PIXELFORMAT_RGBA8888);
+	surface = SDL_CreateSurface(WIDTH, HEIGHT, SDL_PIXELFORMAT_RGBA8888);
 	renderer = SDL_CreateSoftwareRenderer(surface);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
@@ -145,6 +230,7 @@ int main(int argc, char **argv) {
 	RUN_TEST(frame_follows_the_resolution);
 	RUN_TEST(channels_are_named);
 	RUN_TEST(config_is_kept_sane);
-	RUN_TEST(a_tone_lights_the_plot);
+	RUN_TEST(a_tone_peaks_at_its_frequency);
+	RUN_TEST(lines_land_at_twice_the_x_at_twice_the_scale);
 	GREATEST_MAIN_END();
 }

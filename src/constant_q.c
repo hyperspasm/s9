@@ -1,7 +1,7 @@
 #include "constant_q.h"
 #include "s9.h"
+#include "fft.h"
 
-#include <fftw3.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,8 +17,8 @@ typedef struct {
 	uint32_t n;            // its length
 	uint32_t offset;       // where its samples start in the frame
 	float *in;             // n samples
-	fftwf_complex *out;    // n/2 + 1 bins
-	fftwf_plan plan;
+	float *out;            // n/2 + 1 bins as (re, im) pairs
+	fft_t *fft;
 } level_t;
 
 typedef struct {
@@ -67,7 +67,7 @@ static uint32_t readout_count(const constant_q_config_t *c, double bandwidth, ui
 
 // the transform a window of the length is read through: the shortest power of two that holds it, or the frame
 static uint32_t level_length(const constant_q_config_t *c, uint32_t length) {
-	uint32_t p = 2;
+	uint32_t p = FFT_MIN_LENGTH;
 	while (p < length) p *= 2;
 	return p <= c->n ? p : c->n;
 }
@@ -97,36 +97,41 @@ static int reserve(constant_q_t *cq, uint32_t *capacity, uint32_t needed) {
 	return 0;
 }
 
+// the power of a bin of an (re, im) array
+static double bin_power(const float *bins, uint32_t k) {
+	return (double)bins[2 * k] * bins[2 * k] + (double)bins[2 * k + 1] * bins[2 * k + 1];
+}
+
 // the transform of one readout's kernel: the window shifted to f in the middle of a level's frame
-static int build_kernel(constant_q_t *cq, const level_t *lv, fftwf_complex *in, fftwf_complex *out, fftwf_plan plan,
+static int build_kernel(constant_q_t *cq, const level_t *lv, float *in, float *out, fft_t *fft,
                         const float *w, uint32_t length, double scale, double f, uint32_t *capacity, readout_t *ro) {
 	uint32_t n = lv->n, bins = n / 2 + 1, start = n / 2 - length / 2;
-	memset(in, 0, sizeof(fftwf_complex) * n);
+	memset(in, 0, sizeof(float) * 2 * n);
 	double step = 2.0 * M_PI * f / cq->config.sample_rate;
 	for (uint32_t i = 0; i < length; i++) {
 		double theta = step * (double)(start + i);
-		in[start + i][0] = (float)(w[i] * scale * cos(theta));
-		in[start + i][1] = (float)(w[i] * scale * sin(theta));
+		in[2 * (start + i)] = (float)(w[i] * scale * cos(theta));
+		in[2 * (start + i) + 1] = (float)(w[i] * scale * sin(theta));
 	}
-	fftwf_execute(plan);
+	fft_forward_complex(fft, in, out);
 
 	// the run of bins between the first and the last above the threshold
 	double threshold = pow(10.0, (double)cq->config.threshold_db / 20.0);
 	double peak = 0.0;
 	for (uint32_t k = 0; k < bins; k++) {
-		double m = (double)out[k][0] * out[k][0] + (double)out[k][1] * out[k][1];
+		double m = bin_power(out, k);
 		if (m > peak) peak = m;
 	}
 	double cut = peak * threshold * threshold;
 	uint32_t first = 0, last = bins - 1;
-	while (first < last && (double)out[first][0] * out[first][0] + (double)out[first][1] * out[first][1] < cut) first++;
-	while (last > first && (double)out[last][0] * out[last][0] + (double)out[last][1] * out[last][1] < cut) last--;
+	while (first < last && bin_power(out, first) < cut) first++;
+	while (last > first && bin_power(out, last) < cut) last--;
 	uint32_t count = last - first + 1;
 	if (reserve(cq, capacity, cq->tap_count + count) != 0) return -1;
 	float *taps = cq->taps + 2 * cq->tap_count;
 	for (uint32_t j = 0; j < count; j++) {
-		taps[2 * j] = out[first + j][0] / (float)n;
-		taps[2 * j + 1] = -out[first + j][1] / (float)n;
+		taps[2 * j] = out[2 * (first + j)] / (float)n;
+		taps[2 * j + 1] = -out[2 * (first + j) + 1] / (float)n;
 	}
 	*ro = (readout_t){ .level = (uint32_t)(lv - cq->level), .first = first, .count = count, .offset = cq->tap_count };
 	cq->tap_count += count;
@@ -134,7 +139,7 @@ static int build_kernel(constant_q_t *cq, const level_t *lv, fftwf_complex *in, 
 }
 
 constant_q_t *constant_q_new(const constant_q_config_t *config, const double *edges, uint32_t columns) {
-	CHECK_PARAMETER(config->n >= 2 && config->n % 2 == 0 && columns > 0 && config->sample_rate > 0.0, return NULL);
+	CHECK_PARAMETER(config->n == fft_fast_length(config->n) && columns > 0 && config->sample_rate > 0.0, return NULL);
 	constant_q_t *cq = malloc(sizeof(constant_q_t));
 	CHECK_ALLOC(cq, return NULL);
 	memset(cq, 0, sizeof(*cq));
@@ -158,21 +163,21 @@ constant_q_t *constant_q_new(const constant_q_config_t *config, const double *ed
 	CHECK_ALLOC(cq->readout, constant_q_free(&cq); return NULL);
 	cq->readout_count = readouts;
 
-	// the levels' transforms for the readouts, and for the kernels while they are built
+	// the levels' transforms for the readouts, and complex ones for the kernels while they are built
 	int ok = 1;
 	uint32_t longest = cq->level[0].n;
-	fftwf_complex *in = fftwf_malloc(sizeof(fftwf_complex) * longest);
-	fftwf_complex *out = fftwf_malloc(sizeof(fftwf_complex) * longest);
+	float *in = malloc(sizeof(float) * 2 * longest);
+	float *out = malloc(sizeof(float) * 2 * longest);
 	float *w = malloc(sizeof(float) * longest);
-	fftwf_plan *plans = calloc(cq->levels, sizeof(fftwf_plan));
-	ok = in && out && w && plans;
+	fft_t **kernel_ffts = calloc(cq->levels, sizeof(fft_t *));
+	ok = in && out && w && kernel_ffts;
 	for (uint32_t i = 0; ok && i < cq->levels; i++) {
 		level_t *lv = &cq->level[i];
-		lv->in = fftwf_malloc(sizeof(float) * lv->n);
-		lv->out = fftwf_malloc(sizeof(fftwf_complex) * (lv->n / 2 + 1));
-		lv->plan = (lv->in && lv->out) ? fftwf_plan_dft_r2c_1d((int)lv->n, lv->in, lv->out, FFTW_ESTIMATE) : NULL;
-		plans[i] = fftwf_plan_dft_1d((int)lv->n, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-		ok = lv->plan && plans[i];
+		lv->in = malloc(sizeof(float) * lv->n);
+		lv->out = malloc(sizeof(float) * 2 * (lv->n / 2 + 1));
+		lv->fft = fft_new(lv->n, FFT_REAL);
+		kernel_ffts[i] = fft_new(lv->n, FFT_COMPLEX);
+		ok = lv->in && lv->out && lv->fft && kernel_ffts[i];
 	}
 	if (!ok) S9_LOG_ERROR("constant_q: could not set up the transforms");
 
@@ -188,16 +193,16 @@ constant_q_t *constant_q_new(const constant_q_config_t *config, const double *ed
 		double scale = 2.0 / sum;
 		for (uint32_t r = 0; ok && r < col->count; r++) {
 			double f = lo * pow(hi / lo, ((double)r + 0.5) / (double)col->count);
-			ok = build_kernel(cq, &cq->level[li], in, out, plans[li], w, length, scale, f, &capacity, &cq->readout[col->first + r]) == 0;
+			ok = build_kernel(cq, &cq->level[li], in, out, kernel_ffts[li], w, length, scale, f, &capacity, &cq->readout[col->first + r]) == 0;
 		}
 	}
 
-	if (plans) {
-		for (uint32_t i = 0; i < cq->levels; i++) if (plans[i]) fftwf_destroy_plan(plans[i]);
-		free(plans);
+	if (kernel_ffts) {
+		for (uint32_t i = 0; i < cq->levels; i++) fft_free(&kernel_ffts[i]);
+		free(kernel_ffts);
 	}
-	fftwf_free(in);
-	fftwf_free(out);
+	free(in);
+	free(out);
 	free(w);
 	if (!ok) constant_q_free(&cq);
 	return cq;
@@ -207,9 +212,9 @@ void constant_q_free(constant_q_t **cq) {
 	if (cq && *cq) {
 		for (uint32_t i = 0; i < (*cq)->levels; i++) {
 			level_t *lv = &(*cq)->level[i];
-			if (lv->plan) fftwf_destroy_plan(lv->plan);
-			fftwf_free(lv->in);
-			fftwf_free(lv->out);
+			fft_free(&lv->fft);
+			free(lv->in);
+			free(lv->out);
 		}
 		free((*cq)->level);
 		free((*cq)->column);
@@ -224,19 +229,20 @@ uint32_t constant_q_columns(const constant_q_t *cq) { return cq->columns; }
 uint32_t constant_q_window(const constant_q_t *cq, uint32_t column) { return column < cq->columns ? cq->column[column].window : 0; }
 uint32_t constant_q_readouts(const constant_q_t *cq, uint32_t column) { return column < cq->columns ? cq->column[column].count : 0; }
 uint32_t constant_q_taps(const constant_q_t *cq) { return cq->tap_count; }
+uint32_t constant_q_levels(const constant_q_t *cq) { return cq->levels; }
+uint32_t constant_q_level_length(const constant_q_t *cq, uint32_t level) { return level < cq->levels ? cq->level[level].n : 0; }
 
 void constant_q_readout(constant_q_t *cq, const float *frame, float *out_db) {
 	for (uint32_t i = 0; i < cq->levels; i++) {
 		level_t *lv = &cq->level[i];
-		memcpy(lv->in, frame + lv->offset, sizeof(float) * lv->n);
-		fftwf_execute(lv->plan);
+		fft_forward_real(lv->fft, frame + lv->offset, lv->out);
 	}
 	for (uint32_t c = 0; c < cq->columns; c++) {
 		const column_t *col = &cq->column[c];
 		float best = 0.0f;
 		for (uint32_t r = 0; r < col->count; r++) {
 			const readout_t *ro = &cq->readout[col->first + r];
-			const float *x = (const float *)cq->level[ro->level].out + 2 * ro->first;
+			const float *x = cq->level[ro->level].out + 2 * ro->first;
 			const float *t = cq->taps + 2 * ro->offset;
 			float re = 0.0f, im = 0.0f;
 			for (uint32_t j = 0; j < ro->count; j++) {

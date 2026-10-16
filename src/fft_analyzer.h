@@ -29,9 +29,10 @@ typedef enum {
 } fft_analyzer_mode_t;
 
 typedef struct {
-	uint32_t fft_len;                  // transform length; 0 derives it from resolution_hz
-	float resolution_hz;               // bin spacing: the transform length is the power of two at or
-	                                   // above sample_rate / resolution_hz
+	uint32_t fft_len;                  // the frame's length, taken up to a fast length (fft_fast_length);
+	                                   // 0 derives it from resolution_hz
+	float resolution_hz;               // bin spacing: the frame is then the power of two at or above
+	                                   // sample_rate / resolution_hz
 	window_function_t window_function;
 	float window_skew;
 	fft_analyzer_mode_t mode;
@@ -80,10 +81,6 @@ uint32_t fft_analyzer_transform_len(const fft_analyzer_t *fa);    // the transfo
 uint32_t fft_analyzer_sample_rate(const fft_analyzer_t *fa);
 // spectra per update: the stream's channels, or 1 when mixing
 uint32_t fft_analyzer_transforms(const fft_analyzer_t *fa);
-
-// The shortest length at or above n that the transform handles fastest:
-// even, with no prime factor above 5.
-uint32_t fft_analyzer_fast_length(uint32_t n);
 
 // The latest transform: transform_len/2 + 1 bins as (re, im) pairs,
 // spaced sample_rate / transform_len apart, unscaled. A sine of amplitude

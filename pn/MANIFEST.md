@@ -62,10 +62,11 @@ A consumer takes the declared hash from the header. It may verify the declared h
 One entry per leaf node, in tree order (see Ordering). Groups produce no entries; the tree structure is implied by the paths.
 
 ```
-entry  = path SP type [SP meta] [SP "ro"]
+entry  = path SP type [":" unit] [SP meta] [SP "ro"]
 
 path   = name *("/" name)          ; first name is the root, last is the leaf
 type   = "action" | "bool" | "int" | "float" | "enum" | "string"
+unit   = token                     ; int and float only; see Units
 
 meta for int    = int32 SP int32 SP int32      ; min max step
 meta for float  = f32 SP f32 SP f32            ; min max step
@@ -87,6 +88,21 @@ The `ro` marker declares a read-only node: the server reports its value and push
 - **label** — an enum label, subject to Name rules.
 
 The format assigns no meaning to `step`; it is recorded as declared.
+
+### Units
+
+An int or float entry may declare a unit: what the value is measured in, written after the type with a colon between them, as in `int:cents` or `float:Hz`. A unit is subject to the Name rules and must not contain `:`. Other types carry no unit. The unit is part of the entry, so it is part of the hash: a value changing its unit is a change of schema.
+
+The format assigns no meaning to a unit; it is recorded as declared, and a consumer that does not know a unit still knows the value's type and range. Identity is byte equality, so `Hz` and `hz` are different units. Any unit is allowed; these spellings are recommended, so that the common ones are written one way:
+
+| unit | for |
+|---|---|
+| `Hz` | frequency |
+| `dB` | level or gain in decibels; what it is relative to is the schema's business |
+| `s`, `ms` | time |
+| `cents`, `semitones` | pitch intervals |
+| `%` | a percentage |
+| `samples` | a count of sample frames |
 
 ### Ordering
 
@@ -146,7 +162,7 @@ Test vectors:
 
 A schema with no leaves has an empty canonical form and hashes to `811c9dc5`.
 
-The hash is an exact-match check. Any change to a name, type, constraint, label, or order changes it. Equal hashes mean the same schema; unequal hashes say nothing about how the schemas differ.
+The hash is an exact-match check. Any change to a name, type, unit, constraint, label, or order changes it. Equal hashes mean the same schema; unequal hashes say nothing about how the schemas differ.
 
 ## Tree requirements
 
@@ -163,10 +179,10 @@ The schema below has root `amp` and covers every type. Indentation shows groupin
 ```
 amp
   power    bool
-  volume   int     min 0, max 100, step 1
+  volume   int     min 0, max 100, step 1, in %
   eq
-    bass   float   min -12.0, max 12.0, step 0.5
-    treble float   min -12.0, max 12.0, step 0.5
+    bass   float   min -12.0, max 12.0, step 0.5, in dB
+    treble float   min -12.0, max 12.0, step 0.5, in dB
   input    enum    mic, line, aux
   name     string  max_len 32
   level    float   min 0.0, max 1.0, step 0.0, read-only
@@ -176,11 +192,11 @@ amp
 Its manifest as a generator emits it:
 
 ```
-# pn manifest v1 amp fnv1a32=fb9c41f2
+# pn manifest v1 amp fnv1a32=76a2b061
 amp/power bool
-amp/volume int 0 100 1
-amp/eq/bass float 0xc1400000 0x41400000 0x3f000000
-amp/eq/treble float 0xc1400000 0x41400000 0x3f000000
+amp/volume int:% 0 100 1
+amp/eq/bass float:dB 0xc1400000 0x41400000 0x3f000000
+amp/eq/treble float:dB 0xc1400000 0x41400000 0x3f000000
 amp/input enum mic|line|aux
 amp/name string 32
 amp/level float 0x00000000 0x3f800000 0x00000000 ro
@@ -192,17 +208,17 @@ The `eq` group produces no entry of its own. Its leaves appear at its position i
 The same manifest annotated by hand, with aligned columns, has the same canonical form and therefore the same hash:
 
 ```
-# pn manifest v1 amp fnv1a32=fb9c41f2
+# pn manifest v1 amp fnv1a32=76a2b061
 
 # Front panel
 amp/power     bool
-amp/volume    int    0 100 1                              # percent
+amp/volume    int:%     0 100 1                              # the knob
 
 # Tone
-amp/eq/bass   float  0xc1400000 0x41400000 0x3f000000    # -12 .. 12 dB
-amp/eq/treble float  0xc1400000 0x41400000 0x3f000000
-amp/input     enum   mic|line|aux
-amp/name      string 32
-amp/level     float  0x00000000 0x3f800000 0x00000000 ro # a meter
+amp/eq/bass   float:dB  0xc1400000 0x41400000 0x3f000000    # -12 .. 12
+amp/eq/treble float:dB  0xc1400000 0x41400000 0x3f000000
+amp/input     enum      mic|line|aux
+amp/name      string    32
+amp/level     float     0x00000000 0x3f800000 0x00000000 ro # a meter
 amp/reset     action
 ```

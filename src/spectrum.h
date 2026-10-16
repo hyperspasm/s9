@@ -5,8 +5,8 @@
 #include "fresp_graph.h"
 #include "window_function.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 // A live spectrum of one channel, or of the channels averaged: level
 // against log frequency, from the newest frame of audio through a window

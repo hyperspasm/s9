@@ -5,7 +5,7 @@
 #include "s9_dsp.h"
 #include "s9_modes.h"
 
-#include <SDL2/SDL_render.h>
+#include <SDL3/SDL_render.h>
 
 // component identification
 typedef enum {

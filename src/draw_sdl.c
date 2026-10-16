@@ -1,12 +1,37 @@
 #include "draw_sdl.h"
 #include "s9.h"
 #include "s9_colors.h"
+#include <math.h>
+#include <stdlib.h>
 
+#define SCALE_PROPERTY "s9.draw.scale"   // the renderer's property the scale is kept in
+
+float draw_sdl_scale(SDL_Renderer *renderer) {
+	float scale = SDL_GetFloatProperty(SDL_GetRendererProperties(renderer), SCALE_PROPERTY, 1.0f);
+	return scale > 0.0f ? scale : 1.0f;
+}
+
+void draw_sdl_set_scale(SDL_Renderer *renderer, float scale) {
+	SDL_SetFloatProperty(SDL_GetRendererProperties(renderer), SCALE_PROPERTY, scale > 0.0f ? scale : 1.0f);
+}
+
+
+void draw_sdl_line(SDL_Renderer *renderer, float x1, float y1, float x2, float y2) {
+	float scale = draw_sdl_scale(renderer);
+	if (scale <= 1.0f || (x1 != x2 && y1 != y2)) {
+		SDL_RenderLine(renderer, x1, y1, x2, y2);
+		return;
+	}
+	SDL_FRect band = x1 == x2
+		? (SDL_FRect){ x1, fminf(y1, y2), scale, fabsf(y2 - y1) + scale }
+		: (SDL_FRect){ fminf(x1, x2), y1, fabsf(x2 - x1) + scale, scale };
+	SDL_RenderFillRect(renderer, &band);
+}
 
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color) {
 	SDL_Rect viewport;	
-	SDL_RenderGetViewport(renderer, &viewport);	
-	SDL_Rect fillRect = { .x = 0, .y = 0, .w = viewport.w, .h = viewport.h };
+	SDL_GetRenderViewport(renderer, &viewport);	
+	SDL_FRect fillRect = { 0.0f, 0.0f, (float)viewport.w, (float)viewport.h };
 	
 	SDL_Color clearColor = S9_BLACK;		
 	if(color) {
@@ -21,8 +46,7 @@ void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x
 	CHECK_PARAMETER(renderer != NULL, return);
 	CHECK_PARAMETER(texture != NULL, return);
 	
-	int texture_width, texture_height;
-	SDL_QueryTexture(texture, NULL, NULL, &texture_width, &texture_height);
+	int texture_width = texture->w, texture_height = texture->h;
 	
 	int render_x = (int)x;
 	int render_y = (int)y;
@@ -60,8 +84,8 @@ void draw_sdl_blit_texture(SDL_Renderer *renderer, SDL_Texture *texture, float x
 			break;
 	}
 	
-	SDL_Rect dst_rect = { render_x, render_y, texture_width, texture_height };
-	SDL_RenderCopy(renderer, texture, NULL, &dst_rect);
+	SDL_FRect dst_rect = { (float)render_x, (float)render_y, (float)texture_width, (float)texture_height };
+	SDL_RenderTexture(renderer, texture, NULL, &dst_rect);
 }
 
 // computes a vector of specified length perpendicular to the vector from p1 to p0
@@ -221,7 +245,7 @@ sdl_path_t *sdl_path_new(SDL_Color *color, float width, int filled, const SDL_FP
 		
 		for (uint32_t i = 0; i < path->n_draw_points; i++) {
 			path->vertices[i].position = path->draw_points[i];
-			path->vertices[i].color = path->color;
+			path->vertices[i].color = draw_sdl_fcolor(path->color);
 		}
 		
 		// compute indices for rendering triangles
@@ -259,16 +283,16 @@ int sdl_path_render(sdl_path_t *path, SDL_Renderer *renderer) {
 		
 		if(path->closed) {
 			// draw inner closed polygon
-			SDL_RenderDrawLinesF(renderer, path->draw_points, path->n_draw_points/2);
+			SDL_RenderLines(renderer, path->draw_points, path->n_draw_points/2);
 			
 			// draw outer closed polygon
-			SDL_RenderDrawLinesF(renderer, path->draw_points + (path->n_draw_points/2), path->n_draw_points/2);
+			SDL_RenderLines(renderer, path->draw_points + (path->n_draw_points/2), path->n_draw_points/2);
 		} else {			
 			// draw open polygon
-			SDL_RenderDrawLinesF(renderer, path->draw_points, path->n_draw_points);
+			SDL_RenderLines(renderer, path->draw_points, path->n_draw_points);
 			
 			// close polygon
-			SDL_RenderDrawLineF(renderer, path->draw_points[path->n_draw_points - 1].x, path->draw_points[path->n_draw_points - 1].y, path->draw_points[0].x, path->draw_points[0].y);			
+			SDL_RenderLine(renderer, path->draw_points[path->n_draw_points - 1].x, path->draw_points[path->n_draw_points - 1].y, path->draw_points[0].x, path->draw_points[0].y);			
 		}
 	}
 	
@@ -283,12 +307,12 @@ int draw_sdl_render_text_at_position(SDL_Renderer *renderer, TTF_Font *font, con
 	CHECK_PARAMETER(text != NULL, return -1);
 	
 	// create the text surface
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
-	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+	SDL_Surface *surface = TTF_RenderText_Blended(font, text, 0, color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", SDL_GetError());
 	
 	// create the texture from the surface
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	CHECK_ERROR(texture != NULL, return -1, "failed to create texture: %s", SDL_GetError());
 	
 	// blit the texture to the renderer at the specified position with the given anchor
@@ -307,17 +331,17 @@ int draw_sdl_render_text(SDL_Renderer *renderer, SDL_Texture **texture, TTF_Font
 	CHECK_PARAMETER(color != NULL, return -1);
 	CHECK_PARAMETER(text != NULL, return -1);
 	
-	SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, *color);
-	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", TTF_GetError());
+	SDL_Surface *surface = TTF_RenderText_Blended(font, text, 0, *color);
+	CHECK_ERROR(surface != NULL, return -1, "failed to create surface: %s", SDL_GetError());
 	
 	if(*texture) SDL_DestroyTexture(*texture);
 	
 	*texture = SDL_CreateTextureFromSurface(renderer, surface);
-	CHECK_ERROR(texture != NULL, SDL_FreeSurface(surface); return -1, "failed to create texture: %s", SDL_GetError());
+	CHECK_ERROR(texture != NULL, SDL_DestroySurface(surface); return -1, "failed to create texture: %s", SDL_GetError());
 	
 	if(out_width) *out_width = surface->w;
 	if(out_height) *out_height = surface->h;
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	
 	return 0;
 }
@@ -467,7 +491,7 @@ static SDL_Vertex* draw_sdl_create_circle_vertices(float r, uint32_t *out_n, SDL
 		float angle = angle_increment * (float)i;
 		vertices[i].position.x = r * cosf(angle);
 		vertices[i].position.y = r * sinf(angle);
-		vertices[i].color = color;
+		vertices[i].color = draw_sdl_fcolor(color);
 		vertices[i].tex_coord.x = 0.0f;
 		vertices[i].tex_coord.y = 0.0f;
 	}
@@ -512,15 +536,17 @@ sdl_polygon_t* frame_new(float x, float y, float width, float height, float edge
 	SDL_Vertex* vertices = (SDL_Vertex*)malloc(sizeof(SDL_Vertex) * 8);
 	CHECK_ALLOC(vertices, return NULL);
 
+	SDL_FColor fc = draw_sdl_fcolor(color);
+
 	// set up the vertices for the outer and inner rectangles
-	vertices[0] = (SDL_Vertex){{x, y}, color, {0.0f, 0.0f}};                       // top-left outer
-	vertices[1] = (SDL_Vertex){{x + width, y}, color, {0.0f, 0.0f}};               // top-right outer
-	vertices[2] = (SDL_Vertex){{x + width, y + height}, color, {0.0f, 0.0f}};      // bottom-right outer
-	vertices[3] = (SDL_Vertex){{x, y + height}, color, {0.0f, 0.0f}};              // bottom-left outer
-	vertices[4] = (SDL_Vertex){{inner_x, inner_y}, color, {0.0f, 0.0f}};           // top-left inner
-	vertices[5] = (SDL_Vertex){{inner_x + inner_width, inner_y}, color, {0.0f, 0.0f}};  // top-right inner
-	vertices[6] = (SDL_Vertex){{inner_x + inner_width, inner_y + inner_height}, color, {0.0f, 0.0f}};  // bottom-right inner
-	vertices[7] = (SDL_Vertex){{inner_x, inner_y + inner_height}, color, {0.0f, 0.0f}};  // bottom-left inner
+	vertices[0] = (SDL_Vertex){{x, y}, fc, {0.0f, 0.0f}};                       // top-left outer
+	vertices[1] = (SDL_Vertex){{x + width, y}, fc, {0.0f, 0.0f}};               // top-right outer
+	vertices[2] = (SDL_Vertex){{x + width, y + height}, fc, {0.0f, 0.0f}};      // bottom-right outer
+	vertices[3] = (SDL_Vertex){{x, y + height}, fc, {0.0f, 0.0f}};              // bottom-left outer
+	vertices[4] = (SDL_Vertex){{inner_x, inner_y}, fc, {0.0f, 0.0f}};           // top-left inner
+	vertices[5] = (SDL_Vertex){{inner_x + inner_width, inner_y}, fc, {0.0f, 0.0f}};  // top-right inner
+	vertices[6] = (SDL_Vertex){{inner_x + inner_width, inner_y + inner_height}, fc, {0.0f, 0.0f}};  // bottom-right inner
+	vertices[7] = (SDL_Vertex){{inner_x, inner_y + inner_height}, fc, {0.0f, 0.0f}};  // bottom-left inner
 
 	// allocate memory for the indices
 	int* indices = (int*)malloc(sizeof(int) * 24);
@@ -555,11 +581,13 @@ sdl_polygon_t* rect_new(float x, float y, float width, float height, SDL_Color c
 	SDL_Vertex* vertices = (SDL_Vertex*)malloc(sizeof(SDL_Vertex) * 4);
 	CHECK_ALLOC(vertices, return NULL);
 
+	SDL_FColor fc = draw_sdl_fcolor(color);
+
 	// set up the vertices for the rectangle
-	vertices[0] = (SDL_Vertex){{x, y}, color, {0.0f, 0.0f}};                       // top-left
-	vertices[1] = (SDL_Vertex){{x + width, y}, color, {0.0f, 0.0f}};               // top-right
-	vertices[2] = (SDL_Vertex){{x + width, y + height}, color, {0.0f, 0.0f}};      // bottom-right
-	vertices[3] = (SDL_Vertex){{x, y + height}, color, {0.0f, 0.0f}};              // bottom-left
+	vertices[0] = (SDL_Vertex){{x, y}, fc, {0.0f, 0.0f}};                       // top-left
+	vertices[1] = (SDL_Vertex){{x + width, y}, fc, {0.0f, 0.0f}};               // top-right
+	vertices[2] = (SDL_Vertex){{x + width, y + height}, fc, {0.0f, 0.0f}};      // bottom-right
+	vertices[3] = (SDL_Vertex){{x, y + height}, fc, {0.0f, 0.0f}};              // bottom-left
 
 	// allocate memory for the indices
 	int* indices = (int*)malloc(sizeof(int) * 6);

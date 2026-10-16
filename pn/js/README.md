@@ -7,7 +7,7 @@ The pn client for browsers and Node: the wire format (protobuf messages, CRC-16,
 ```js
 import { Client, connect, parseManifest } from "./pn.js";
 
-const manifest = parseManifest(await (await fetch("/s9.manifest")).text());
+const manifest = parseManifest(await (await fetch("/mixer.manifest")).text());
 
 const client = new Client({
   onUpdate(path, value, type) { /* type is "bool", "int", "float", "enum", or "string" */ },

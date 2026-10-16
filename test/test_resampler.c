@@ -3,7 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include "resampler.h"
 
 #ifndef M_PI
@@ -847,7 +847,7 @@ static void test_interleaved_ordering(void) {
 } while(0)
 
 int main(void) {
-	if (SDL_Init(SDL_INIT_TIMER) != 0) {
+	if (!SDL_Init(0)) {
 		fprintf(stderr, "Unable to initialize SDL: %s\n", SDL_GetError());
 		return 1;
 	}

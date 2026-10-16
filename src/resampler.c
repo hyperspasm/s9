@@ -5,7 +5,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -34,8 +34,8 @@ typedef struct resampler {
 	float *input_buf;           // interleaved samples [L0,R0,L1,R1,...]
 	uint32_t input_buf_frames;  // capacity in frames (power of 2)
 	uint32_t buf_mask;          // input_buf_frames - 1, for fast indexing
-	SDL_atomic_t write_ix;      // next write frame (audio thread)
-	SDL_atomic_t read_ix;       // next read frame (render thread)
+	SDL_AtomicInt write_ix;      // next write frame (audio thread)
+	SDL_AtomicInt read_ix;       // next read frame (render thread)
 
 	// Resampling state (shared across channels)
 	float position;             // fractional position (0.0 - 0.999...)
@@ -217,8 +217,8 @@ resampler_t *resampler_new(uint32_t channels, uint32_t buffer_size) {
 	memset(s->input_buf, 0, buffer_samples * sizeof(float));
 
 	// initialize atomics
-	SDL_AtomicSet(&s->write_ix, 0);
-	SDL_AtomicSet(&s->read_ix, 0);
+	SDL_SetAtomicInt(&s->write_ix, 0);
+	SDL_SetAtomicInt(&s->read_ix, 0);
 
 	// initialize resampling state
 	s->position = 0.0f;
@@ -250,10 +250,10 @@ uint32_t resampler_enqueue(resampler_t *sampler, const float *samples, uint32_t 
 	}
 
 	// snapshot read_ix (written by render thread)
-	uint32_t read_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->read_ix);
+	uint32_t read_ix_snap = (uint32_t)SDL_GetAtomicInt(&sampler->read_ix);
 
 	// work with local write_ix (only audio thread writes this)
-	uint32_t write_ix_local = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
+	uint32_t write_ix_local = (uint32_t)SDL_GetAtomicInt(&sampler->write_ix);
 
 	// calculate available write space (in frames)
 	// usable capacity is buf_mask (one frame kept empty)
@@ -275,7 +275,7 @@ uint32_t resampler_enqueue(resampler_t *sampler, const float *samples, uint32_t 
 	}
 
 	// publish final write_ix with release semantics
-	SDL_AtomicSet(&sampler->write_ix, (int)write_ix_local);
+	SDL_SetAtomicInt(&sampler->write_ix, (int)write_ix_local);
 
 	return to_write;
 }
@@ -294,10 +294,10 @@ uint32_t resampler_read(resampler_t *sampler, float *out, uint32_t max_frames, f
 	float increment = 1.0f / rate;
 
 	// snapshot write_ix (written by audio thread)
-	uint32_t write_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
+	uint32_t write_ix_snap = (uint32_t)SDL_GetAtomicInt(&sampler->write_ix);
 
 	// work with local read_ix (only render thread writes this)
-	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&sampler->read_ix);
+	uint32_t read_ix_local = (uint32_t)SDL_GetAtomicInt(&sampler->read_ix);
 
 	// local copy of position for processing
 	float position = sampler->position;
@@ -334,7 +334,7 @@ uint32_t resampler_read(resampler_t *sampler, float *out, uint32_t max_frames, f
 	sampler->position = position;
 
 	// publish final read_ix with release semantics
-	SDL_AtomicSet(&sampler->read_ix, (int)read_ix_local);
+	SDL_SetAtomicInt(&sampler->read_ix, (int)read_ix_local);
 
 	return written;
 }

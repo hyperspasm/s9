@@ -1,7 +1,7 @@
 #ifndef s9_colors_h
 #define s9_colors_h
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #define S9_ORANGE    (SDL_Color){ .r = 0xff, .g = 0xa5, .b = 0x00, .a = 0xff }
 #define S9_LIME      (SDL_Color){ .r = 0x55, .g = 0xff, .b = 0x00, .a = 0xff }

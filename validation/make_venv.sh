@@ -7,4 +7,6 @@ cd "$(dirname "$0")"
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
-pip install -e ".[dev]"
+# torch from PyTorch's CPU index first: the default wheel drags in gigabytes of CUDA libraries that no Pi can use
+pip install --index-url https://download.pytorch.org/whl/cpu torch torchaudio
+pip install -e ".[dev,tracker]"

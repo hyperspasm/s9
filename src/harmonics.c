@@ -19,7 +19,8 @@ struct harmonics {
 	harmonics_config_t config;
 	int config_changed;              // applied at the next frame
 
-	fundamental_t *tracker;        // whose spectrum and fundamental the harmonics are of
+	fft_analyzer_t *spectrum;      // whose transform the harmonics are read from
+	float *curve;                  // its latest magnitudes in dB, the curve drawn
 	harmonic_reader_t *reader;
 	uint32_t buffer_len;             // the transform length db is sized for
 	float *db;                       // the averaged spectrum, per bin: what the readings come from
@@ -90,13 +91,13 @@ static void free_drawing(harmonics_t *h) {
 	h->renderer = NULL;
 }
 
-harmonics_t *harmonics_new(const harmonics_config_t *config, fundamental_t *tracker) {
-	CHECK_PARAMETER(tracker != NULL, return NULL);
+harmonics_t *harmonics_new(const harmonics_config_t *config, fft_analyzer_t *spectrum) {
+	CHECK_PARAMETER(spectrum != NULL, return NULL);
 	harmonics_t *h = malloc(sizeof(harmonics_t));
 	CHECK_ALLOC(h, return NULL);
 	memset(h, 0, sizeof(*h));
 
-	h->tracker = tracker;
+	h->spectrum = spectrum;
 	harmonics_set_config(h, config);
 	h->config_changed = 0;
 
@@ -111,6 +112,7 @@ void harmonics_free(harmonics_t **h) {
 		free_drawing(*h);
 		free((*h)->reader);
 		free((*h)->db);
+		free((*h)->curve);
 		free(*h);
 		*h = NULL;
 	}
@@ -127,7 +129,7 @@ int harmonics_get_thd(const harmonics_t *h, float *thd) {
 // -- streaming
 
 void harmonics_prepare_to_stream(harmonics_t *h, const s9_audio_stream_config_t *stream_config) {
-	(void)stream_config;   // the tracker has the audio
+	(void)stream_config;   // the analyzer has the audio
 	harmonic_reader_reset(h->reader);
 	h->fundamental_valid = false;
 	h->fundamental_frequency = 0.0f;
@@ -141,7 +143,7 @@ void harmonics_stop_streaming(harmonics_t *h) {
 
 // -- analysis
 
-// the axis' fundamental: the tracker's, or the configured one before it has locked
+// the axis' fundamental: the last given, or the configured one before any
 static double axis_f0(const harmonics_t *h) {
 	return h->fundamental_frequency > 0.0f ? h->fundamental_frequency : h->config.initial_f0;
 }
@@ -152,36 +154,41 @@ static double axis_end(const harmonics_t *h, double f0, double fs) {
 	return f_end > fs / 2.0 ? fs / 2.0 : f_end;
 }
 
-// the tracker's fundamental, and the harmonics read from its averaged spectrum
-static int analyze(harmonics_t *h) {
-	fundamental_t *t = h->tracker;
-	uint32_t n = fundamental_fft_len(t), bins = n / 2 + 1;
-	float fs = (float)fundamental_sample_rate(t);
+// the harmonics read from the analyzer's averaged spectrum at the fundamental given
+static int analyze(harmonics_t *h, float fundamental_hz, bool valid) {
+	fft_analyzer_t *fa = h->spectrum;
+	uint32_t n = fft_analyzer_fft_len(fa), bins = n / 2 + 1;
+	float fs = (float)fft_analyzer_sample_rate(fa);
+	if (n == 0 || fft_analyzer_transform_len(fa) != n) return -1;   // a padded transform is not read
 
 	if (h->buffer_len != n) {
-		free(h->db);
+		free(h->db); free(h->curve);
 		h->db = malloc(sizeof(float) * bins);
-		h->buffer_len = h->db ? n : 0;
+		h->curve = malloc(sizeof(float) * bins);
+		h->buffer_len = h->db && h->curve ? n : 0;
 		CHECK_ALLOC(h->db, return -1);
+		CHECK_ALLOC(h->curve, return -1);
 	}
-	// the reader's model of the window follows the tracker's window
-	window_function_t function = fundamental_window_function(t);
+	// the reader's model of the window follows the analyzer's window
+	window_function_t function = fft_analyzer_config(fa)->window_function;
 	if (h->reader_window_len != n || h->reader_window_function != function) {
-		harmonic_reader_set_window(h->reader, fundamental_window(t), n);
+		harmonic_reader_set_window(h->reader, fft_analyzer_window(fa), n);
 		h->reader_window_len = n;
 		h->reader_window_function = function;
 	}
 
-	h->fundamental_valid = fundamental_valid(t);
-	h->fundamental_frequency = fundamental_frequency(t);
+	h->fundamental_valid = valid;
+	h->fundamental_frequency = fundamental_hz;
 
-	// the curve shows the tracker's latest magnitudes; the harmonics are read from the average
-	if (!fundamental_magnitude_db(t)) return -1;
-	const float *bins_re_im = fundamental_bins(t);
-	harmonic_power_db(fundamental_power(t), bins, n, h->db);
+	// the curve shows the latest magnitudes; the harmonics are read from the average
+	const float *bins_re_im = fft_analyzer_spectrum(fa, 0);
+	const float *power = fft_analyzer_power(fa, 0);
+	if (!bins_re_im || !power) return -1;
+	harmonic_magnitude_db(bins_re_im, bins, n, h->curve);
+	harmonic_power_db(power, bins, n, h->db);
 	harmonic_reader_update(h->reader, h->db, bins_re_im, n, fs / n, h->fundamental_frequency, h->fundamental_valid,
-						   fundamental_average_fraction(t), fundamental_hop_seconds(t));
-	if (harmonic_reader_restarted(h->reader)) fundamental_restart_average(t);   // a new note: the average too
+						   fft_analyzer_average_fraction(fa), fft_analyzer_hop_seconds(fa));
+	if (harmonic_reader_restarted(h->reader)) fft_analyzer_reset_power(fa);   // a new note: the average too
 	return 0;
 }
 
@@ -196,19 +203,21 @@ static void draw_graticule(harmonics_t *h, SDL_Renderer *renderer) {
 	int axis_label_w, axis_label_h;
 	graph_db_axis_measure(&axis, h->font, &axis_label_w, &axis_label_h);
 
-	int left = axis_label_w + LABEL_MARGIN + GRAPH_MARGIN;
-	int top = axis_label_h + LABEL_MARGIN + GRAPH_MARGIN;       // the header's line
-	int bottom = axis_label_h + LABEL_MARGIN + GRAPH_MARGIN;    // the harmonic numbers' line
-	int right = GRAPH_MARGIN;
+	float scale = draw_sdl_scale(renderer);
+	int label_margin = (int)lround(LABEL_MARGIN * scale), graph_margin = (int)lround(GRAPH_MARGIN * scale);
+	int left = axis_label_w + label_margin + graph_margin;
+	int top = axis_label_h + label_margin + graph_margin;       // the header's line
+	int bottom = axis_label_h + label_margin + graph_margin;    // the harmonic numbers' line
+	int right = graph_margin;
 	h->plot_rect = (SDL_Rect){ left, top, h->viewport.w - left - right, h->viewport.h - top - bottom };
 
 	// lines go into the texture as they are, alpha included, so they blend
 	// onto the screen once, exactly as the markers drawn there do
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-	graph_db_axis_draw(&axis, renderer, h->font, &h->plot_rect, LABEL_MARGIN);
+	graph_db_axis_draw(&axis, renderer, h->font, &h->plot_rect, label_margin);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-	sdl_polygon_t *frame = frame_new_from_rect(h->plot_rect, 2.0, h->config.major_color);
+	sdl_polygon_t *frame = frame_new_from_rect(h->plot_rect, 2.0f * scale, h->config.major_color);
 	if (frame) {
 		SDL_RENDER_GEOMETRY_POLYGON(renderer, frame);
 		sdl_polygon_free(&frame);
@@ -217,20 +226,20 @@ static void draw_graticule(harmonics_t *h, SDL_Renderer *renderer) {
 
 static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
-	if (h->renderer == renderer && SDL_RectEquals(&h->viewport, &viewport)) return;
+	SDL_GetRenderViewport(renderer, &viewport);
+	if (h->renderer == renderer && SDL_RectsEqual(&h->viewport, &viewport)) return;
 
 	free_drawing(h);
 	h->renderer = renderer;
 	h->viewport = viewport;
 
-	h->font = s9_open_font(FONT_SIZE);
+	h->font = s9_open_font(FONT_SIZE * draw_sdl_scale(renderer));
 	CHECK_ERROR(h->font != NULL, return, "unable to create font");
 
 	h->graticule = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, viewport.w, viewport.h);
 	CHECK_ALLOC(h->graticule, return);
-	CHECK_ERROR(SDL_SetTextureBlendMode(h->graticule, SDL_BLENDMODE_BLEND) == 0, free_drawing(h); return, "could not set blend mode");
-	CHECK_ERROR(SDL_SetRenderTarget(renderer, h->graticule) == 0, free_drawing(h); return, "could not set render target");
+	CHECK_ERROR(SDL_SetTextureBlendMode(h->graticule, SDL_BLENDMODE_BLEND), free_drawing(h); return, "could not set blend mode");
+	CHECK_ERROR(SDL_SetRenderTarget(renderer, h->graticule), free_drawing(h); return, "could not set render target");
 	draw_graticule(h, renderer);
 	SDL_SetRenderTarget(renderer, NULL);
 
@@ -248,7 +257,7 @@ static void prepare_to_draw(harmonics_t *h, SDL_Renderer *renderer) {
 // loudest bin in each column, or the level between bins where a column
 // holds none
 static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t bins) {
-	const float *db = fundamental_magnitude_db(h->tracker);
+	const float *db = h->curve;
 	int w = h->plot_rect.w;
 	float floor_db = (float)h->config.min_db - 10.0f;   // off the bottom of the plot
 	for (int i = 0; i < w; i++) {
@@ -277,15 +286,16 @@ static void reduce_plot(harmonics_t *h, double f_end, double delta_f, uint32_t b
 }
 
 static void draw(harmonics_t *h, SDL_Renderer *renderer) {
-	uint32_t n = fundamental_fft_len(h->tracker), bins = n / 2 + 1;
-	double fs = fundamental_sample_rate(h->tracker);
+	uint32_t n = fft_analyzer_fft_len(h->spectrum), bins = n / 2 + 1;
+	double fs = fft_analyzer_sample_rate(h->spectrum);
 	double delta_f = fs / n;
 	double f0 = axis_f0(h);
 	double f_end = axis_end(h, f0, fs);
 
 	SDL_Rect save_viewport;
-	SDL_RenderGetViewport(renderer, &save_viewport);
+	SDL_GetRenderViewport(renderer, &save_viewport);
 	const SDL_Rect *plot = &h->plot_rect;
+	float scale = draw_sdl_scale(renderer), label_margin = LABEL_MARGIN * scale;
 
 	// the spectrum, clipped to the plot
 	reduce_plot(h, f_end, delta_f, bins);
@@ -293,16 +303,16 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 	for (int i = 0; i < plot->w; i++)
 		h->points[i] = (SDL_FPoint){ (float)i, ((float)h->config.max_db - h->plot[i]) * db_scale };
 	SDL_Rect plot_viewport = { save_viewport.x + plot->x, save_viewport.y + plot->y, plot->w, plot->h };
-	SDL_RenderSetViewport(renderer, &plot_viewport);
-	sdl_path_t *path = sdl_path_new(&h->config.plot_color, h->config.plot_width, 1, h->points, plot->w);
+	SDL_SetRenderViewport(renderer, &plot_viewport);
+	sdl_path_t *path = sdl_path_new(&h->config.plot_color, h->config.plot_width * scale, 1, h->points, plot->w);
 	if (path) {
 		sdl_path_render(path, renderer);
 		sdl_path_free(&path);
 	}
-	SDL_RenderSetViewport(renderer, &save_viewport);
+	SDL_SetRenderViewport(renderer, &save_viewport);
 
-	SDL_Rect dst = { 0, 0, h->viewport.w, h->viewport.h };
-	SDL_RenderCopy(renderer, h->graticule, NULL, &dst);
+	SDL_FRect dst = { 0.0f, 0.0f, (float)h->viewport.w, (float)h->viewport.h };
+	SDL_RenderTexture(renderer, h->graticule, NULL, &dst);
 
 	// markers and numbers at the harmonics on the axis
 	uint32_t count = h->config.reader.harmonics;
@@ -312,10 +322,10 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		double fk = k * f0;
 		if (fk > f_end) break;
 		float x = plot->x + (float)(plot->w * fk / f_end);
-		SDL_RenderDrawLineF(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
+		draw_sdl_line(renderer, x, (float)plot->y, x, (float)(plot->y + plot->h));
 		snprintf(text, sizeof(text), "%u", (unsigned)k);
 		label_set(&h->numbers[k - 1], renderer, h->font, h->config.major_color, text);
-		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
+		label_blit(&h->numbers[k - 1], renderer, x, (float)(plot->y + plot->h) + label_margin, ANCHOR_TOP_MIDDLE);
 	}
 
 	// the levels and phases relative to the fundamental's, while locked and the fundamental read
@@ -338,8 +348,8 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		label_set(&h->degrees[k - 1], renderer, h->font, h->config.readout_color, degrees);
 		if (k * f0 <= f_end) {
 			float x = plot->x + (float)(plot->w * k * f0 / f_end);
-			label_blit(&h->readouts[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN), ANCHOR_TOP_MIDDLE);
-			label_blit(&h->degrees[k - 1], renderer, x, (float)(plot->y + LABEL_MARGIN + h->readouts[k - 1].h), ANCHOR_TOP_MIDDLE);
+			label_blit(&h->readouts[k - 1], renderer, x, (float)plot->y + label_margin, ANCHOR_TOP_MIDDLE);
+			label_blit(&h->degrees[k - 1], renderer, x, (float)(plot->y + h->readouts[k - 1].h) + label_margin, ANCHOR_TOP_MIDDLE);
 		}
 	}
 
@@ -352,14 +362,14 @@ static void draw(harmonics_t *h, SDL_Renderer *renderer) {
 		snprintf(text, sizeof(text), "%.2f Hz   H1 %.1f dB   THD %.3f %%", f0, h1->readout.db, 100.0 * thd);
 	}
 	label_set(&h->header, renderer, h->font, h->fundamental_valid ? h->config.readout_color : h->config.held_color, text);
-	label_blit(&h->header, renderer, (float)plot->x, (float)(plot->y - LABEL_MARGIN), ANCHOR_BOTTOM_LEFT);
+	label_blit(&h->header, renderer, (float)plot->x, (float)plot->y - label_margin, ANCHOR_BOTTOM_LEFT);
 }
 
-void harmonics_render(harmonics_t *h, SDL_Renderer *renderer) {
-	if (!fundamental_streaming(h->tracker)) return;
+void harmonics_render(harmonics_t *h, SDL_Renderer *renderer, float fundamental_hz, bool valid) {
+	if (!fft_analyzer_streaming(h->spectrum)) return;
 	apply_config(h);
 	prepare_to_draw(h, renderer);
 	if (!h->graticule || !h->plot) return;
-	if (analyze(h) != 0) return;
+	if (analyze(h, fundamental_hz, valid) != 0) return;
 	draw(h, renderer);
 }

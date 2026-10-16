@@ -1,59 +1,59 @@
-# pn manifest v1 mixer fnv1a32=0c4bf978
-mixer/master_gain float 0xc2900000 0x40c00000 0x3dcccccd
+# pn manifest v1 mixer fnv1a32=79a5d7c2
+mixer/master_gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/master_mute bool
-mixer/ch1/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch1/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch1/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch1/input enum mic|line
 mixer/ch1/eq/enabled bool
-mixer/ch1/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch1/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch1/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch2/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch1/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch1/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch1/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch2/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch2/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch2/input enum mic|line
 mixer/ch2/eq/enabled bool
-mixer/ch2/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch2/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch2/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch3/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch2/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch2/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch2/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch3/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch3/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch3/input enum mic|line
 mixer/ch3/eq/enabled bool
-mixer/ch3/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch3/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch3/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch4/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch3/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch3/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch3/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch4/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch4/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch4/input enum mic|line
 mixer/ch4/eq/enabled bool
-mixer/ch4/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch4/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch4/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch5/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch4/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch4/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch4/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch5/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch5/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch5/input enum mic|line
 mixer/ch5/eq/enabled bool
-mixer/ch5/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch5/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch5/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch6/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch5/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch5/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch5/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch6/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch6/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch6/input enum mic|line
 mixer/ch6/eq/enabled bool
-mixer/ch6/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch6/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch6/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch7/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch6/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch6/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch6/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch7/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch7/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch7/input enum mic|line
 mixer/ch7/eq/enabled bool
-mixer/ch7/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch7/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch7/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch8/gain float 0xc2900000 0x40c00000 0x3dcccccd
+mixer/ch7/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch7/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch7/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch8/gain float:dB 0xc2900000 0x40c00000 0x3dcccccd
 mixer/ch8/pan float 0xbf800000 0x3f800000 0x3c23d70a
 mixer/ch8/input enum mic|line
 mixer/ch8/eq/enabled bool
-mixer/ch8/eq/bass float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch8/eq/mid float 0xc1400000 0x41400000 0x3dcccccd
-mixer/ch8/eq/treble float 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch8/eq/bass float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch8/eq/mid float:dB 0xc1400000 0x41400000 0x3dcccccd
+mixer/ch8/eq/treble float:dB 0xc1400000 0x41400000 0x3dcccccd

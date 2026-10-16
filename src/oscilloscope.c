@@ -6,6 +6,8 @@
 #include "scope_display.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define FAST_MODE_SWEEPS_PER_SEC	10.0f   // sweeps faster than this rate use fast mode
 #define FAST_MODE_HOLD_TIME			0.0667f // seconds to keep displaying last sweep while waiting for next
@@ -160,7 +162,7 @@ static void build_and_render_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 	}
 
 	sdl_path_free(&osc->path);
-	osc->path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width, 1, points, n_pixels);
+	osc->path = sdl_path_new(&osc->config.trace_color, osc->config.trace_width * draw_sdl_scale(renderer), 1, points, n_pixels);
 	free(points);
 
 	if(osc->path) {
@@ -218,7 +220,7 @@ static void render_gradient_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 
 	uint32_t n_verts = 2 * n_pixels;
 	uint32_t n_indices = (n_pixels - 1) * 6;
-	float half_width = 0.5f * osc->config.trace_width;
+	float half_width = 0.5f * osc->config.trace_width * draw_sdl_scale(renderer);
 
 	SDL_Vertex *vertices = (SDL_Vertex *) malloc(n_verts * sizeof(SDL_Vertex));
 	CHECK_ALLOC(vertices, return);
@@ -263,14 +265,14 @@ static void render_gradient_path(oscilloscope_t *osc, SDL_Renderer *renderer,
 		// inner edge (index i)
 		vertices[i] = (SDL_Vertex){
 			.position = { cx + dx, cy - dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 
 		// outer edge (reversed, matching sdl_path_new layout)
 		vertices[n_verts - 1 - i] = (SDL_Vertex){
 			.position = { cx - dx, cy + dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 

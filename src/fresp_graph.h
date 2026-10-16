@@ -1,7 +1,7 @@
 #ifndef fresp_graph_h
 #define fresp_graph_h
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "s9_colors.h"
 

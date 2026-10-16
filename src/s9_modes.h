@@ -6,7 +6,7 @@
 
 typedef enum {
 	S9_MODE_FULL,
-	S9_MODE_SCOPE,
+	S9_MODE_OSCILLOSCOPE,
 	S9_MODE_SPECTRUM,
 	S9_MODE_PERIODIC,
 	S9_MODE_SPECTROGRAM,
@@ -15,7 +15,7 @@ typedef enum {
 
 static const char *const s9_mode_names[S9_MODE_COUNT] = {
 	[S9_MODE_FULL]        = "full",
-	[S9_MODE_SCOPE]       = "scope",
+	[S9_MODE_OSCILLOSCOPE] = "oscilloscope",
 	[S9_MODE_SPECTRUM]    = "spectrum",
 	[S9_MODE_PERIODIC]    = "periodic",
 	[S9_MODE_SPECTROGRAM] = "spectrogram",

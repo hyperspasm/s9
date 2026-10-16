@@ -3,8 +3,11 @@
 #include "s9.h"
 #include "resampler.h"
 #include "scope_display.h"
+#include "draw_sdl.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 typedef struct {
 	float amp_per_div;
@@ -121,7 +124,7 @@ static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *rend
 
 	uint32_t n_verts = 2 * n_points;
 	uint32_t n_indices = (n_points - 1) * 6;
-	float half_width = 0.5f * liss->config.trace_width;
+	float half_width = 0.5f * liss->config.trace_width * draw_sdl_scale(renderer);
 
 	SDL_Vertex *vertices = (SDL_Vertex *) malloc(n_verts * sizeof(SDL_Vertex));
 	CHECK_ALLOC(vertices, return);
@@ -166,14 +169,14 @@ static void render_gradient_path_lissajous(lissajous_t *liss, SDL_Renderer *rend
 		// inner edge (index i)
 		vertices[i] = (SDL_Vertex){
 			.position = { cx + dx, cy + dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 
 		// outer edge (reversed)
 		vertices[n_verts - 1 - i] = (SDL_Vertex){
 			.position = { cx - dx, cy - dy },
-			.color = c,
+			.color = draw_sdl_fcolor(c),
 			.tex_coord = { 0, 0 }
 		};
 

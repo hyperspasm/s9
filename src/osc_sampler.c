@@ -6,7 +6,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL2/SDL_atomic.h>
+#include <SDL3/SDL_atomic.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -53,8 +53,8 @@ struct osc_sampler {
 	float *input_buf;
 	uint32_t input_buf_size;  // always a power of two
 	uint32_t buf_mask;        // input_buf_size - 1, for fast modular indexing
-	SDL_atomic_t write_ix;    // next write position (advanced by audio thread)
-	SDL_atomic_t read_ix;     // next read position (advanced by render thread)
+	SDL_AtomicInt write_ix;    // next write position (advanced by audio thread)
+	SDL_AtomicInt read_ix;     // next read position (advanced by render thread)
 
 	// resampler configuration
 	uint32_t N;         // convolution length (filter taps)
@@ -268,7 +268,7 @@ static int phase_crossing(const osc_sampler_t *s, uint32_t read_ix_local, uint32
 static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 	if (s->trig_state == trig_state_sweep) return;
 
-	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&s->read_ix);
+	uint32_t read_ix_local = (uint32_t)SDL_GetAtomicInt(&s->read_ix);
 	uint32_t read_ix_start = read_ix_local;
 	float threshold = s->settings.trig_thresh;
 	int slope = s->settings.trig_slope;
@@ -408,7 +408,7 @@ static void trigger_scan(osc_sampler_t *s, uint32_t write_ix_snap) {
 
 done:
 	s->consumed += (read_ix_local - read_ix_start) & s->buf_mask;
-	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
+	SDL_SetAtomicInt(&s->read_ix, (int)read_ix_local);
 }
 
 // resample from input buffer to output buffer, applying gain
@@ -430,10 +430,10 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 	uint32_t min_samples = s->N;
 
 	// snapshot write_ix once (written by audio thread)
-	uint32_t write_ix_snap = (uint32_t)SDL_AtomicGet(&s->write_ix);
+	uint32_t write_ix_snap = (uint32_t)SDL_GetAtomicInt(&s->write_ix);
 
 	// work with local read_ix (only render thread writes this)
-	uint32_t read_ix_local = (uint32_t)SDL_AtomicGet(&s->read_ix);
+	uint32_t read_ix_local = (uint32_t)SDL_GetAtomicInt(&s->read_ix);
 	uint32_t read_ix_start = read_ix_local;
 
 	uint32_t written = 0;
@@ -461,7 +461,7 @@ static uint32_t resample_read(osc_sampler_t *s, float *out, uint32_t count, floa
 
 	// publish final read_ix with release semantics
 	s->consumed += (read_ix_local - read_ix_start) & s->buf_mask;
-	SDL_AtomicSet(&s->read_ix, (int)read_ix_local);
+	SDL_SetAtomicInt(&s->read_ix, (int)read_ix_local);
 
 	return written;
 }
@@ -518,8 +518,8 @@ osc_sampler_t *osc_sampler_new(uint32_t sample_rate, uint32_t buffer_size) {
 	sampler->buf_mask = pow2 - 1;
 
 	// initialize atomic indices
-	SDL_AtomicSet(&sampler->write_ix, 0);
-	SDL_AtomicSet(&sampler->read_ix, 0);
+	SDL_SetAtomicInt(&sampler->write_ix, 0);
+	SDL_SetAtomicInt(&sampler->read_ix, 0);
 
 	// initialize trigger state
 	sampler->trig_state = trig_state_pre_trigger;
@@ -560,10 +560,10 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 	if (!sampler || !samples || frames == 0) return 0;
 
 	// snapshot read_ix (written by render thread)
-	uint32_t read_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->read_ix);
+	uint32_t read_ix_snap = (uint32_t)SDL_GetAtomicInt(&sampler->read_ix);
 
 	// work with local write_ix (only audio thread writes this)
-	uint32_t write_ix_local = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
+	uint32_t write_ix_local = (uint32_t)SDL_GetAtomicInt(&sampler->write_ix);
 
 	// calculate available write space
 	// usable capacity is buf_mask (input_buf_size - 1, one slot kept empty)
@@ -596,7 +596,7 @@ uint32_t osc_sampler_enqueue(osc_sampler_t *sampler, const float *samples, uint3
 	}
 
 	// publish final write_ix with release semantics
-	SDL_AtomicSet(&sampler->write_ix, (int)write_ix_local);
+	SDL_SetAtomicInt(&sampler->write_ix, (int)write_ix_local);
 
 	return to_write;
 }
@@ -605,7 +605,7 @@ uint32_t osc_sampler_read_pixels(osc_sampler_t *sampler, float *out, uint32_t ma
                                   float pixel_rate, float gain, int *triggered) {
 	if (!sampler || !out || pixel_rate <= 0.0f) return 0;
 
-	uint32_t write_ix_snap = (uint32_t)SDL_AtomicGet(&sampler->write_ix);
+	uint32_t write_ix_snap = (uint32_t)SDL_GetAtomicInt(&sampler->write_ix);
 
 	// advance trigger state machine
 	trigger_scan(sampler, write_ix_snap);

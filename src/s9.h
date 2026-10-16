@@ -2,6 +2,7 @@
 #define s9_h
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "s9_log.h"

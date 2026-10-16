@@ -77,5 +77,5 @@ void tuner_strip_render(tuner_strip_t *t, SDL_Renderer *renderer, const note_t *
 		else snprintf(text, sizeof(text), "%s %+.1f", name, tenths);
 		marker = position(note->cents);
 	}
-	strip_render(t->strip, renderer, text, ticks, count, marker, valid);
+	strip_render(t->strip, renderer, text, ticks, count, marker, valid, -1.0f);
 }

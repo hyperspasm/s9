@@ -1,5 +1,6 @@
 #include "template.h"
 #include "s9.h"
+#include <stdlib.h>
 
 typedef struct template {
 	SDL_Renderer *renderer;
@@ -31,9 +32,9 @@ void template_free(template_t **tp) {
 
 static S9_FORCE_INLINE void prepare_to_draw(template_t *tp, SDL_Renderer *renderer) {
 	SDL_Rect viewport;	
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 	
-	if(tp->renderer != renderer || !SDL_RectEquals(&tp->viewport, &viewport)) {
+	if(tp->renderer != renderer || !SDL_RectsEqual(&tp->viewport, &viewport)) {
 		tp->renderer = renderer;
 		tp->viewport = viewport;		
 		

@@ -1,0 +1,9 @@
+Copyright (c) 2024-2026 Shea Ako. All rights reserved.
+
+s9 is shared by its author with the people it is given to. No license to
+copy, modify or redistribute it is granted yet; one is still to be chosen.
+
+The third-party components compiled into s9 carry their own licenses,
+listed in packaging/copyright: PFFFT (the FFTPACK license), nanopb (zlib),
+the Roboto font (Apache 2.0), and the color scales from matplotlib (CC0)
+and seaborn (BSD).

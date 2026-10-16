@@ -1,8 +1,8 @@
 #ifndef template_h
 #define template_h
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 typedef struct template template_t;
 

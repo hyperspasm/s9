@@ -62,6 +62,12 @@ void load_config_file(s9_app_config_t *config, s9_home_t *home) {
 			config->audio_device[strcspn(config->audio_device, "\n")] = '\0';
 			continue;
 		}
+		if (strncmp(line, "audio_driver=", 13) == 0) {
+			free(config->audio_driver);
+			config->audio_driver = strdup(line + 13);
+			config->audio_driver[strcspn(config->audio_driver, "\n")] = '\0';
+			continue;
+		}
 		if (strncmp(line, "www_dir=", 8) == 0) {
 			free(config->www_dir);
 			config->www_dir = strdup(line + 8);
@@ -83,6 +89,7 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "  -h, --window_height <height>     Set window height (default: %d)\n", DEFAULT_WINDOW_HEIGHT);
 	fprintf(stdout, "  -l, --log_level <log_level>      Set log level (default: %d)\n", DEFAULT_LOG_LEVEL);
 	fprintf(stdout, "  -a, --audio_device <device name> Set audio device\n");
+	fprintf(stdout, "  -d, --audio_driver <driver name> Set the audio driver, by SDL's name for it (default: SDL's choice)\n");
 	fprintf(stdout, "  -r, --sample_rate <rate>         Set sample rate (default: %d)\n", DEFAULT_SAMPLE_RATE);
 	fprintf(stdout, "  -p, --port <port>                Set the parameter server and web interface port (default: %d)\n", DEFAULT_PORT);
 	fprintf(stdout, "  --www_dir <dir>                  Serve the web interface from a directory instead of the built-in files\n");
@@ -97,6 +104,7 @@ void print_help(const char *prog_name) {
 	fprintf(stdout, "    log_level=<log_level>\n");
 	fprintf(stdout, "    sample_rate=<rate>\n");
 	fprintf(stdout, "    audio_device=<device name>\n");
+	fprintf(stdout, "    audio_driver=<driver name>\n");
 	fprintf(stdout, "    port=<port>\n");
 	fprintf(stdout, "    www_dir=<dir>\n");
 }
@@ -113,6 +121,7 @@ void log_config_options(const s9_app_config_t *config) {
 	} else {
 		S9_LOG_INFO("  audio_device: (default)");
 	}
+	S9_LOG_INFO("  audio_driver: %s", config->audio_driver ? config->audio_driver : "(SDL's choice)");
 	S9_LOG_INFO("  port: %hu", config->port);
 	S9_LOG_INFO("  www_dir: %s", config->www_dir ? config->www_dir : "(built-in)");
 }
@@ -127,6 +136,7 @@ int main(int argc, const char * argv[]) {
 		.window_width = DEFAULT_WINDOW_WIDTH,
 		.window_height = DEFAULT_WINDOW_HEIGHT,
 		.audio_device = NULL,
+		.audio_driver = NULL,
 		.sample_rate = DEFAULT_SAMPLE_RATE,
 		.port = DEFAULT_PORT,
 		.www_dir = NULL, // built-in files
@@ -153,6 +163,7 @@ int main(int argc, const char * argv[]) {
 		{"window_height", required_argument, 0, 'h'},
 		{"log_level", required_argument, 0, 'l'},
 		{"audio_device", required_argument, 0, 'a'},
+		{"audio_driver", required_argument, 0, 'd'},
 		{"sample_rate", required_argument, 0, 'r'},
 		{"port", required_argument, 0, 'p'},
 		{0, 0, 0, 0}
@@ -161,7 +172,7 @@ int main(int argc, const char * argv[]) {
 	// parse command line arguments
 	int opt;
 	int long_index = 0;
-	while ((opt = getopt_long(argc, (char * const *)argv, "w:h:l:a:r:p:", long_options, &long_index)) != -1) {
+	while ((opt = getopt_long(argc, (char * const *)argv, "w:h:l:a:d:r:p:", long_options, &long_index)) != -1) {
 		switch (opt) {
 			case 0:
 				if (strcmp("help", long_options[long_index].name) == 0) {
@@ -193,6 +204,10 @@ int main(int argc, const char * argv[]) {
 				if(config.audio_device) free(config.audio_device); // free previous value if any
 				config.audio_device = strdup(optarg);
 				break;
+			case 'd':
+				free(config.audio_driver);
+				config.audio_driver = strdup(optarg);
+				break;
 			case 'r':
 				config.sample_rate = atoi(optarg);
 				break;
@@ -213,6 +228,7 @@ int main(int argc, const char * argv[]) {
 
 	s9_home_free(&home);
 	free(config.audio_device);
+	free(config.audio_driver);
 	free(config.www_dir);
 
 	return ret >= 0 ? 0 : ret;

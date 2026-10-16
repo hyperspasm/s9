@@ -1,5 +1,36 @@
 cmake_minimum_required(VERSION 3.16)
-project(s9 VERSION 0.1.0 LANGUAGES C)
+
+# The version comes from git: the last tag of the form vX.Y.Z; a commit past
+# it adds the count and the hash (0.0.1+3.g9734b76), which apt orders after
+# the tag and before the next; uncommitted changes add +dirty. Read when
+# CMake configures, which a commit triggers again; a new tag needs
+# `cmake -S . -B build`. Without git, 0.0.0.
+execute_process(
+    COMMAND git describe --tags --match "v*" --dirty
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    OUTPUT_VARIABLE S9_DESCRIBE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE S9_DESCRIBE_RESULT
+)
+if(S9_DESCRIBE_RESULT EQUAL 0 AND S9_DESCRIBE MATCHES "^v([0-9]+\\.[0-9]+\\.[0-9]+)(-([0-9]+)-g([0-9a-f]+))?(-dirty)?$")
+    set(S9_VERSION_NUMBER ${CMAKE_MATCH_1})
+    set(S9_VERSION ${CMAKE_MATCH_1})
+    if(CMAKE_MATCH_3)
+        string(APPEND S9_VERSION "+${CMAKE_MATCH_3}.g${CMAKE_MATCH_4}")
+    endif()
+    if(CMAKE_MATCH_5)
+        string(APPEND S9_VERSION "+dirty")
+    endif()
+else()
+    set(S9_VERSION_NUMBER 0.0.0)
+    set(S9_VERSION 0.0.0)
+endif()
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/logs/HEAD)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS .git/logs/HEAD)
+endif()
+
+project(s9 VERSION ${S9_VERSION_NUMBER} LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -18,10 +49,32 @@ set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 
 # Find dependencies using pkg-config (with IMPORTED_TARGET for proper dependency management)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
-pkg_check_modules(SDL2_TTF REQUIRED IMPORTED_TARGET SDL2_ttf)
-pkg_check_modules(FFTW3F REQUIRED IMPORTED_TARGET fftw3f)
+pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
+pkg_check_modules(SDL3_TTF REQUIRED IMPORTED_TARGET sdl3-ttf)
 pkg_check_modules(LWS REQUIRED IMPORTED_TARGET libwebsockets)
+
+# Workaround: libwebsockets.h includes the headers of the TLS library libwebsockets was built
+# with, but libwebsockets' pkg-config file need not name that library. Where its headers are
+# outside the compiler's default include path, as Homebrew's are, libwebsockets.h does not
+# compile from PkgConfig::LWS alone. OpenSSL is the usual TLS library, so its include path is
+# added when pkg-config knows it; nothing here calls OpenSSL, so its libraries are not linked.
+pkg_check_modules(OPENSSL QUIET openssl)
+if(OPENSSL_FOUND)
+    set_property(TARGET PkgConfig::LWS APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${OPENSSL_INCLUDE_DIRS})
+endif()
+# The requirement itself, whichever TLS library that is
+include(CheckCSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES PkgConfig::LWS)
+check_c_source_compiles("#include <libwebsockets.h>\nint main(void) { return 0; }" LWS_HEADER_COMPILES)
+unset(CMAKE_REQUIRED_LIBRARIES)
+if(NOT LWS_HEADER_COMPILES)
+    message(FATAL_ERROR "libwebsockets.h does not compile: it includes the headers of the TLS library libwebsockets was built with, which must be installed and on the include path")
+endif()
+
+# PFFFT, the FFT, compiled in from its one source file (see extern/pffft/pffft.h for its license)
+add_library(pffft STATIC extern/pffft/pffft.c)
+target_include_directories(pffft PUBLIC extern/pffft)
+target_compile_options(pffft PRIVATE -w)   # vendored as is
 
 # Tests
 include(CTest)
@@ -65,14 +118,14 @@ add_custom_target(s9_git_version
 )
 add_dependencies(s9 s9_git_version)
 target_include_directories(s9 PRIVATE ${CMAKE_BINARY_DIR}/generated)
-target_compile_definitions(s9 PRIVATE S9_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(s9 PRIVATE S9_VERSION="${S9_VERSION}")
 
 # Link using imported targets (handles includes, library dirs, and dependencies automatically)
 target_link_libraries(s9
-    PkgConfig::SDL2
-    PkgConfig::SDL2_TTF
-    PkgConfig::FFTW3F
+    PkgConfig::SDL3
+    PkgConfig::SDL3_TTF
     PkgConfig::LWS
+    pffft
     pn
     s9_www
     m
@@ -85,4 +138,36 @@ target_compile_definitions(s9_schema PRIVATE PN_SCHEMA_ONLY)
 target_include_directories(s9_schema PRIVATE src)
 target_link_libraries(s9_schema pn)
 
+# Readout benchmark: the spectrogram's readout timed at the display's defaults, for sizing a machine
+add_executable(cq_bench tools/cq_bench.c src/constant_q.c src/fft.c src/window_function.c src/s9_log.c)
+target_include_directories(cq_bench PRIVATE src)
+target_link_libraries(cq_bench PkgConfig::SDL3 pffft m)
+
+# The tracker over a file, for the harness in validation/tracker
+add_executable(tracker_vectors tools/tracker_vectors.c
+    src/tracker.c src/harmonic_readout.c src/fft.c src/window_function.c src/s9_log.c)
+target_include_directories(tracker_vectors PRIVATE src)
+target_link_libraries(tracker_vectors PkgConfig::SDL3 pffft m)
+
 add_subdirectory(test)
+
+# The package: the program, its documentation and its copyright notices,
+# with the runtime libraries it links found by dpkg-shlibdeps, as a Debian
+# package for the machine it is built on (cmake --build build --target package).
+install(TARGETS s9 RUNTIME DESTINATION bin)
+install(FILES README.md packaging/copyright DESTINATION share/doc/s9)
+
+set(CPACK_GENERATOR DEB)
+set(CPACK_PACKAGE_NAME s9)
+set(CPACK_PACKAGE_VERSION ${S9_VERSION})
+set(CPACK_PACKAGE_CONTACT "Shea Ako <commits@hyperspasm.com>")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "real-time audio visualizer")
+set(CPACK_PACKAGE_DESCRIPTION "An oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram, drawn from a live audio input. Runs on the console through SDL's KMSDRM driver as well as on a desktop, and serves its parameters and a web interface over a websocket.")
+set(CPACK_PACKAGING_INSTALL_PREFIX /usr)
+set(CPACK_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)   # 755, whatever the umask
+set(CPACK_STRIP_FILES ON)
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_SECTION sound)
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+include(CPack)

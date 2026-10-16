@@ -24,6 +24,7 @@ typedef enum {
 	PN_SCHEMA_NOT_GROUP,       // a node has children but is not a group
 	PN_SCHEMA_TOO_DEEP,        // the tree has more than PN_MAX_DEPTH levels
 	PN_SCHEMA_PATH_TOO_LONG,   // a path does not fit in PN_MAX_PATH with its terminator
+	PN_SCHEMA_BAD_UNIT,        // a unit on a node that is not an int or a float, or one that is empty or contains a forbidden byte
 } pn_schema_result_t;
 
 // Check a tree against the requirements above. If offender is not NULL it

@@ -14,14 +14,14 @@ FIXTURES = Path(__file__).resolve().parents[2] / "test" / "fixtures"
 # --- Example schemas, matching the C trees the fixtures were generated from ---
 
 class AmpEq:
-    bass = pn.Float(min=-12.0, max=12.0, step=0.5)
-    treble = pn.Float(min=-12.0, max=12.0, step=0.5)
+    bass = pn.Float(min=-12.0, max=12.0, step=0.5, unit="dB")
+    treble = pn.Float(min=-12.0, max=12.0, step=0.5, unit="dB")
 
 
 class Amp:
     """The example schema from MANIFEST.md."""
     power = pn.Bool()
-    volume = pn.Int(min=0, max=100, step=1)
+    volume = pn.Int(min=0, max=100, step=1, unit="%")
     eq = pn.Group(AmpEq)
     input = pn.Enum(labels=["mic", "line", "aux"])
     name = pn.String(max_len=32)
@@ -32,18 +32,18 @@ class Amp:
         pass
 
 
-AMP_HASH = 0xFB9C41F2
+AMP_HASH = 0x76A2B061
 
 
 class MixerEq:
     enabled = pn.Bool()
-    bass = pn.Float(min=-12.0, max=12.0, step=0.1)
-    mid = pn.Float(min=-12.0, max=12.0, step=0.1)
-    treble = pn.Float(min=-12.0, max=12.0, step=0.1)
+    bass = pn.Float(min=-12.0, max=12.0, step=0.1, unit="dB")
+    mid = pn.Float(min=-12.0, max=12.0, step=0.1, unit="dB")
+    treble = pn.Float(min=-12.0, max=12.0, step=0.1, unit="dB")
 
 
 class MixerChannel:
-    gain = pn.Float(min=-72.0, max=6.0, step=0.1)
+    gain = pn.Float(min=-72.0, max=6.0, step=0.1, unit="dB")
     pan = pn.Float(min=-1.0, max=1.0, step=0.01)
     input = pn.Enum(labels=["mic", "line"])
     eq = pn.Group(MixerEq)
@@ -51,7 +51,7 @@ class MixerChannel:
 
 class Mixer:
     """The example mixer: eight channels added as instance attributes."""
-    master_gain = pn.Float(min=-72.0, max=6.0, step=0.1)
+    master_gain = pn.Float(min=-72.0, max=6.0, step=0.1, unit="dB")
     master_mute = pn.Bool()
 
     def __init__(self):
@@ -155,6 +155,38 @@ def test_parse_fixture():
     assert by["amp/reset"].type == ParamType.ACTION
     assert by["amp/eq/bass"].name == "bass"
     assert by["amp/level"].readonly and not by["amp/volume"].readonly
+    assert (by["amp/volume"].unit, by["amp/eq/bass"].unit, by["amp/level"].unit) == ("%", "dB", None)
+
+
+def test_unit_is_written_and_read_back():
+    class R:
+        f = pn.Float(min=0.0, max=1.0, step=0.0, unit="Hz")
+        i = pn.Int(min=0, max=1, step=1, unit="cents", readonly=True)
+        plain = pn.Int(min=0, max=1, step=1)
+
+    text = manifest.dump(R(), "r")
+    assert text.split("\n")[1:4] == [
+        "r/f float:Hz 0x00000000 0x3f800000 0x00000000",
+        "r/i int:cents 0 1 1 ro",
+        "r/plain int 0 1 1",
+    ]
+    m = manifest.parse(text)
+    assert [e.unit for e in m.entries] == ["Hz", "cents", None]
+    assert m.schema_hash == m.declared_hash
+
+
+def test_unit_changes_the_hash():
+    class A:
+        f = pn.Float(min=0.0, max=1.0, step=0.0, unit="Hz")
+
+    class B:
+        f = pn.Float(min=0.0, max=1.0, step=0.0, unit="kHz")
+
+    class C:
+        f = pn.Float(min=0.0, max=1.0, step=0.0)
+
+    hashes = {manifest.schema_hash(manifest.dump(cls(), "r")) for cls in (A, B, C)}
+    assert len(hashes) == 3
 
 
 def test_readonly_is_marked_and_read_back():
@@ -187,13 +219,13 @@ def test_parse_round_trips_through_dump():
 
 def test_parse_annotated_text():
     text = (
-        "# pn manifest v1 amp fnv1a32=fb9c41f2\r\n"
+        "# pn manifest v1 amp fnv1a32=76a2b061\r\n"
         "\r\n"
         "# Front panel\r\n"
         "amp/power\tbool\r\n"
-        "amp/volume   int 0 100 1   # percent\r\n"
-        "amp/eq/bass  float 0xc1400000 0x41400000 0x3f000000\r\n"
-        "amp/eq/treble float 0xc1400000 0x41400000 0x3f000000\r\n"
+        "amp/volume   int:% 0 100 1   # percent\r\n"
+        "amp/eq/bass  float:dB 0xc1400000 0x41400000 0x3f000000\r\n"
+        "amp/eq/treble float:dB 0xc1400000 0x41400000 0x3f000000\r\n"
         "amp/input enum mic|line|aux\r\n"
         "amp/name string 32\r\n"
         "amp/level  float 0x00000000 0x3f800000 0x00000000  ro   # a meter\r\n"
@@ -225,6 +257,10 @@ def test_parse_without_header():
     "r/a enum\n",                           # no labels
     "r/a enum mic|li/ne\n",                 # slash in a label
     "r/a string -1\n",                      # negative max_len
+    "r/a bool:dB\n",                        # a unit on a bool
+    "r/a enum:dB mic\n",                    # a unit on an enum
+    "r/a int: 0 1 1\n",                     # an empty unit
+    "r/a int:a:b 0 1 1\n",                  # a colon in a unit
     "r/a bool\ns/b bool\n",                 # two roots
     "# pn manifest v1 s fnv1a32=00000000\nr/a bool\n",  # header root mismatch
     "\n",                                   # nothing at all
@@ -243,6 +279,15 @@ def test_parse_rejects_invalid_utf8():
 
 def test_validate_ok():
     manifest.validate(Amp(), "amp")
+
+
+@pytest.mark.parametrize("unit", ["", "a:b", "per cent", "d#B"])
+def test_validate_bad_unit(unit):
+    class R:
+        f = pn.Float(min=0.0, max=1.0, step=0.0, unit=unit)
+
+    with pytest.raises(manifest.SchemaError):
+        manifest.validate(R(), "r")
 
 
 @pytest.mark.parametrize("name", ["", "my root", "a/b", "a#b", "a|b", "a\tb", "\x7f"])

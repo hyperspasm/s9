@@ -55,15 +55,15 @@ void stereo_spectrum_free(stereo_spectrum_t **ss) {
 
 void stereo_spectrum_render(stereo_spectrum_t *ss, SDL_Renderer *renderer) {
 	SDL_Rect viewport, half;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 	half = viewport;
 	half.h = viewport.h / 2;
-	SDL_RenderSetViewport(renderer, &half);
+	SDL_SetRenderViewport(renderer, &half);
 	spectrum_render(ss->left, renderer);
 	half.y += half.h;
-	SDL_RenderSetViewport(renderer, &half);
+	SDL_SetRenderViewport(renderer, &half);
 	spectrum_render(ss->right, renderer);
-	SDL_RenderSetViewport(renderer, &viewport);
+	SDL_SetRenderViewport(renderer, &viewport);
 }
 
 uint32_t stereo_spectrum_frame(const stereo_spectrum_t *ss) {

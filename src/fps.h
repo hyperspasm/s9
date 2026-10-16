@@ -3,7 +3,7 @@
 
 #include "s9.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 typedef struct fps fps_t;
 

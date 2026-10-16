@@ -1,6 +1,6 @@
 # s9
 
-A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL2 for rendering and FFTW for spectral analysis.
+A real-time audio visualizer that captures live audio input and displays it across multiple synchronized views: an oscilloscope, a stereo lissajous display, a spectrum analyzer, VU meters, a periodic analyzer with harmonics and waveform views, and a scrolling spectrogram. Built with SDL3 for rendering and PFFFT for spectral analysis.
 
 ## Usage
 
@@ -10,9 +10,10 @@ s9 [options]
 
 | Option | Description | Default |
 |---|---|---|
-| `-w, --window_width` | Window width in pixels | 1280 |
-| `-h, --window_height` | Window height in pixels | 720 |
+| `-w, --window_width` | Window width, in the display's points | 1280 |
+| `-h, --window_height` | Window height, in the display's points | 720 |
 | `-a, --audio_device` | Audio input device name | System default |
+| `-d, --audio_driver` | Audio driver, by SDL's name for it (`alsa`, `pipewire`, `coreaudio`, ...); the log lists the ones available | SDL's choice |
 | `-r, --sample_rate` | Sample rate in Hz | 44100 |
 | `-l, --log_level` | Log verbosity (0-3) | 1 |
 | `-p, --port` | Port of the parameter server and the web interface | 8080 |
@@ -22,7 +23,11 @@ s9 [options]
 
 Settings can also be specified in the `settings` file of s9's home directory as key-value pairs (e.g. `sample_rate=48000`), one per line, `#` starting a comment. Command-line arguments override the file.
 
-Keys `1` to `5` select the full, scope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
+When the audio input stops delivering or is unplugged, s9 closes it and opens the input again, and while there is none to open it tries again every second.
+
+Keys `1` to `5` select the full, oscilloscope, spectrum, periodic, and spectrogram display modes. The mode is also the `s9/mode` parameter below.
+
+The window is drawn at the display's pixel density: on a high-density display it has the same size and layout and more pixels, with the text, lines and traces sharp. The startup log reports the window's size, its size in pixels and the scale it is drawn at.
 
 ## Parameters
 
@@ -42,16 +47,16 @@ The web interface at `/` is [www/app.js](www/app.js): a control for every parame
 
 ### Dependencies
 
-The build needs a C compiler, CMake, pkg-config, and four libraries: SDL2, SDL2_ttf, FFTW (single precision), and libwebsockets. pn's protobuf sources are committed, so nothing generates code at build time. The pn submodule must be checked out.
+The build needs a C compiler, CMake, pkg-config, and three libraries: SDL3, SDL3_ttf, and libwebsockets. The FFT is [PFFFT](extern/pffft/pffft.h), compiled in from the tree. pn's protobuf sources are committed, so nothing generates code at build time. The pn submodule must be checked out.
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt install build-essential cmake pkg-config git libsdl2-dev libsdl2-ttf-dev libfftw3-dev libwebsockets-dev
+sudo apt install build-essential cmake pkg-config git libsdl3-dev libsdl3-ttf-dev libwebsockets-dev
 ```
 
 **macOS:**
 ```bash
-brew install cmake pkg-config sdl2 sdl2_ttf fftw libwebsockets
+brew install cmake pkg-config sdl3 sdl3_ttf libwebsockets
 ```
 
 **After cloning:**
@@ -98,3 +103,18 @@ open s9.xcodeproj
 ```bash
 ./s9
 ```
+
+### Package
+
+The build makes a Debian package for the machine it runs on: the program, this document and the copyright notices, depending on the runtime libraries the program links.
+
+```bash
+cmake --build build --target package
+sudo apt install ./build/s9_0.0.1_arm64.deb
+```
+
+The version is the last tag of the form `vX.Y.Z`. A build past the tag carries the commits since and the hash, as in `0.0.1+3.g9734b76`, which apt orders after the tag and before the next one; uncommitted changes add `+dirty`. CMake reads the version when it configures, which a commit triggers again; after tagging, run `cmake -S . -B build` before packaging.
+
+## License
+
+Copyright Shea Ako, all rights reserved for now; see [LICENSE](LICENSE). The third-party pieces compiled in, and their licenses, are listed in [packaging/copyright](packaging/copyright).

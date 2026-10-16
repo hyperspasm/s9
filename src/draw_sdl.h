@@ -1,8 +1,8 @@
 #ifndef draw_sdl_h
 #define draw_sdl_h
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 typedef enum {
 	ANCHOR_TOP_LEFT,
@@ -16,10 +16,29 @@ typedef enum {
 	ANCHOR_MIDDLE,
 } anchor_position_t;
 
+// -- the scale
+
+// The views draw at the renderer's scale: their lengths, margins and fonts
+// are given in the pixels of a 1:1 display and drawn that many times larger.
+// The shell sets it from the window's display scale; a renderer without one
+// draws at 1.
+float draw_sdl_scale(SDL_Renderer *renderer);
+void draw_sdl_set_scale(SDL_Renderer *renderer, float scale);
+
 // -- general
 
 #define SDL_SET_RENDER_DRAW_COLOR(renderer, color) \
 	SDL_SetRenderDrawColor((renderer), (color)->r, (color)->g, (color)->b, (color)->a)
+
+// a color as a vertex carries it
+static inline SDL_FColor draw_sdl_fcolor(SDL_Color color) {
+	return (SDL_FColor){ color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f };
+}
+
+// A line one pixel of the design wide, from (x1, y1) to (x2, y2): SDL's line
+// at scale 1; above it, when the line is level or upright, a band as wide as
+// the scale and as long as the pixels the line covers.
+void draw_sdl_line(SDL_Renderer *renderer, float x1, float y1, float x2, float y2);
 
 // clear the current viewport with a given background color, or black in color is NULL
 void draw_sdl_clear_viewport(SDL_Renderer *renderer, SDL_Color *color);

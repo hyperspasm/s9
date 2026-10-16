@@ -6,7 +6,7 @@
 #include "window_function.h"
 #include "palette.h"
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 // A scrolling spectrogram: log frequency across, time down with the newest
 // row at the bottom, and level as color. Each row is one hop of audio,

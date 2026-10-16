@@ -423,7 +423,10 @@ function parseEntry(line) {
   let fields;
   try { fields = utf8Strict.decode(line).split(" "); } catch { throw new ManifestError("invalid UTF-8"); }
   if (fields.length < 2) throw new ManifestError(`${fields[0]}: expected a path and a type`);
-  const [path, type, ...meta] = fields;
+  const [path, typed, ...meta] = fields;
+  const colon = typed.indexOf(":");   // the unit of an int or float follows its type
+  const type = colon < 0 ? typed : typed.slice(0, colon);
+  const unit = colon < 0 ? null : typed.slice(colon + 1);
   const readonly = meta.length > 0 && meta[meta.length - 1] === "ro";
   if (readonly) meta.pop();
   for (const segment of path.split("/")) {
@@ -432,8 +435,14 @@ function parseEntry(line) {
   }
   if (!TYPES.includes(type)) throw new ManifestError(`${path}: unknown type ${type}`);
   if (readonly && type === "action") throw new ManifestError(`${path}: an action cannot be read-only`);
+  if (unit !== null) {
+    if (type !== "int" && type !== "float") throw new ManifestError(`${path}: a ${type} has no unit`);
+    const problem = unit.includes(":") ? "contains a colon" : nameProblem(unit);
+    if (problem) throw new ManifestError(`${path}: unit ${unit} ${problem}`);
+  }
   const expect = n => { if (meta.length !== n) throw new ManifestError(`${path}: ${type} takes ${n} constraint fields, got ${meta.length}`); };
   const entry = { path, type, name: path.slice(path.lastIndexOf("/") + 1), readonly };
+  if (unit !== null) entry.unit = unit;
   if (type === "int") {
     expect(3);
     [entry.min, entry.max, entry.step] = meta.map(f => parseInt32(f, path));

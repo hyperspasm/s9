@@ -46,11 +46,12 @@ class _Param:
 class Float(_Param):
     param_type = ParamType.FLOAT
 
-    def __init__(self, *, default=0.0, min=0.0, max=1.0, step=0.0, readonly=False):
+    def __init__(self, *, default=0.0, min=0.0, max=1.0, step=0.0, unit=None, readonly=False):
         super().__init__(default=default, readonly=readonly)
         self.min = min
         self.max = max
         self.step = step
+        self.unit = unit    # what the value is measured in, or None; see MANIFEST.md
 
     def _coerce(self, value):
         return float(value)
@@ -66,11 +67,12 @@ class Float(_Param):
 class Int(_Param):
     param_type = ParamType.INT
 
-    def __init__(self, *, default=0, min=0, max=100, step=1, readonly=False):
+    def __init__(self, *, default=0, min=0, max=100, step=1, unit=None, readonly=False):
         super().__init__(default=default, readonly=readonly)
         self.min = min
         self.max = max
         self.step = step
+        self.unit = unit    # what the value is measured in, or None; see MANIFEST.md
 
     def _coerce(self, value):
         return int(value)

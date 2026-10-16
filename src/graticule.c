@@ -4,6 +4,8 @@
 #include "draw_sdl.h"
 
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
 
 typedef struct graticule {
 	SDL_Renderer *renderer;
@@ -65,7 +67,8 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 	SDL_RenderClear(renderer);
 
 	const SDL_Rect *rect = &grat->rect;
-	float major_line_width = 1.0f;
+	float scale = draw_sdl_scale(renderer);
+	float major_line_width = 1.0f * scale;
 
 	// draw minor vertical lines (1/10, 2/10, 3/10, 4/10, 6/10, 7/10, 8/10, 9/10)
 	SDL_SET_RENDER_DRAW_COLOR(renderer, &grat->config.minor_color);
@@ -73,7 +76,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		if (i == 5) continue;  // skip center (major line)
 
 		float x = rect->x + (rect->w * i / 10.0f);
-		SDL_RenderDrawLineF(renderer,
+		draw_sdl_line(renderer,
 			x, rect->y,
 			x, rect->y + rect->h);
 	}
@@ -83,7 +86,7 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 		if (i == 5) continue;  // skip center (major line)
 
 		float y = rect->y + (rect->h * i / 10.0f);
-		SDL_RenderDrawLineF(renderer,
+		draw_sdl_line(renderer,
 			rect->x, y,
 			rect->x + rect->w, y);
 	}
@@ -127,17 +130,18 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 
 	// draw labels
 	if (grat->label_bottom || grat->label_top) {
-		TTF_Font *font = s9_open_font(16);
+		TTF_Font *font = s9_open_font(16.0f * scale);
+		int inset = (int)lround(4 * scale);
 		if (font) {
 			if (grat->label_bottom) {
 				draw_sdl_render_text_at_position(renderer, font, grat->label_bottom,
 					ANCHOR_BOTTOM_LEFT, grat->config.major_color,
-					rect->x + 4, rect->y + rect->h - 4);
+					rect->x + inset, rect->y + rect->h - inset);
 			}
 			if (grat->label_top) {
 				draw_sdl_render_text_at_position(renderer, font, grat->label_top,
 					ANCHOR_TOP_LEFT, grat->config.major_color,
-					rect->x + 4, rect->y + 4);
+					rect->x + inset, rect->y + inset);
 			}
 			TTF_CloseFont(font);
 		}
@@ -146,9 +150,9 @@ static void draw_graticule(graticule_t *grat, SDL_Renderer *renderer) {
 
 static S9_FORCE_INLINE void prepare_to_draw(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect *rect) {
 	SDL_Rect viewport;
-	SDL_RenderGetViewport(renderer, &viewport);
+	SDL_GetRenderViewport(renderer, &viewport);
 
-	if (grat->renderer != renderer || !SDL_RectEquals(&grat->rect, rect)) {
+	if (grat->renderer != renderer || !SDL_RectsEqual(&grat->rect, rect)) {
 		grat->renderer = renderer;
 		grat->rect = *rect;
 
@@ -160,15 +164,15 @@ static S9_FORCE_INLINE void prepare_to_draw(graticule_t *grat, SDL_Renderer *ren
 		grat->texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, viewport.w, viewport.h);
 		CHECK_ALLOC(grat->texture, return);
 
-		int ret = SDL_SetRenderTarget(renderer, grat->texture);
-		CHECK_ERROR(ret == 0,
+		bool ret = SDL_SetRenderTarget(renderer, grat->texture);
+		CHECK_ERROR(ret,
 			SDL_DestroyTexture(grat->texture);
 			grat->texture = NULL;
 			return,
 			"could not set render target");
 
 		ret = SDL_SetTextureBlendMode(grat->texture, SDL_BLENDMODE_BLEND);
-		CHECK_ERROR(ret == 0,
+		CHECK_ERROR(ret,
 			SDL_DestroyTexture(grat->texture);
 			grat->texture = NULL;
 			return,
@@ -185,8 +189,8 @@ void graticule_render(graticule_t *grat, SDL_Renderer *renderer, const SDL_Rect 
 
 	if (grat->texture) {
 		SDL_Rect viewport;
-		SDL_RenderGetViewport(renderer, &viewport);
-		SDL_Rect dst_rect = { 0, 0, viewport.w, viewport.h };
-		SDL_RenderCopy(renderer, grat->texture, NULL, &dst_rect);
+		SDL_GetRenderViewport(renderer, &viewport);
+		SDL_FRect dst_rect = { 0.0f, 0.0f, (float)viewport.w, (float)viewport.h };
+		SDL_RenderTexture(renderer, grat->texture, NULL, &dst_rect);
 	}
 }
