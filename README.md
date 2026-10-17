@@ -31,7 +31,7 @@ The window is drawn at the display's pixel density: on a high-density display it
 
 ## Parameters
 
-While running, s9 serves its parameters over [pn](pn/README.md) as a websocket hub on the port given by `--port`: every connected client sends packets and receives everything the server sends, so clients see each other's changes. A client requests the subprotocol `pn` and sends one pn packet per binary message. The same port serves the web interface at `/` and the running program's manifest at `/s9.manifest`.
+While running, s9 serves its parameters over [pn](https://github.com/hyperspasm/pn) as a websocket hub on the port given by `--port`: every connected client sends packets and receives everything the server sends, so clients see each other's changes. A client requests the subprotocol `pn` and sends one pn packet per binary message. The same port serves the web interface at `/` and the running program's manifest at `/s9.manifest`.
 
 The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is committed as [s9.manifest](s9.manifest), so a client can read the parameters and their ranges from the file and check the hash the running program reports. `s9_schema`, built alongside `s9`, writes the manifest; `ctest` fails when the committed file no longer matches it. After changing the schema:
 
@@ -39,7 +39,7 @@ The schema is declared in [s9_params.c](src/s9_params.c) and its manifest is com
 ./build/s9_schema > s9.manifest
 ```
 
-The web interface at `/` is [www/app.js](www/app.js): a control for every parameter, generated from the served manifest, live over the websocket through the JavaScript pn client, which is linked into `www/pn/` from [pn/js](pn/js). It warns when the running program's schema differs from the manifest it was generated from.
+The web interface at `/` is [www/app.js](www/app.js): a control for every parameter, generated from the served manifest, live over the websocket through the JavaScript pn client, which is linked into `www/pn/` from [pn/js](https://github.com/hyperspasm/pn/tree/main/js). It warns when the running program's schema differs from the manifest it was generated from.
 
 [python/s9sd](python/s9sd) is a Stream Deck controller built on this: its dials drive the oscilloscope, its top corner keys step the display mode, it takes its ranges and the mode names from the manifest, and it warns when the server's schema differs. It connects to s9 on this machine at the default port; `--url` points it elsewhere.
 
@@ -84,7 +84,7 @@ The C tests need nothing beyond the build. Two tests use more when it is there a
 
 Three parts of the tree are Python, each with its own venv made by its own script; none is needed to build or run s9:
 
-- [pn/python](pn/python), the pn implementation in Python with the `pn-manifest` tool and the hub test: `pn/make_venv.sh`.
+- [pn/python](https://github.com/hyperspasm/pn/tree/main/python), the pn implementation in Python with the `pn-manifest` tool and the hub test: `pn/make_venv.sh`.
 - [python](python), the Stream Deck controller: `python/make_venv.sh`.
 - [validation](validation), the numeric oracle that generates the golden tables the DSP tests check against: `validation/make_venv.sh`.
 
